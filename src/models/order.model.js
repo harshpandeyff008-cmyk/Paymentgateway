@@ -10,6 +10,10 @@ export const OrderModel = {
     return { id: result.lastID, orderCode, amount, customerName, customerPhone, status: 'PENDING', createdAt, expiresAt };
   },
 
+  async getByCode(orderCode) {
+    return this.findByCode(orderCode);
+  },
+
   async findByCode(orderCode) {
     return query.get('SELECT * FROM orders WHERE order_code = ?', [orderCode]);
   },

@@ -1,3 +1,4 @@
+import { triggerWebhook } from '../../services/matchingEngine.js';
 import { OrderModel } from '../models/order.model.js';
 import { PaymentModel } from '../models/payment.model.js';
 import { SettingModel } from '../models/setting.model.js';
@@ -97,7 +98,7 @@ export const AdminController = {
       const { orderCode, utr } = req.body;
       if (!orderCode) return res.status(400).json({ success: false, error: 'Order code is required' });
 
-      const order = await OrderModel.getByCode(orderCode);
+      const order = await OrderModel.findByCode(orderCode);
       if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
       const utrToUse = (utr && utr.trim()) ? utr.trim() : (order.utr || '');
@@ -114,7 +115,7 @@ export const AdminController = {
       const { orderCode } = req.params;
       const { utr, sender = 'Manual Verification (Admin)' } = req.body;
 
-      const order = await OrderModel.getByCode(orderCode);
+      const order = await OrderModel.findByCode(orderCode);
       if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
       const now = Date.now();
@@ -151,6 +152,9 @@ export const AdminController = {
         });
       }
 
+      if (order.webhook_url) {
+        triggerWebhook(order.webhook_url, { ...order, status: 'PAID', utr: finalUtr, sender_info: sender, paid_at: now });
+      }
       return res.json({ success: true, message: `Order ${orderCode} marked as PAID!` });
     } catch (err) {
       next(err);
