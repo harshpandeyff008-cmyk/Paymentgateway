@@ -187,6 +187,11 @@ export async function initDatabase() {
       await query.run(
         `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at)
          VALUES (?, ?, ?, 'ACTIVE', ?)`,
+        ['andriodTool', 'licence-management-4793d.web.app', 'pg_live_c0e7a1772532d02923f7a5213d25a6947ba6', now]
+      );
+      await query.run(
+        `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at)
+         VALUES (?, ?, ?, 'ACTIVE', ?)`,
         ['Universal Fallback (*)', '*', 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0', now]
       );
     }

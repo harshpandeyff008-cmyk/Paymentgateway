@@ -1,9 +1,7 @@
 import logger from '../utils/logger.js';
-import { config } from '../../config.js';
 
-const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${config.cloudSync?.projectId || 'ff-store-4a61e'}/databases/(default)/documents/ff_store`;
+const FIRESTORE_BASE = 'https://firestore.googleapis.com/v1/projects/ff-store-4a61e/databases/(default)/documents/ff_store';
 
-// Helper to convert plain JS object to Firestore document fields
 function toFirestoreFields(obj) {
   const fields = {};
   for (const [key, val] of Object.entries(obj)) {
@@ -28,7 +26,6 @@ function toFirestoreFields(obj) {
   return fields;
 }
 
-// Helper to convert Firestore fields back to plain JS object
 function fromFirestoreFields(fields) {
   if (!fields) return {};
   const obj = {};
@@ -49,34 +46,22 @@ function fromFirestoreFields(fields) {
 }
 
 export const CloudSyncService = {
-  /**
-   * Fetch persistent settings from Firestore ff_store/gateway_settings
-   */
   async loadSettings() {
     try {
       const url = `${FIRESTORE_BASE}/gateway_settings`;
-      const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
-      if (!res.ok) {
-        if (res.status === 404) {
-          logger.info('[CloudSync] No cloud settings doc found yet. Will initialize on first write.');
-          return null;
-        }
-        logger.warn(`[CloudSync] Failed to fetch settings from cloud (${res.status})`);
-        return null;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const settings = fromFirestoreFields(data.fields);
+        logger.info(`[CloudSync] Loaded settings from Firestore: upi="${settings.merchant_upi_vpa}"`);
+        return settings;
       }
-      const data = await res.json();
-      const settings = fromFirestoreFields(data.fields);
-      logger.info(`[CloudSync] Successfully loaded persistent settings from Firestore: merchant_upi_vpa="${settings.merchant_upi_vpa || 'not set'}"`);
-      return settings;
-    } catch (err) {
-      logger.warn(`[CloudSync] Network error fetching cloud settings: ${err.message}`);
-      return null;
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to load settings: ${e.message}`);
     }
+    return null;
   },
 
-  /**
-   * Persist current settings into Firestore ff_store/gateway_settings
-   */
   async saveSettings(settings) {
     try {
       const url = `${FIRESTORE_BASE}/gateway_settings`;
@@ -92,44 +77,34 @@ export const CloudSyncService = {
         body
       });
       if (res.ok) {
-        logger.info('[CloudSync] Settings successfully backed up to Cloud Firestore.');
+        logger.info('[CloudSync] Saved settings to Firestore');
         return true;
-      } else {
-        const text = await res.text();
-        logger.warn(`[CloudSync] Failed to save settings to Cloud Firestore (${res.status}): ${text}`);
-        return false;
       }
-    } catch (err) {
-      logger.warn(`[CloudSync] Network error saving cloud settings: ${err.message}`);
-      return false;
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save settings: ${e.message}`);
     }
+    return false;
   },
 
-  /**
-   * Fetch all domain API keys from Firestore ff_store/gateway_domain_keys
-   */
   async loadDomainKeys() {
     try {
       const url = `${FIRESTORE_BASE}/gateway_domain_keys`;
-      const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
-      if (!res.ok) return [];
-      const data = await res.json();
-      const parsed = fromFirestoreFields(data.fields);
-      if (parsed.keys_json) {
-        try {
-          return JSON.parse(parsed.keys_json);
-        } catch (_) {}
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = fromFirestoreFields(data.fields);
+        if (parsed.keys_json) {
+          const keys = JSON.parse(parsed.keys_json);
+          logger.info(`[CloudSync] Loaded ${keys.length} domain keys from Firestore`);
+          return keys;
+        }
       }
-      return [];
-    } catch (err) {
-      logger.warn(`[CloudSync] Network error fetching domain keys: ${err.message}`);
-      return [];
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to load domain keys: ${e.message}`);
     }
+    return [];
   },
 
-  /**
-   * Save domain API keys array into Firestore ff_store/gateway_domain_keys
-   */
   async saveDomainKeys(keysArray) {
     try {
       const url = `${FIRESTORE_BASE}/gateway_domain_keys`;
@@ -145,14 +120,13 @@ export const CloudSyncService = {
         body
       });
       if (res.ok) {
-        logger.info('[CloudSync] Domain API keys successfully backed up to Cloud Firestore.');
+        logger.info(`[CloudSync] Saved ${keysArray.length} domain keys to Firestore`);
         return true;
       }
-      return false;
-    } catch (err) {
-      logger.warn(`[CloudSync] Network error saving domain keys: ${err.message}`);
-      return false;
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save domain keys: ${e.message}`);
     }
+    return false;
   }
 };
 
