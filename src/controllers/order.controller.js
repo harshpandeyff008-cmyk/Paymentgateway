@@ -1,5 +1,5 @@
 import { OrderModel } from '../models/order.model.js';
-import { claimOrderWithUtr } from '../services/matchingEngine.service.js';
+import { claimOrderWithUtr, reconcileUnmatchedPayments } from '../services/matchingEngine.service.js';
 import { buildUpiUri, streamQrPng, generateQrDataUrl } from '../utils/qr.util.js';
 import { config } from '../../config.js';
 import { logActivity } from '../../db/database.js';
@@ -53,6 +53,9 @@ export const OrderController = {
         amount: parsedAmount,
         orderCode
       });
+
+      // Trigger immediate reconciliation in case customer already paid
+      if (typeof reconcileUnmatchedPayments === 'function') reconcileUnmatchedPayments().catch(() => {});
 
       const qrDataUrl = await generateQrDataUrl(upiUri);
 

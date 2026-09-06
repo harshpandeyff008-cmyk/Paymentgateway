@@ -5,6 +5,7 @@ import { apiKeyAuth } from '../middlewares/apiKeyAuth.js';
 const router = Router();
 
 // Order creation is protected by API Key
+router.post('/', apiKeyAuth, OrderController.create);
 router.post('/create', apiKeyAuth, OrderController.create);
 
 // Public status check and manual UTR submission for checkout page / external website sessions
