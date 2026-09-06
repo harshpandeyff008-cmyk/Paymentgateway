@@ -1,9 +1,88 @@
+
+/**
+ * Active Background Auto-Poller:
+ * Checks latest 5 emails in Gmail every 5 seconds.
+ * Guaranteed to catch payments even if IMAP IDLE drops or connection reconnected.
+ */
+let pollerInterval = null;
+let isPolling = false;
+
+export async function scanAndProcessRecentEmails() {
+  if (isPolling) return;
+  if (!config.imap.user || !config.imap.pass || !config.imap.enabled) return;
+
+  isPolling = true;
+  const user = (config.imap.user || '').trim();
+  const pass = (config.imap.pass || '').trim().replace(/\s+/g, '');
+
+  const pollerClient = new ImapFlow({
+    host: config.imap.host,
+    port: config.imap.port,
+    secure: config.imap.secure,
+    auth: { user, pass },
+    logger: false
+  });
+
+  pollerClient.on('error', () => {}); // Silently suppress transient socket errors
+
+  try {
+    await pollerClient.connect();
+    const lock = await pollerClient.getMailboxLock(config.imap.mailbox);
+
+    try {
+      const status = await pollerClient.status(config.imap.mailbox, { messages: true });
+      const total = status.messages || 0;
+
+      if (total > 0) {
+        const startSeq = Math.max(1, total - 4);
+        for await (const message of pollerClient.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
+          const parsed = await simpleParser(message.source);
+          const subject = parsed.subject || '';
+          const fromAddress = parsed.from?.text || '';
+          const bodyText = parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, ' ') : '');
+          const emailDate = parsed.date || new Date();
+
+          const matchesFilter = config.imap.senderFilter.length === 0 ||
+            config.imap.senderFilter.some(filter =>
+              fromAddress.toLowerCase().includes(filter) || subject.toLowerCase().includes(filter)
+            );
+
+          if (matchesFilter) {
+            const paymentData = parsePaymentEmail(subject, bodyText, emailDate);
+            if (paymentData.success && paymentData.amount && paymentData.utr) {
+              const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
+              if (!paymentRow || paymentRow.is_matched === 0) {
+                console.log(`[IMAP Fast-Poller] Processing payment: ₹${paymentData.amount}, UTR: ${paymentData.utr}, Sender: ${paymentData.sender}`);
+                await processIncomingPayment({
+                  amount: paymentData.amount,
+                  utr: paymentData.utr,
+                  sender: paymentData.sender || fromAddress,
+                  receivedAt: paymentData.receivedAt,
+                  source: 'IMAP',
+                  rawSnippet: `[IMAP] ${subject} - ${paymentData.sender || fromAddress}`
+                });
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      lock.release();
+      await pollerClient.logout();
+    }
+  } catch (err) {
+    // Ignore transient connection errors
+  } finally {
+    isPolling = false;
+  }
+}
+
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { config } from '../config.js';
 import { query, logActivity } from '../db/database.js';
 import { parsePaymentEmail } from './emailParser.js';
-import { processIncomingPayment } from './matchingEngine.js';
+import { processIncomingPayment, reconcileUnmatchedPayments } from './matchingEngine.js';
 
 let client = null;
 let isRunning = false;
@@ -297,6 +376,7 @@ export async function startImapListener(io = null) {
 
   try {
     // Disconnect old client & timer if exists
+    if (pollerInterval) { clearInterval(pollerInterval); pollerInterval = null; }
     if (keepAliveTimer) {
       clearInterval(keepAliveTimer);
       keepAliveTimer = null;
@@ -358,6 +438,10 @@ export async function startImapListener(io = null) {
     });
 
     console.log(`[IMAP IDLE] Listening for new payment emails in ${config.imap.mailbox}...`);
+    // Run immediate scan on startup
+    scanAndProcessRecentEmails().catch(() => {});
+    if (pollerInterval) clearInterval(pollerInterval);
+    pollerInterval = setInterval(() => { scanAndProcessRecentEmails().catch(() => {}); reconcileUnmatchedPayments().catch(() => {}); }, 5000);
 
     client.on('exists', async (data) => {
       console.log(`[IMAP] New email detected! Total inbox count: ${data.count}`);

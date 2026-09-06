@@ -28,8 +28,9 @@ export async function processIncomingPayment({
     [utr]
   );
 
-  if (existingPayment) {
-    console.warn(`[MatchingEngine] Duplicate payment received with UTR: ${utr}. Ignoring.`);
+  // If this UTR was ALREADY successfully matched to an order, reject as duplicate
+  if (existingPayment && existingPayment.is_matched === 1) {
+    console.warn(`[MatchingEngine] Duplicate payment received with UTR: ${utr}. Already matched to order #${existingPayment.matched_order_id}.`);
     return {
       success: false,
       matched: false,
@@ -50,35 +51,48 @@ export async function processIncomingPayment({
     [utr, rawSnippet, rawSnippet, amount]
   );
 
-  // Step B: Time-Window Search for active pending orders matching this amount
-  const clockSkewToleranceMs = 90 * 1000; // 90 seconds clock skew tolerance
+  // Step B: Search for any PENDING orders matching this amount (within 30 minutes window)
   if (!matchingOrder) {
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE status = 'PENDING'
          AND ROUND(amount, 2) = ROUND(?, 2)
-         AND (created_at - ?) <= ?
-         AND (expires_at + ?) >= ?
-       ORDER BY created_at ASC 
+         AND ABS(created_at - ?) <= 30 * 60 * 1000
+       ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
-      [amount, clockSkewToleranceMs, receivedTimestamp, clockSkewToleranceMs, receivedTimestamp]
+      [amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
-  // Step C: Grace Period for recently expired orders (within 30 minutes of creation)
+  // Step C: Search for recently EXPIRED orders matching this amount (within 2 hours)
   if (!matchingOrder) {
-    const gracePeriodMs = 30 * 60 * 1000;
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE status = 'EXPIRED'
          AND ROUND(amount, 2) = ROUND(?, 2)
-         AND (? - created_at) <= ?
+         AND ABS(created_at - ?) <= 120 * 60 * 1000
        ORDER BY created_at DESC 
        LIMIT 1`,
-      [amount, receivedTimestamp, gracePeriodMs]
+      [amount, receivedTimestamp]
     );
     if (matchingOrder) {
       console.log(`[MatchingEngine] Auto-revived expired order ${matchingOrder.order_code} for payment!`);
+    }
+  }
+
+  // Step D: Fallback for any unpaid order with this amount created within 2 hours
+  if (!matchingOrder) {
+    matchingOrder = await query.get(
+      `SELECT * FROM orders 
+       WHERE status != 'PAID'
+         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND ABS(created_at - ?) <= 120 * 60 * 1000
+       ORDER BY id DESC 
+       LIMIT 1`,
+      [amount, receivedTimestamp]
+    );
+    if (matchingOrder) {
+      console.log(`[MatchingEngine] Fallback matched unpaid order ${matchingOrder.order_code} for payment!`);
     }
   }
 
@@ -93,12 +107,23 @@ export async function processIncomingPayment({
       [receivedTimestamp, utr, sender, matchingOrder.id]
     );
 
-    // Save payment as matched
-    const paymentResult = await query.run(
-      `INSERT INTO payments (utr, amount, sender, received_at, source, raw_snippet, matched_order_id, is_matched)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-      [utr, amount, sender, receivedTimestamp, source, rawSnippet, matchingOrder.id]
-    );
+    // Save or update payment as matched
+    let paymentId = existingPayment ? existingPayment.id : null;
+    if (existingPayment) {
+      await query.run(
+        `UPDATE payments 
+         SET matched_order_id = ?, is_matched = 1, amount = ?, sender = ?, source = ?
+         WHERE id = ?`,
+        [matchingOrder.id, amount, sender, source, existingPayment.id]
+      );
+    } else {
+      const paymentResult = await query.run(
+        `INSERT INTO payments (utr, amount, sender, received_at, source, raw_snippet, matched_order_id, is_matched)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+        [utr, amount, sender, receivedTimestamp, source, rawSnippet, matchingOrder.id]
+      );
+      paymentId = paymentResult.lastID;
+    }
 
     const updatedOrder = {
       ...matchingOrder,
@@ -134,7 +159,7 @@ export async function processIncomingPayment({
       ioInstance.to('admin_room').emit('payment_event', {
         type: 'ORDER_PAID',
         order: updatedOrder,
-        paymentId: paymentResult.lastID
+        paymentId
       });
 
       ioInstance.to('admin_room').emit('api_log', {
@@ -156,17 +181,21 @@ export async function processIncomingPayment({
       success: true,
       matched: true,
       order: updatedOrder,
-      paymentId: paymentResult.lastID
+        paymentId
     };
   } else {
     console.log(`[MatchingEngine] No active pending order found for ₹${amount} at time ${new Date(receivedTimestamp).toISOString()}`);
 
-    // Save unmatched payment for admin inspection or manual customer UTR claim
-    const paymentResult = await query.run(
-      `INSERT INTO payments (utr, amount, sender, received_at, source, raw_snippet, matched_order_id, is_matched)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, 0)`,
-      [utr, amount, sender, receivedTimestamp, source, rawSnippet]
-    );
+    let paymentId = existingPayment ? existingPayment.id : null;
+    if (!existingPayment) {
+      // Save unmatched payment for admin inspection or manual customer UTR claim
+      const paymentResult = await query.run(
+        `INSERT INTO payments (utr, amount, sender, received_at, source, raw_snippet, matched_order_id, is_matched)
+         VALUES (?, ?, ?, ?, ?, ?, NULL, 0)`,
+        [utr, amount, sender, receivedTimestamp, source, rawSnippet]
+      );
+      paymentId = paymentResult.lastID;
+    }
 
     await logActivity({
       eventType: 'UNMATCHED_PAYMENT',
@@ -179,7 +208,7 @@ export async function processIncomingPayment({
       ioInstance.to('admin_room').emit('payment_event', {
         type: 'UNMATCHED_PAYMENT',
         payment: {
-          id: paymentResult.lastID,
+          id: paymentId,
           utr,
           amount,
           sender,
@@ -200,7 +229,7 @@ export async function processIncomingPayment({
       success: true,
       matched: false,
       reason: 'NO_ACTIVE_ORDER_FOUND',
-      paymentId: paymentResult.lastID
+      paymentId
     };
   }
 }
@@ -363,3 +392,31 @@ export async function triggerWebhook(webhookUrl, orderData, eventType = 'payment
 }
 
 export default { processIncomingPayment, claimOrderWithUtr, setSocketIO, triggerWebhook };
+
+
+/**
+ * Auto-Reconciliation Engine: Scans unmatched payments and matches them with pending/expired orders
+ */
+export async function reconcileUnmatchedPayments() {
+  try {
+    const unmatched = await query.all(
+      `SELECT * FROM payments 
+       WHERE is_matched = 0 
+       ORDER BY received_at DESC 
+       LIMIT 20`
+    );
+
+    for (const p of unmatched) {
+      await processIncomingPayment({
+        amount: p.amount,
+        utr: p.utr,
+        sender: p.sender,
+        receivedAt: new Date(p.received_at),
+        source: p.source || 'RECONCILER',
+        rawSnippet: p.raw_snippet || ''
+      });
+    }
+  } catch (err) {
+    console.warn('[Reconcile Engine Notice]:', err.message);
+  }
+}

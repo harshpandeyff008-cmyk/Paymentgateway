@@ -92,6 +92,71 @@ export const AdminController = {
     }
   },
 
+    async reconcileOrder(req, res, next) {
+    try {
+      const { orderCode, utr } = req.body;
+      if (!orderCode) return res.status(400).json({ success: false, error: 'Order code is required' });
+
+      const order = await OrderModel.getByCode(orderCode);
+      if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+      const utrToUse = (utr && utr.trim()) ? utr.trim() : (order.utr || '');
+      const result = await claimOrderWithUtr(orderCode, utrToUse);
+
+      return res.json({ success: true, result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async markOrderPaidManually(req, res, next) {
+    try {
+      const { orderCode } = req.params;
+      const { utr, sender = 'Manual Verification (Admin)' } = req.body;
+
+      const order = await OrderModel.getByCode(orderCode);
+      if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+      const now = Date.now();
+      const finalUtr = (utr && utr.trim()) ? utr.trim() : `MANUAL-${now}`;
+
+      await query.run(
+        `UPDATE orders SET status = 'PAID', paid_at = ?, utr = ?, sender_info = ? WHERE id = ?`,
+        [now, finalUtr, sender, order.id]
+      );
+
+      // Check or insert payment
+      const existing = await query.get('SELECT id FROM payments WHERE utr = ?', [finalUtr]);
+      if (existing) {
+        await query.run('UPDATE payments SET matched_order_id = ?, is_matched = 1 WHERE id = ?', [order.id, existing.id]);
+      } else {
+        await query.run(
+          `INSERT INTO payments (utr, amount, sender, received_at, source, raw_snippet, matched_order_id, is_matched)
+           VALUES (?, ?, ?, ?, 'MANUAL_ADMIN', 'Manually verified by admin', ?, 1)`,
+          [finalUtr, order.amount, sender, now, order.id]
+        );
+      }
+
+      if (req.io) {
+        req.io.to(`order_${order.order_code}`).emit('order_status_update', {
+          orderCode: order.order_code,
+          status: 'PAID',
+          amount: order.amount,
+          utr: finalUtr,
+          paidAt: now
+        });
+        req.io.to('admin_room').emit('payment_event', {
+          type: 'ORDER_PAID',
+          order: { ...order, status: 'PAID', utr: finalUtr, paid_at: now }
+        });
+      }
+
+      return res.json({ success: true, message: `Order ${orderCode} marked as PAID!` });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async updateSettings(req, res, next) {
     try {
       const { upiVpa, merchantName, expiryMinutes } = req.body;

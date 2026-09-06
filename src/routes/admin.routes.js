@@ -38,6 +38,8 @@ router.get('/orders', AdminController.getOrders);
 router.get('/payments', AdminController.getPayments);
 router.get('/logs', AdminController.getLogs);
 router.post('/simulate-payment', AdminController.simulatePayment);
+router.post('/orders/:orderCode/mark-paid', AdminController.markOrderPaidManually);
+router.post('/reconcile', AdminController.reconcileOrder);
 router.post('/settings', AdminController.updateSettings);
 
 // Multi-Domain API Key Management endpoints
