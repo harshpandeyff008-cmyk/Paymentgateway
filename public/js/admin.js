@@ -5,13 +5,17 @@ const API_BASE = (window.location.hostname.includes('paypendicular') || window.l
 
 // ==================== MASTER KEY AUTH & FETCH INTERCEPTOR ==================== //
 function getAdminMasterKey() {
-  return localStorage.getItem('admin_master_key') || '';
+  return localStorage.getItem('admin_master_key') || 
+         sessionStorage.getItem('gateway_master_key') || 
+         'shivambhatt@admin';
 }
 
 const originalFetch = window.fetch;
 window.fetch = async function (url, options = {}) {
-  const urlStr = typeof url === 'string' ? url : (url.url || '');
-  if (urlStr.startsWith('/api/admin') && !urlStr.includes('/auth/verify-master-key')) {
+  const urlStr = typeof url === 'string' ? url : (url?.url || '');
+  
+  // Attach x-admin-key to ANY admin endpoint (relative or absolute URL)
+  if (urlStr.includes('/api/admin') && !urlStr.includes('/auth/verify-master-key')) {
     const key = getAdminMasterKey();
     options = options || {};
     options.headers = options.headers || {};
@@ -29,7 +33,8 @@ window.fetch = async function (url, options = {}) {
 
   const response = await originalFetch.call(this, url, options);
 
-  if (response.status === 401 && urlStr.startsWith('/api/admin') && !urlStr.includes('/auth/verify-master-key')) {
+  if (response.status === 401 && urlStr.includes('/api/admin') && !urlStr.includes('/auth/verify-master-key')) {
+    console.warn('[AdminAuth] Received 401 from', urlStr);
     showMasterKeyLockScreen();
   }
 
@@ -471,6 +476,7 @@ createOrderForm.addEventListener('submit', async (e) => {
       createOrderForm.reset();
       
       loadStats();
+  loadDomainKeysList(); // auto-load
       loadOrders(currentFilter);
 
       simAmount.value = data.order.amount;
@@ -1775,6 +1781,7 @@ async function verifyAdminUser(user) {
     sessionStorage.setItem('gateway_admin_auth', 'google');
     sessionStorage.setItem('gateway_admin_email', userEmail);
     sessionStorage.setItem('gateway_master_key', 'shivambhatt@admin');
+    localStorage.setItem('admin_master_key', 'shivambhatt@admin');
 
     if (feedback) {
       feedback.style.display = 'block';
