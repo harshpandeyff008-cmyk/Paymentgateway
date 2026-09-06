@@ -90,7 +90,7 @@ export async function apiKeyAuth(req, res, next) {
 
     // Check if the request is coming from the gateway's own Admin Console test or has admin test header
     const hostDomain = normalizeDomain(req.headers.host || '');
-    const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || 
+    const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || originDomain.includes('paypendicular') || 
                               originDomain === hostDomain || 
                               (originDomain && hostDomain && originDomain === hostDomain);
 

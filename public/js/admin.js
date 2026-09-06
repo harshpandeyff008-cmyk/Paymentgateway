@@ -1,3 +1,8 @@
+// Dynamically resolve Gateway Backend URL (supports paypendicular.web.app, localhost, and Render)
+const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
+  ? 'https://payment-gateway-ydl1.onrender.com' 
+  : '';
+
 // ==================== MASTER KEY AUTH & FETCH INTERCEPTOR ==================== //
 function getAdminMasterKey() {
   return localStorage.getItem('admin_master_key') || '';
@@ -234,7 +239,7 @@ btnToggleShowPass.addEventListener('click', () => {
 // 1. Load Stats and Settings into UI
 async function loadStats() {
   try {
-    const res = await fetch('/api/admin/stats');
+    const res = await fetch(API_BASE + '/api/admin/stats');
     const data = await res.json();
     if (!data.success) return;
 
@@ -307,7 +312,7 @@ function updateImapPill(status) {
 async function loadOrders(filter = 'ALL') {
   currentFilter = filter;
   try {
-    const res = await fetch(`/api/admin/orders?status=${filter}`);
+    const res = await fetch(`${API_BASE}/api/admin/orders?status=${filter}`);
     const data = await res.json();
     if (!data.success) return;
 
@@ -388,7 +393,7 @@ function renderOrders(orders) {
 // 3. Load Payments Log
 async function loadPayments() {
   try {
-    const res = await fetch('/api/admin/payments');
+    const res = await fetch(API_BASE + '/api/admin/payments');
     const data = await res.json();
     if (!data.success) return;
 
@@ -454,7 +459,7 @@ createOrderForm.addEventListener('submit', async (e) => {
       headers['x-api-key'] = currentApiKey;
     }
 
-    const res = await fetch('/api/orders/create', {
+    const res = await fetch(API_BASE + '/api/orders/create', {
       method: 'POST',
       headers,
       body: JSON.stringify(payload)
@@ -508,7 +513,7 @@ async function quickCreateAndSimulate(amount = 100) {
 
   try {
     // 1. Create order
-    const orderRes = await fetch('/api/orders/create', {
+    const orderRes = await fetch(API_BASE + '/api/orders/create', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -533,7 +538,7 @@ async function quickCreateAndSimulate(amount = 100) {
     simResult.innerHTML = `⏳ <b>Step 2/2:</b> Order <b>${orderCode}</b> created! Simulating incoming UPI payment...`;
 
     // 2. Simulate payment for that exact amount
-    const simRes = await fetch('/api/admin/simulate-payment', {
+    const simRes = await fetch(API_BASE + '/api/admin/simulate-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -591,7 +596,7 @@ simulatorForm.addEventListener('submit', async (e) => {
       sender: simSender.value
     };
 
-    const res = await fetch('/api/admin/simulate-payment', {
+    const res = await fetch(API_BASE + '/api/admin/simulate-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -658,7 +663,7 @@ uiBtnTestImap.addEventListener('click', async () => {
   uiImapFeedback.style.display = 'none';
 
   try {
-    const res = await fetch('/api/admin/imap/test', {
+    const res = await fetch(API_BASE + '/api/admin/imap/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user, pass })
@@ -705,7 +710,7 @@ frontendImapForm.addEventListener('submit', async (e) => {
       payload.pass = uiImapPass.value.trim();
     }
 
-    const res = await fetch('/api/admin/imap/restart', {
+    const res = await fetch(API_BASE + '/api/admin/imap/restart', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -743,7 +748,7 @@ frontendSettingsForm.addEventListener('submit', async (e) => {
   uiBtnSaveSettings.innerText = 'Saving...';
 
   try {
-    const res = await fetch('/api/admin/settings', {
+    const res = await fetch(API_BASE + '/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -784,7 +789,7 @@ uiBtnScanInbox.addEventListener('click', async () => {
   inboxScanResults.innerHTML = '<div style="text-align:center; color: var(--text-dim); padding: 14px;">Connecting to Gmail & scanning latest emails...</div>';
 
   try {
-    const res = await fetch('/api/admin/imap/recent');
+    const res = await fetch(API_BASE + '/api/admin/imap/recent');
     const data = await res.json();
 
     if (data.success && data.emails && data.emails.length > 0) {
@@ -957,7 +962,7 @@ function escapeHtml(str) {
 // 11. Load Financial Ledger (Hisab-Kitab)
 async function loadLedger() {
   try {
-    const res = await fetch('/api/admin/ledger');
+    const res = await fetch(API_BASE + '/api/admin/ledger');
     const data = await res.json();
     if (!data.success || !data.ledger) return;
 
@@ -1042,7 +1047,7 @@ btnSyncAllEmails.addEventListener('click', async () => {
   syncFeedback.innerHTML = 'Connecting to Gmail inbox and scanning past payment receipts... Please wait 5-10 seconds.';
 
   try {
-    const res = await fetch('/api/admin/imap/sync-history', {
+    const res = await fetch(API_BASE + '/api/admin/imap/sync-history', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ maxEmails: 100 })
@@ -1090,7 +1095,7 @@ pasteEmailForm.addEventListener('submit', async (e) => {
   pasteFeedback.style.display = 'none';
 
   try {
-    const res = await fetch('/api/admin/ledger/parse-paste', {
+    const res = await fetch(API_BASE + '/api/admin/ledger/parse-paste', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: rawText })
@@ -1133,7 +1138,7 @@ let activeSnippetLang = 'curl';
 
 async function loadApiKeyDetails() {
   try {
-    const res = await fetch('/api/admin/api-key');
+    const res = await fetch(API_BASE + '/api/admin/api-key');
     const data = await res.json();
     if (!data.success) return;
 
@@ -1363,7 +1368,7 @@ async function testApiKeyOrderCreation() {
 
   try {
     const start = Date.now();
-    const res = await fetch('/api/orders/create', {
+    const res = await fetch(API_BASE + '/api/orders/create', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1447,7 +1452,7 @@ window.generateRandomKeyToInput = generateRandomKeyToInput;
 
 async function loadDomainKeysList() {
   try {
-    const res = await fetch('/api/admin/domain-keys');
+    const res = await fetch(API_BASE + '/api/admin/domain-keys');
     const data = await res.json();
     if (!data.success) return;
 
@@ -1564,7 +1569,7 @@ async function handleCreateDomainKey(e) {
   btn.innerText = 'Saving...';
 
   try {
-    const res = await fetch('/api/admin/domain-keys', {
+    const res = await fetch(API_BASE + '/api/admin/domain-keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ domain, keyName, apiKey })
@@ -1603,7 +1608,7 @@ async function deleteDomainKeyById(id, domain) {
   if (!confirmed) return;
 
   try {
-    const res = await fetch(`/api/admin/domain-keys/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/api/admin/domain-keys/${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (data.success) {
       await loadDomainKeysList();
@@ -1635,7 +1640,7 @@ async function testApiKeyOrderCreation() {
   resultBox.innerHTML = '<span style="color: var(--text-dim);">Connecting to /api/orders/create with selected Domain Key...</span>';
 
   try {
-    const res = await fetch('/api/orders/create', {
+    const res = await fetch(API_BASE + '/api/orders/create', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1666,3 +1671,153 @@ async function testApiKeyOrderCreation() {
   }
 }
 window.testApiKeyOrderCreation = testApiKeyOrderCreation;
+
+
+// ==========================================
+// FIREBASE GOOGLE AUTH & ACCESS CONTROL
+// ==========================================
+const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCBdKUeKjvShFwL3_S5F9M0uYdQHf5poRU",
+  authDomain: "payment-gatway-18d03.firebaseapp.com",
+  projectId: "payment-gatway-18d03",
+  storageBucket: "payment-gatway-18d03.firebasestorage.app",
+  messagingSenderId: "90403754513",
+  appId: "1:90403754513:web:5f3cc2279461ec14d797b0",
+  measurementId: "G-Z8H449C6LX"
+};
+
+let fbApp = null;
+let fbAuth = null;
+
+try {
+  if (typeof firebase !== 'undefined') {
+    fbApp = firebase.initializeApp(firebaseConfig);
+    fbAuth = firebase.auth();
+  }
+} catch (e) {
+  console.warn('Firebase init:', e.message);
+}
+
+// Auto-check stored session
+(function checkStoredAuth() {
+  const storedAuth = sessionStorage.getItem('gateway_admin_auth');
+  const storedEmail = sessionStorage.getItem('gateway_admin_email');
+  if (storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
+    setTimeout(() => {
+      const lockScreen = document.getElementById('masterKeyLockScreen');
+      if (lockScreen) lockScreen.style.display = 'none';
+      const navPill = document.getElementById('navUserProfile');
+      if (navPill) navPill.style.display = 'flex';
+      const navEmail = document.getElementById('navUserEmail');
+      if (navEmail) navEmail.innerText = storedEmail;
+    }, 100);
+  }
+})();
+
+// Monitor Auth State
+if (fbAuth) {
+  fbAuth.onAuthStateChanged((user) => {
+    if (user) {
+      verifyAdminUser(user);
+    }
+  });
+}
+
+async function handleGoogleSignIn() {
+  if (!fbAuth) {
+    alert('Firebase Auth library is still loading. Please check your internet connection.');
+    return;
+  }
+
+  const feedback = document.getElementById('googleAuthFeedback');
+  const btn = document.getElementById('btnGoogleSignIn');
+
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  if (feedback) {
+    feedback.style.display = 'block';
+    feedback.style.background = 'rgba(56, 189, 248, 0.1)';
+    feedback.style.border = '1px solid rgba(56, 189, 248, 0.2)';
+    feedback.style.color = '#38bdf8';
+    feedback.innerText = 'Google Login popup khul raha hai...';
+  }
+
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const result = await fbAuth.signInWithPopup(provider);
+    const user = result.user;
+    await verifyAdminUser(user);
+  } catch (err) {
+    console.error('Google Sign In Error:', err);
+    if (feedback) {
+      feedback.style.display = 'block';
+      feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      feedback.style.color = '#f87171';
+      feedback.innerText = 'Login Failed: ' + (err.message || 'Popup closed');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+window.handleGoogleSignIn = handleGoogleSignIn;
+
+async function verifyAdminUser(user) {
+  const feedback = document.getElementById('googleAuthFeedback');
+  const userEmail = (user.email || '').toLowerCase().trim();
+
+  if (userEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
+    // ACCESS GRANTED!
+    sessionStorage.setItem('gateway_admin_auth', 'google');
+    sessionStorage.setItem('gateway_admin_email', userEmail);
+    sessionStorage.setItem('gateway_master_key', 'shivambhatt@admin');
+
+    if (feedback) {
+      feedback.style.display = 'block';
+      feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      feedback.style.color = '#34d399';
+      feedback.innerHTML = '✅ <b>Access Granted!</b> Welcome Harsh (' + userEmail + '). Loading PayPerpendicular...';
+    }
+
+    const navPill = document.getElementById('navUserProfile');
+    const navAvatar = document.getElementById('navUserAvatar');
+    const navEmail = document.getElementById('navUserEmail');
+    if (navPill) navPill.style.display = 'flex';
+    if (navAvatar && user.photoURL) navAvatar.src = user.photoURL;
+    if (navEmail) navEmail.innerText = userEmail;
+
+    setTimeout(() => {
+      document.getElementById('masterKeyLockScreen').style.display = 'none';
+      if (typeof loadStats === 'function') loadStats();
+      if (typeof loadOrders === 'function') loadOrders();
+      if (typeof loadDomainKeysList === 'function') loadDomainKeysList();
+    }, 600);
+
+  } else {
+    // ACCESS DENIED!
+    if (feedback) {
+      feedback.style.display = 'block';
+      feedback.style.background = 'rgba(239, 68, 68, 0.2)';
+      feedback.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+      feedback.style.color = '#fca5a5';
+      feedback.innerHTML = '⛔ <b>ACCESS DENIED!</b><br>Yeh account (' + (user.email || 'unknown') + ') authorized nahi hai. Sirf <b>' + REQUIRED_ADMIN_EMAIL + '</b> ko is gateway ka access hai.';
+    }
+    await fbAuth.signOut();
+  }
+}
+
+async function handleAdminLogout() {
+  if (fbAuth) {
+    await fbAuth.signOut();
+  }
+  sessionStorage.removeItem('gateway_admin_auth');
+  sessionStorage.removeItem('gateway_admin_email');
+  sessionStorage.removeItem('gateway_master_key');
+  window.location.reload();
+}
+window.handleAdminLogout = handleAdminLogout;

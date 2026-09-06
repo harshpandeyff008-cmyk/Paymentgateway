@@ -17,6 +17,8 @@ export function createApp(io = null) {
 
   // Allowed Origins Configuration
   const allowedOrigins = config.allowedOrigins || [
+    'https://paypendicular.web.app',
+    'https://paypendicular.firebaseapp.com',
     'https://dealsbyshiv.web.app',
     'http://localhost:5173',
     'http://localhost:3000',
@@ -45,6 +47,7 @@ export function createApp(io = null) {
       const isAllowed = dynamicAllowed.some(allowed => {
         return allowed === '*' || normalized === allowed;
       }) ||
+      normalized.includes('paypendicular') ||
       normalized.includes('dealsbyshiv') ||
       normalized.includes('onrender.com') ||
       normalized.includes('localhost') ||
