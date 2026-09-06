@@ -40,7 +40,12 @@ router.get('/logs', AdminController.getLogs);
 router.post('/simulate-payment', AdminController.simulatePayment);
 router.post('/settings', AdminController.updateSettings);
 
-// API Key Management endpoints
+// Multi-Domain API Key Management endpoints
+router.get('/domain-keys', ApiKeyController.listDomainKeys);
+router.post('/domain-keys', ApiKeyController.createDomainKey);
+router.delete('/domain-keys/:id', ApiKeyController.deleteDomainKey);
+
+// Legacy single-key compatibility & toggles
 router.get('/api-key', ApiKeyController.getApiKey);
 router.post('/api-key/regenerate', ApiKeyController.regenerateApiKey);
 router.post('/api-key/toggle', ApiKeyController.toggleRequireApiKey);

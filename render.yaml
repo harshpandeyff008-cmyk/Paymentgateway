@@ -10,3 +10,31 @@ services:
         value: production
       - key: PORT
         value: 3000
+      - key: MERCHANT_UPI_VPA
+        value: ffdealsbyjena@fam
+      - key: MERCHANT_NAME
+        value: ShivFFStore
+      - key: ORDER_EXPIRY_MINUTES
+        value: 5
+      - key: IMAP_ENABLED
+        value: "true"
+      - key: IMAP_HOST
+        value: imap.gmail.com
+      - key: IMAP_PORT
+        value: 993
+      - key: IMAP_SECURE
+        value: "true"
+      - key: IMAP_USER
+        value: shaahtasham9@gmail.com
+      - key: IMAP_PASS
+        value: zfeoyxxoxrmnmbcr
+      - key: IMAP_MAILBOX
+        value: INBOX
+      - key: IMAP_SENDER_FILTER
+        value: fampay,famapp,fam
+      - key: ADMIN_SECRET_KEY
+        value: shivambhatt@admin
+      - key: API_KEY
+        value: pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0
+      - key: REQUIRE_API_KEY
+        value: "true"

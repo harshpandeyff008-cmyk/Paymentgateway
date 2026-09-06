@@ -1427,3 +1427,241 @@ async function checkAdminAuthOnStartup() {
 
 // Verify Master Key authentication before loading any data
 checkAdminAuthOnStartup();
+
+
+// ==========================================
+// MULTI-DOMAIN API KEY MANAGEMENT LOGIC
+// ==========================================
+let allDomainKeys = [];
+
+function generateRandomKeyToInput() {
+  const chars = '0123456789abcdef';
+  let rand = '';
+  for (let i = 0; i < 36; i++) {
+    rand += chars[Math.floor(Math.random() * chars.length)];
+  }
+  const input = document.getElementById('inputNewKeyValue');
+  if (input) input.value = 'pg_live_' + rand;
+}
+window.generateRandomKeyToInput = generateRandomKeyToInput;
+
+async function loadDomainKeysList() {
+  try {
+    const res = await fetch('/api/admin/domain-keys');
+    const data = await res.json();
+    if (!data.success) return;
+
+    allDomainKeys = data.keys || [];
+    currentRequireApiKey = data.requireApiKey;
+
+    const countLabel = document.getElementById('domainKeysCount');
+    if (countLabel) countLabel.innerText = allDomainKeys.length;
+
+    const toggle = document.getElementById('uiToggleRequireApiKey');
+    if (toggle) toggle.checked = currentRequireApiKey;
+
+    const badge = document.getElementById('apiKeyStatusBadge');
+    if (badge) {
+      badge.className = currentRequireApiKey ? 'badge badge-success' : 'badge badge-pending';
+      badge.innerText = currentRequireApiKey ? '🟢 Strictly Enforced' : '🔓 Open Testing';
+    }
+
+    // Populate test selector
+    const testSelect = document.getElementById('testDomainKeySelect');
+    if (testSelect) {
+      testSelect.innerHTML = '<option value="">Select Domain Key to Test</option>';
+      allDomainKeys.forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k.apiKey;
+        opt.innerText = `${k.domain} (${k.keyName || 'Store'})`;
+        testSelect.appendChild(opt);
+      });
+      if (allDomainKeys.length > 0) {
+        testSelect.selectedIndex = 1;
+        currentApiKey = allDomainKeys[0].apiKey;
+      }
+    }
+
+    renderDomainKeysCards();
+    renderCurrentSnippet();
+  } catch (err) {
+    console.error('Failed to load domain keys:', err);
+  }
+}
+window.loadDomainKeysList = loadDomainKeysList;
+
+function renderDomainKeysCards() {
+  const container = document.getElementById('domainKeysListContainer');
+  if (!container) return;
+
+  if (allDomainKeys.length === 0) {
+    container.innerHTML = '<div style="text-align: center; color: var(--text-dim); padding: 24px; font-size: 12px; background: rgba(255,255,255,0.02); border-radius: 8px;">Koi API key nahi hai. Upar diye gaye form se nayi key banayein.</div>';
+    return;
+  }
+
+  container.innerHTML = allDomainKeys.map(k => {
+    const createdStr = k.createdAt ? new Date(k.createdAt).toLocaleDateString() : 'Active';
+    const isWildcard = k.domain === '*';
+    const domainBadgeColor = isWildcard ? '#a855f7' : '#38bdf8';
+
+    return `
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 12px; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; color: ${domainBadgeColor}; background: rgba(56, 189, 248, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.2);">
+                🌐 ${k.domain}
+              </span>
+              <span style="font-size: 12px; font-weight: 500; color: #fff;">${k.keyName || 'Store Key'}</span>
+            </div>
+            <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">Created: ${createdStr}</div>
+          </div>
+          <button class="btn btn-secondary" onclick="deleteDomainKeyById(${k.id}, '${k.domain}')" style="padding: 3px 8px; font-size: 11px; color: #f87171; border-color: rgba(239, 68, 68, 0.3);" title="Revoke Key">
+            🗑️ Revoke
+          </button>
+        </div>
+
+        <div style="display: flex; gap: 6px; align-items: center; margin-top: 8px;">
+          <input type="password" id="domainKeyInput_${k.id}" class="form-control" readonly style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; padding: 4px 8px; height: 32px; color: var(--primary);" value="${k.apiKey}">
+          <button class="btn btn-secondary" onclick="toggleDomainKeyVisibility(${k.id})" style="padding: 0 8px; height: 32px;" title="Show/Hide">
+            👁️
+          </button>
+          <button class="btn btn-primary" onclick="copyDomainKeyToClip('${k.apiKey}', this)" style="padding: 0 10px; height: 32px; font-size: 11px;" title="Copy Key">
+            📋 Copy
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleDomainKeyVisibility(id) {
+  const input = document.getElementById(`domainKeyInput_${id}`);
+  if (input) {
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+}
+window.toggleDomainKeyVisibility = toggleDomainKeyVisibility;
+
+function copyDomainKeyToClip(key, btn) {
+  navigator.clipboard.writeText(key).then(() => {
+    const orig = btn.innerText;
+    btn.innerText = '✅ Copied!';
+    setTimeout(() => { btn.innerText = orig; }, 2000);
+  });
+}
+window.copyDomainKeyToClip = copyDomainKeyToClip;
+
+async function handleCreateDomainKey(e) {
+  e.preventDefault();
+  const domain = document.getElementById('inputNewKeyDomain').value.trim();
+  const keyName = document.getElementById('inputNewKeyLabel').value.trim();
+  const apiKey = document.getElementById('inputNewKeyValue').value.trim();
+  const feedback = document.getElementById('addKeyFeedback');
+  const btn = document.getElementById('btnSubmitNewKey');
+
+  btn.disabled = true;
+  btn.innerText = 'Saving...';
+
+  try {
+    const res = await fetch('/api/admin/domain-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain, keyName, apiKey })
+    });
+    const data = await res.json();
+
+    feedback.style.display = 'block';
+    if (data.success) {
+      feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      feedback.style.color = '#34d399';
+      feedback.innerText = '✅ ' + data.message;
+      document.getElementById('inputNewKeyDomain').value = '';
+      document.getElementById('inputNewKeyLabel').value = '';
+      document.getElementById('inputNewKeyValue').value = '';
+      await loadDomainKeysList();
+      setTimeout(() => { feedback.style.display = 'none'; }, 4000);
+    } else {
+      feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      feedback.style.color = '#f87171';
+      feedback.innerText = '❌ ' + data.error;
+    }
+  } catch (err) {
+    feedback.style.display = 'block';
+    feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+    feedback.style.color = '#f87171';
+    feedback.innerText = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '💾 Register & Activate Domain Key';
+  }
+}
+window.handleCreateDomainKey = handleCreateDomainKey;
+
+async function deleteDomainKeyById(id, domain) {
+  const confirmed = confirm(`⚠️ Are you sure you want to revoke the API Key for "${domain}"?\n\nAny store or app using this key will immediately stop working.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/admin/domain-keys/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      await loadDomainKeysList();
+    } else {
+      alert('Failed: ' + data.error);
+    }
+  } catch (err) {
+    alert('Network error: ' + err.message);
+  }
+}
+window.deleteDomainKeyById = deleteDomainKeyById;
+
+// Hook domain keys load into the main tab switch
+const origSwitchTab = window.switchTab;
+window.switchTab = function(tabId) {
+  if (typeof origSwitchTab === 'function') origSwitchTab(tabId);
+  if (tabId === 'apikeys') {
+    loadDomainKeysList();
+  }
+};
+
+async function testApiKeyOrderCreation() {
+  const resultBox = document.getElementById('apiTestConsoleResult');
+  const amountInput = document.getElementById('testOrderAmount');
+  const testSelect = document.getElementById('testDomainKeySelect');
+  const keyToUse = (testSelect && testSelect.value) ? testSelect.value : currentApiKey;
+
+  resultBox.style.display = 'block';
+  resultBox.innerHTML = '<span style="color: var(--text-dim);">Connecting to /api/orders/create with selected Domain Key...</span>';
+
+  try {
+    const res = await fetch('/api/orders/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': keyToUse
+      },
+      body: JSON.stringify({
+        amount: parseFloat(amountInput.value) || 10,
+        customerName: 'Admin Authenticator Test',
+        customerPhone: '9999999999'
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      resultBox.innerHTML = `<span style="color: var(--accent-green); font-weight: 600;">✅ HTTP ${res.status} OK - Order Created Successfully!</span>\n\n` +
+        `Order Code:    ${data.order.orderCode}\n` +
+        `Amount:        ₹${data.order.amount}\n` +
+        `Checkout URL:  ${data.checkoutUrl}\n` +
+        `Key Used:      ${keyToUse.slice(0, 10)}...\n` +
+        `Domain Auth:   ACCEPTED`;
+    } else {
+      resultBox.innerHTML = `<span style="color: var(--accent-red); font-weight: 600;">❌ HTTP ${res.status} ${data.error || 'Authentication Failed'}</span>\n\n` +
+        JSON.stringify(data, null, 2);
+    }
+  } catch (err) {
+    resultBox.innerHTML = `<span style="color: var(--accent-red);">Network Error: ${err.message}</span>`;
+  }
+}
+window.testApiKeyOrderCreation = testApiKeyOrderCreation;

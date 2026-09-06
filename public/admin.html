@@ -544,42 +544,27 @@
 
       <div class="config-grid">
         
-        <!-- Left Column: API Key Management & Controls -->
-        <div class="panel-card">
-          <div class="panel-title">
-            <span>🛡️ Live Gateway API Key</span>
-            <span class="badge badge-success" id="apiKeyStatusBadge">🟢 Active</span>
+        <!-- Left Column: Multi-Domain API Key Manager -->
+        <div class="panel-card" style="grid-column: span 1;">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>🌐 Domain-Specific API Keys</span>
+              <span class="badge badge-success" id="apiKeyStatusBadge">🟢 Strictly Enforced</span>
+            </div>
+            <button class="btn btn-secondary" onclick="loadDomainKeysList()" style="padding: 4px 10px; font-size: 11px;">🔄 Refresh</button>
           </div>
           
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
-            Pass this key in HTTP headers as <code style="color: var(--primary); font-family: monospace;">x-api-key: YOUR_KEY</code> or <code style="color: var(--primary); font-family: monospace;">Authorization: Bearer YOUR_KEY</code>.
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
+            Apne alag-alag websites/domains (jaise <code style="color: var(--primary);">dealsbyshiv.web.app</code>) ke liye alag API Key banayein. Har request par domain verify hota hai taaki koi doosra aapki key copy karke use na kar sake.
           </p>
 
-          <div class="form-group">
-            <label class="form-label" style="display: flex; justify-content: space-between;">
-              <span>API Secret Key</span>
-              <span id="apiKeyCreatedAt" style="color: var(--text-dim); font-size: 11px;">Created: Just now</span>
-            </label>
-            <div style="display: flex; gap: 8px; position: relative;">
-              <input type="password" id="uiApiKeyInput" class="form-control" readonly style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.5px; color: var(--primary);" value="pg_live_••••••••••••••••">
-              <button class="btn btn-secondary" id="btnToggleApiKeyVisibility" onclick="toggleApiKeyVisibility()" style="padding: 0 12px;" title="Show/Hide Key">
-                👁️
-              </button>
-              <button class="btn btn-primary" id="btnCopyApiKey" onclick="copyApiKeyToClipboard()" style="padding: 0 16px;" title="Copy to Clipboard">
-                📋 Copy
-              </button>
-            </div>
-            <div id="apiKeyCopyFeedback" style="font-size: 11.5px; color: var(--accent-green); margin-top: 6px; display: none;">
-              ✅ API Key copied to clipboard!
-            </div>
-          </div>
-
-          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-card);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <!-- Strict Enforcement Toggle -->
+          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <div style="font-weight: 600; font-size: 14px;">Strict API Key Enforcement</div>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                  Block order creation if <code style="color: var(--primary);">x-api-key</code> is missing or invalid.
+                <div style="font-weight: 600; font-size: 13px;">Strict Domain & Key Enforcement</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                  Block order creation if <code style="color: var(--primary);">x-api-key</code> is missing, invalid, or domain mismatch.
                 </div>
               </div>
               <label class="switch-label">
@@ -589,14 +574,54 @@
             </div>
           </div>
 
-          <div style="margin-top: 20px; padding: 14px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-sm);">
-            <div style="font-weight: 600; font-size: 13px; color: var(--accent-red); margin-bottom: 4px;">⚠️ Roll API Key</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
-              If you suspect your API key was leaked, regenerate it immediately. Previous keys will be revoked.
+          <!-- Add New Domain Key Form -->
+          <div style="background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 24px;">
+            <div style="font-weight: 600; font-size: 13px; color: var(--primary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+              <span>➕ Nayi Domain API Key Banayein</span>
             </div>
-            <button class="btn btn-secondary" onclick="confirmRegenerateApiKey()" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; font-size: 12px; padding: 6px 12px;">
-              🔄 Invalidate & Generate New Key
-            </button>
+
+            <form id="formAddDomainKey" onsubmit="handleCreateDomainKey(event)">
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label class="form-label" style="font-size: 11px;">Target Website / Domain <span style="color: var(--accent-red);">*</span></label>
+                <input type="text" id="inputNewKeyDomain" class="form-control" placeholder="e.g. dealsbyshiv.web.app, store2.com, or * (all)" required style="font-size: 12.5px;">
+                <div style="font-size: 10.5px; color: var(--text-dim); margin-top: 3px;">
+                  Tip: Agar sabhi domains pe allow karna hai toh <code style="color: var(--primary);">*</code> likhein.
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label class="form-label" style="font-size: 11px;">Store / Key Label (Pehchan ke liye)</label>
+                <input type="text" id="inputNewKeyLabel" class="form-control" placeholder="e.g. Main DealsByShiv Store, Backup Site" style="font-size: 12.5px;">
+              </div>
+
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="form-label" style="display: flex; justify-content: space-between; font-size: 11px;">
+                  <span>API Key (Custom ya Auto-generate)</span>
+                  <a href="javascript:void(0)" onclick="generateRandomKeyToInput()" style="color: var(--primary); text-decoration: none; font-size: 11px;">🎲 Generate Random</a>
+                </label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="text" id="inputNewKeyValue" class="form-control" placeholder="pg_live_... (khali chhodne par auto generate hoga)" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+                  <button type="button" class="btn btn-secondary" onclick="generateRandomKeyToInput()" style="padding: 0 10px; font-size: 11px;">
+                    🎲 Auto
+                  </button>
+                </div>
+              </div>
+
+              <div id="addKeyFeedback" style="display: none; font-size: 12px; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px;"></div>
+
+              <button type="submit" class="btn btn-primary" id="btnSubmitNewKey" style="width: 100%; justify-content: center; padding: 9px; font-size: 13px;">
+                💾 Register & Activate Domain Key
+              </button>
+            </form>
+          </div>
+
+          <!-- Domain Keys List -->
+          <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-weight: 600; font-size: 13px;">Active Domain API Keys (<span id="domainKeysCount">0</span>)</div>
+          </div>
+
+          <div id="domainKeysListContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
+            <div style="text-align: center; color: var(--text-dim); padding: 20px; font-size: 12px;">Loading keys...</div>
           </div>
 
           <!-- Quick Test Console -->
@@ -605,14 +630,17 @@
               <span>⚡ Live API Authenticator Test</span>
             </div>
             <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-              Send a live test request right from your browser to verify this key works:
+              Kisi bhi domain key ke saath instant test request fire karein:
             </p>
-            <div style="display: flex; gap: 8px;">
-              <input type="number" id="testOrderAmount" class="form-control" value="10.00" style="max-width: 120px;" placeholder="Amount">
-              <button class="btn btn-primary" onclick="testApiKeyOrderCreation()" style="flex: 1;">
-                🚀 Test Create Order (₹)
-              </button>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+              <select id="testDomainKeySelect" class="form-control" style="flex: 2; font-size: 12px;">
+                <option value="">Select Domain Key</option>
+              </select>
+              <input type="number" id="testOrderAmount" class="form-control" value="10.00" style="flex: 1; max-width: 100px;" placeholder="₹">
             </div>
+            <button class="btn btn-primary" onclick="testApiKeyOrderCreation()" style="width: 100%; justify-content: center;">
+              🚀 Test Create Order (₹)
+            </button>
             <div id="apiTestConsoleResult" style="margin-top: 12px; display: none;" class="code-box"></div>
           </div>
 

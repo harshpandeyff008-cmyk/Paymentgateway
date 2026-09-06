@@ -74,6 +74,43 @@ export async function getAllSettings() {
   }
 }
 
+// Domain API Keys CRUD Operations
+export async function getAllDomainKeys() {
+  try {
+    return await query.all('SELECT * FROM domain_api_keys ORDER BY id DESC');
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function addDomainApiKey({ keyName = 'Default Key', domain, apiKey, status = 'ACTIVE' }) {
+  const now = Date.now();
+  const res = await query.run(
+    `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at, last_used_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [keyName, domain, apiKey, status, now, null]
+  );
+  return { id: res.lastID, key_name: keyName, domain, api_key: apiKey, status, created_at: now, last_used_at: null };
+}
+
+export async function deleteDomainApiKey(id) {
+  return await query.run('DELETE FROM domain_api_keys WHERE id = ?', [id]);
+}
+
+export async function findDomainApiKey(clientKey) {
+  try {
+    return await query.get('SELECT * FROM domain_api_keys WHERE api_key = ? AND status = "ACTIVE"', [clientKey]);
+  } catch (_) {
+    return null;
+  }
+}
+
+export async function updateDomainKeyLastUsed(apiKey) {
+  try {
+    await query.run('UPDATE domain_api_keys SET last_used_at = ? WHERE api_key = ?', [Date.now(), apiKey]);
+  } catch (_) {}
+}
+
 export async function initDatabase() {
   // 1. Orders table
   await query.run(`
@@ -98,9 +135,7 @@ export async function initDatabase() {
   // Migrate existing orders table to include failure_reason if missing
   try {
     await query.run('ALTER TABLE orders ADD COLUMN failure_reason TEXT');
-  } catch (_) {
-    // Column already exists
-  }
+  } catch (_) {}
 
   // 2. Payments table
   await query.run(`
@@ -126,7 +161,38 @@ export async function initDatabase() {
     )
   `);
 
-  // 4. API & Activity Notes table
+  // 4. Multi-Domain API Keys table
+  await query.run(`
+    CREATE TABLE IF NOT EXISTS domain_api_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key_name TEXT,
+      domain TEXT NOT NULL,
+      api_key TEXT UNIQUE NOT NULL,
+      status TEXT DEFAULT 'ACTIVE',
+      created_at INTEGER NOT NULL,
+      last_used_at INTEGER
+    )
+  `);
+
+  // Seed default domain API keys if empty
+  try {
+    const existing = await query.all('SELECT id FROM domain_api_keys LIMIT 1');
+    if (existing.length === 0) {
+      const now = Date.now();
+      await query.run(
+        `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at)
+         VALUES (?, ?, ?, 'ACTIVE', ?)`,
+        ['Live Storefront (DealsByShiv)', 'dealsbyshiv.web.app', 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0', now]
+      );
+      await query.run(
+        `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at)
+         VALUES (?, ?, ?, 'ACTIVE', ?)`,
+        ['Universal Fallback (*)', '*', 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0', now]
+      );
+    }
+  } catch (_) {}
+
+  // 5. API & Activity Notes table
   await query.run(`
     CREATE TABLE IF NOT EXISTS api_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,7 +206,7 @@ export async function initDatabase() {
     )
   `);
 
-  // Auto-clean any legacy debit/outgoing payments from payments table (strictly count received amounts)
+  // Auto-clean any legacy debit/outgoing payments from payments table
   try {
     await query.run(`
       DELETE FROM payments 
@@ -188,4 +254,18 @@ export function closeDatabase() {
   });
 }
 
-export default { query, initDatabase, closeDatabase, getSetting, setSetting, getAllSettings, logActivity, getRecentApiLogs };
+export default { 
+  query, 
+  initDatabase, 
+  closeDatabase, 
+  getSetting, 
+  setSetting, 
+  getAllSettings, 
+  getAllDomainKeys, 
+  addDomainApiKey, 
+  deleteDomainApiKey, 
+  findDomainApiKey, 
+  updateDomainKeyLastUsed, 
+  logActivity, 
+  getRecentApiLogs 
+};
