@@ -1639,7 +1639,8 @@ async function testApiKeyOrderCreation() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': keyToUse
+        'x-api-key': keyToUse,
+        'x-admin-test': 'true'
       },
       body: JSON.stringify({
         amount: parseFloat(amountInput.value) || 10,

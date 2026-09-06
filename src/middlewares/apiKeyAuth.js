@@ -88,8 +88,14 @@ export async function apiKeyAuth(req, res, next) {
   if (domainKeyRecord) {
     const allowedDomain = normalizeDomain(domainKeyRecord.domain);
 
+    // Check if the request is coming from the gateway's own Admin Console test or has admin test header
+    const hostDomain = normalizeDomain(req.headers.host || '');
+    const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || 
+                              originDomain === hostDomain || 
+                              (originDomain && hostDomain && originDomain === hostDomain);
+
     // If key is bound to a specific domain (not wildcard '*') and request has origin/referer
-    if (allowedDomain && allowedDomain !== '*' && originDomain) {
+    if (allowedDomain && allowedDomain !== '*' && originDomain && !isAdminConsoleTest) {
       if (originDomain !== allowedDomain && !originDomain.endsWith('.' + allowedDomain)) {
         logger.warn(`[Auth] Blocked: Key for domain "${allowedDomain}" was used from unauthorized origin "${originDomain}"`);
         logActivity({
