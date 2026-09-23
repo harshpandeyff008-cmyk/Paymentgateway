@@ -4,6 +4,10 @@ import {
   updateUserPlanAndCredits, 
   updateUserGmailConfig, 
   updateUserSettlementConfig,
+  updateUserGoogleBankingLink,
+  updateUserImapBankingLink,
+  disconnectUserBanking,
+  getUserPayments,
   regenerateUserApiKey, 
   lockUserWebsite,
   parseUserWebsites,
@@ -271,6 +275,7 @@ export const UserController = {
           remainingWebsiteSlots: remainingSlots,
           upiVpa: user.upi_vpa || '',
           businessName: user.business_name || '',
+          settlementType: user.settlement_type || 'GOOGLE_OAUTH',
           hasActivePlan
         }
       });
@@ -325,6 +330,7 @@ export const UserController = {
           remainingWebsiteSlots: remainingSlots,
           upiVpa: user.upi_vpa || '',
           businessName: user.business_name || '',
+          settlementType: user.settlement_type || 'GOOGLE_OAUTH',
           hasActivePlan,
           createdAt: user.created_at
         },
@@ -514,8 +520,72 @@ export const UserController = {
 
   // 5. Connect Settlement Channel & Merchant UPI Configuration - GATED: Requires Active Plan
   async connectGmail(req, res) {
+    return UserController.connectImapBanking(req, res);
+  },
+
+  // 5.1 Link Banking Gmail (1-Click Google OAuth with gmail.readonly)
+  async connectGoogleBanking(req, res) {
     try {
-      const { userEmail, upiVpa = '', businessName = '', gmailEmail = '', gmailAppPass = '' } = req.body;
+      const { userEmail, accessToken, googleEmail, upiVpa = '', businessName = '' } = req.body;
+      if (!userEmail || !accessToken) {
+        return res.status(400).json({ success: false, error: 'userEmail and Google accessToken are required' });
+      }
+
+      const user = await getUserByEmail(userEmail);
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'User not found' });
+      }
+
+      if (!user.plan || user.plan === 'NONE') {
+        return res.status(403).json({
+          success: false,
+          code: 'PLAN_REQUIRED',
+          error: 'Please choose and activate a plan first to unlock your automated settlement channel.'
+        });
+      }
+
+      const cleanUpi = (upiVpa || user.upi_vpa || '').trim();
+      const cleanBusiness = (businessName || user.business_name || '').trim();
+      const cleanGoogleEmail = (googleEmail || userEmail).trim();
+
+      const updated = await updateUserGoogleBankingLink(userEmail, {
+        upiVpa: cleanUpi,
+        businessName: cleanBusiness,
+        googleEmail: cleanGoogleEmail,
+        accessToken: accessToken.trim()
+      });
+
+      await logActivity({
+        eventType: 'BANKING_GOOGLE_LINKED',
+        status: 'SUCCESS',
+        title: `Google Banking Email Linked for ${userEmail}`,
+        details: `UPI VPA: ${cleanUpi || 'Unchanged'} | Business: ${cleanBusiness || 'Unchanged'} | Gmail: ${cleanGoogleEmail}`,
+        clientIp: req.ip || '',
+        origin: req.headers.origin || ''
+      });
+
+      return res.json({
+        success: true,
+        message: 'Google Banking Gmail linked successfully! Auto-monitoring bank credit alerts in real time.',
+        user: {
+          email: updated.email,
+          upiVpa: updated.upi_vpa || '',
+          businessName: updated.business_name || '',
+          settlementType: 'GOOGLE_OAUTH',
+          gmailConnected: true,
+          gmailEmail: updated.gmail_email || cleanGoogleEmail
+        }
+      });
+    } catch (err) {
+      console.error('[UserController] connectGoogleBanking error:', err.message);
+      return res.status(500).json({ success: false, error: 'Failed to link Google banking email: ' + err.message });
+    }
+  },
+
+  // 5.2 Link Banking IMAP (Manual Host/Port/App Password)
+  async connectImapBanking(req, res) {
+    try {
+      const { userEmail, upiVpa = '', businessName = '', gmailEmail = '', gmailAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993 } = req.body;
       if (!userEmail) {
         return res.status(400).json({ success: false, error: 'userEmail is required' });
       }
@@ -525,7 +595,6 @@ export const UserController = {
         return res.status(404).json({ success: false, error: 'User not found' });
       }
 
-      // Check Gate
       if (!user.plan || user.plan === 'NONE') {
         return res.status(403).json({
           success: false,
@@ -534,41 +603,78 @@ export const UserController = {
         });
       }
 
-      const cleanUpi = (upiVpa || '').trim();
-      const cleanBusiness = (businessName || '').trim();
-      const cleanGmail = (gmailEmail || userEmail).trim();
+      const cleanUpi = (upiVpa || user.upi_vpa || '').trim();
+      const cleanBusiness = (businessName || user.business_name || '').trim();
+      const cleanEmail = (gmailEmail || userEmail).trim();
       const cleanPass = (gmailAppPass || '').trim();
 
-      const updated = await updateUserSettlementConfig(userEmail, {
+      const updated = await updateUserImapBankingLink(userEmail, {
         upiVpa: cleanUpi,
         businessName: cleanBusiness,
-        gmailEmail: cleanGmail,
-        gmailAppPass: cleanPass
+        imapEmail: cleanEmail,
+        imapAppPass: cleanPass,
+        imapHost: imapHost || 'imap.gmail.com',
+        imapPort: Number(imapPort) || 993,
+        imapSecure: 1
       });
 
       await logActivity({
         eventType: 'SETTLEMENT_CONFIG_UPDATED',
         status: 'SUCCESS',
-        title: `Settlement Config Updated for ${userEmail}`,
-        details: `UPI VPA: ${cleanUpi || 'Unchanged'} | Business: ${cleanBusiness || 'Unchanged'} | Gmail: ${cleanGmail}`,
+        title: `IMAP Settlement Config Updated for ${userEmail}`,
+        details: `UPI VPA: ${cleanUpi || 'Unchanged'} | Business: ${cleanBusiness || 'Unchanged'} | Gmail/IMAP: ${cleanEmail}`,
         clientIp: req.ip || '',
         origin: req.headers.origin || ''
       });
 
       return res.json({
         success: true,
-        message: 'Settlement configuration saved successfully! Payments will route directly to your registered UPI ID with 1-second auto-verification.',
+        message: 'IMAP bank monitor configuration saved successfully! Payments will route directly to your registered UPI ID.',
         user: {
           email: updated.email,
           upiVpa: updated.upi_vpa || '',
           businessName: updated.business_name || '',
-          gmailConnected: !!updated.gmail_connected,
+          settlementType: 'IMAP',
+          gmailConnected: true,
           gmailEmail: updated.gmail_email || ''
         }
       });
     } catch (err) {
-      console.error('[UserController] connectGmail error:', err.message);
-      return res.status(500).json({ success: false, error: 'Failed to update settlement channel configuration' });
+      console.error('[UserController] connectImapBanking error:', err.message);
+      return res.status(500).json({ success: false, error: 'Failed to update IMAP configuration' });
+    }
+  },
+
+  // 5.3 Disconnect Banking Monitor
+  async disconnectBanking(req, res) {
+    try {
+      const { userEmail } = req.body;
+      if (!userEmail) return res.status(400).json({ success: false, error: 'userEmail is required' });
+
+      const updated = await disconnectUserBanking(userEmail);
+      return res.json({
+        success: true,
+        message: 'Banking monitor disconnected successfully.',
+        user: {
+          email: updated.email,
+          gmailConnected: false,
+          gmailEmail: updated.gmail_email || ''
+        }
+      });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+  // 5.4 Live Payment Monitor Feed for Merchant
+  async getMerchantPayments(req, res) {
+    try {
+      const email = req.query.email || req.headers['x-user-email'];
+      if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
+      const payments = await getUserPayments(email, 50);
+      return res.json({ success: true, payments });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: 'Failed to fetch merchant payments' });
     }
   },
 

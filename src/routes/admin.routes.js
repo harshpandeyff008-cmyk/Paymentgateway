@@ -61,6 +61,11 @@ router.post('/imap/restart', ImapController.restartListener);
 router.get('/imap/recent', ImapController.getRecentEmails);
 router.post('/imap/sync-history', ImapController.syncHistory);
 
+// Admin Banking & Google Link endpoints
+router.post('/banking/google-link', AdminController.connectGoogleBanking);
+router.post('/banking/disconnect-google', AdminController.disconnectGoogleBanking);
+router.get('/banking/status', AdminController.getBankingStatus);
+
 // Financial Ledger endpoints
 router.get('/ledger', LedgerController.getSummary);
 router.post('/ledger/parse-paste', LedgerController.parsePaste);

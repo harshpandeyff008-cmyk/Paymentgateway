@@ -193,6 +193,21 @@ export async function initDatabase() {
   try {
     await query.run('ALTER TABLE users ADD COLUMN business_name TEXT DEFAULT ""');
   } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN settlement_type TEXT DEFAULT "GOOGLE_OAUTH"');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN gmail_access_token TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN imap_host TEXT DEFAULT "imap.gmail.com"');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN imap_port INTEGER DEFAULT 993');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN imap_secure INTEGER DEFAULT 1');
+  } catch (_) {}
 
   // 2. Payments table
   await query.run(`
@@ -206,9 +221,14 @@ export async function initDatabase() {
       raw_snippet TEXT,
       matched_order_id INTEGER,
       is_matched INTEGER DEFAULT 0,
+      merchant_email TEXT DEFAULT '',
       FOREIGN KEY (matched_order_id) REFERENCES orders(id)
     )
   `);
+
+  try {
+    await query.run('ALTER TABLE payments ADD COLUMN merchant_email TEXT DEFAULT ""');
+  } catch (_) {}
 
   // 3. Settings table
   await query.run(`
@@ -466,21 +486,76 @@ export async function updateUserGmailConfig(email, { gmailEmail = '', gmailConne
   return await getUserByEmail(email);
 }
 
-export async function updateUserSettlementConfig(email, { upiVpa = '', businessName = '', gmailEmail = '', gmailAppPass = '' }) {
+export async function updateUserGoogleBankingLink(email, { upiVpa = '', businessName = '', googleEmail = '', accessToken = '' }) {
   if (!email) return null;
   const now = Date.now();
   await query.run(
     `UPDATE users SET 
        upi_vpa = CASE WHEN ? != '' THEN ? ELSE upi_vpa END,
        business_name = CASE WHEN ? != '' THEN ? ELSE business_name END,
-       gmail_email = CASE WHEN ? != '' THEN ? ELSE gmail_email END,
-       gmail_app_pass = CASE WHEN ? != '' THEN ? ELSE gmail_app_pass END,
+       gmail_email = ?,
+       gmail_access_token = ?,
+       settlement_type = 'GOOGLE_OAUTH',
        gmail_connected = 1,
        updated_at = ?
      WHERE email = ?`,
-    [upiVpa, upiVpa, businessName, businessName, gmailEmail, gmailEmail, gmailAppPass, gmailAppPass, now, email.trim().toLowerCase()]
+    [upiVpa, upiVpa, businessName, businessName, googleEmail, accessToken, now, email.trim().toLowerCase()]
   );
   return await getUserByEmail(email);
+}
+
+export async function updateUserImapBankingLink(email, { upiVpa = '', businessName = '', imapEmail = '', imapAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993, imapSecure = 1 }) {
+  if (!email) return null;
+  const now = Date.now();
+  await query.run(
+    `UPDATE users SET 
+       upi_vpa = CASE WHEN ? != '' THEN ? ELSE upi_vpa END,
+       business_name = CASE WHEN ? != '' THEN ? ELSE business_name END,
+       gmail_email = ?,
+       gmail_app_pass = ?,
+       imap_host = ?,
+       imap_port = ?,
+       imap_secure = ?,
+       settlement_type = 'IMAP',
+       gmail_connected = 1,
+       updated_at = ?
+     WHERE email = ?`,
+    [upiVpa, upiVpa, businessName, businessName, imapEmail, imapAppPass, imapHost, Number(imapPort) || 993, imapSecure ? 1 : 0, now, email.trim().toLowerCase()]
+  );
+  return await getUserByEmail(email);
+}
+
+export async function disconnectUserBanking(email) {
+  if (!email) return null;
+  const now = Date.now();
+  await query.run(
+    `UPDATE users SET 
+       gmail_connected = 0,
+       gmail_access_token = '',
+       gmail_app_pass = '',
+       updated_at = ?
+     WHERE email = ?`,
+    [now, email.trim().toLowerCase()]
+  );
+  return await getUserByEmail(email);
+}
+
+export async function getUserPayments(email, limit = 50) {
+  if (!email) return [];
+  const normalized = email.trim().toLowerCase();
+  try {
+    return await query.all(
+      `SELECT p.*, o.order_code, o.amount as order_amount, o.user_email
+       FROM payments p
+       LEFT JOIN orders o ON p.matched_order_id = o.id
+       WHERE p.merchant_email = ? OR o.user_email = ?
+       ORDER BY p.received_at DESC
+       LIMIT ?`,
+      [normalized, normalized, Number(limit) || 50]
+    );
+  } catch (err) {
+    return [];
+  }
 }
 
 export async function regenerateUserApiKey(email) {
@@ -731,7 +806,10 @@ export default {
   getUserByApiKey,
   updateUserPlanAndCredits,
   updateUserGmailConfig,
-  updateUserSettlementConfig,
+  updateUserGoogleBankingLink,
+  updateUserImapBankingLink,
+  disconnectUserBanking,
+  getUserPayments,
   regenerateUserApiKey,
   getAllUsers,
   deductUserCredit,

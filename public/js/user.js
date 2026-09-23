@@ -433,17 +433,45 @@ function renderDashboard() {
 
   if (settlementCurrentUpi) settlementCurrentUpi.innerText = currentUser.upiVpa || 'Not Configured';
   if (settlementCurrentBusiness) settlementCurrentBusiness.innerText = currentUser.businessName || 'Default';
-  if (settlementCurrentGmail) settlementCurrentGmail.innerText = currentUser.gmailEmail || 'Not Connected';
+  if (settlementCurrentGmail) {
+    if (currentUser.gmailConnected) {
+      settlementCurrentGmail.innerText = (currentUser.gmailEmail || 'Linked') + (currentUser.settlementType === 'IMAP' ? ' (IMAP)' : ' (Google 1-Click)');
+    } else {
+      settlementCurrentGmail.innerText = 'Not Connected';
+    }
+  }
 
   const inUpi = document.getElementById('inputMerchantUpi');
   const inBiz = document.getElementById('inputMerchantBusiness');
-  const inGmail = document.getElementById('inputGmailEmail');
+  const inImapEmail = document.getElementById('inputImapEmail');
   if (inUpi && !inUpi.value) inUpi.value = currentUser.upiVpa || '';
   if (inBiz && !inBiz.value) inBiz.value = currentUser.businessName || '';
-  if (inGmail && !inGmail.value) inGmail.value = currentUser.gmailEmail || currentUser.email || '';
+  if (inImapEmail && !inImapEmail.value) inImapEmail.value = currentUser.gmailEmail || currentUser.email || '';
+
+  // Google Link UI state update
+  const googleConnectedCard = document.getElementById('googleConnectedCard');
+  const googleConnectActionBox = document.getElementById('googleConnectActionBox');
+  const googleLinkStatusBadge = document.getElementById('googleLinkStatusBadge');
+  const googleLinkedEmailText = document.getElementById('googleLinkedEmailText');
+
+  if (currentUser.gmailConnected) {
+    if (googleConnectedCard) googleConnectedCard.style.display = 'block';
+    if (googleConnectActionBox) googleConnectActionBox.style.display = 'none';
+    if (googleLinkedEmailText) googleLinkedEmailText.innerText = currentUser.gmailEmail || currentUser.email;
+    if (googleLinkStatusBadge) {
+      googleLinkStatusBadge.innerHTML = `<span style="color: #34d399;">🟢 Active (${currentUser.settlementType === 'IMAP' ? 'IMAP' : 'Google Link'})</span>`;
+    }
+  } else {
+    if (googleConnectedCard) googleConnectedCard.style.display = 'none';
+    if (googleConnectActionBox) googleConnectActionBox.style.display = 'block';
+    if (googleLinkStatusBadge) {
+      googleLinkStatusBadge.innerHTML = `<span style="color: #94a3b8;">⚪ Not Linked</span>`;
+    }
+  }
 
   // Update Plan Pricing Cards for Extend & Upgrade states
   updatePlanCardsUI();
+  loadMerchantLivePayments();
 }
 
 // Plan Tier Configuration for Extend vs Upgrade Hierarchy
@@ -1175,24 +1203,143 @@ function closeContactModal() {
   if (modal) modal.style.display = 'none';
 }
 
-// Save Settlement & UPI Destination Configuration
-async function saveSettlementConfig(event) {
-  event.preventDefault();
-  if (!currentUser) return;
+// Tab switching between 1-Click Google and Manual IMAP
+function switchSettlementTab(tab) {
+  const tabGoogle = document.getElementById('settlementTabGoogle');
+  const tabImap = document.getElementById('settlementTabImap');
+  const btnGoogle = document.getElementById('tabBtnGoogle');
+  const btnImap = document.getElementById('tabBtnImap');
 
-  const upiInput = (document.getElementById('inputMerchantUpi')?.value || '').trim();
-  const bizInput = (document.getElementById('inputMerchantBusiness')?.value || '').trim();
-  const emailInput = (document.getElementById('inputGmailEmail')?.value || '').trim();
-  const passInput = (document.getElementById('inputGmailAppPass')?.value || '').trim();
+  if (tab === 'google') {
+    if (tabGoogle) tabGoogle.style.display = 'block';
+    if (tabImap) tabImap.style.display = 'none';
+    if (btnGoogle) {
+      btnGoogle.classList.add('active');
+      btnGoogle.style.background = 'rgba(56, 189, 248, 0.2)';
+      btnGoogle.style.borderColor = '#38bdf8';
+      btnGoogle.style.color = '#fff';
+    }
+    if (btnImap) {
+      btnImap.classList.remove('active');
+      btnImap.style.background = 'rgba(255, 255, 255, 0.05)';
+      btnImap.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      btnImap.style.color = 'var(--text-muted)';
+    }
+  } else {
+    if (tabGoogle) tabGoogle.style.display = 'none';
+    if (tabImap) tabImap.style.display = 'block';
+    if (btnImap) {
+      btnImap.classList.add('active');
+      btnImap.style.background = 'rgba(56, 189, 248, 0.2)';
+      btnImap.style.borderColor = '#38bdf8';
+      btnImap.style.color = '#fff';
+    }
+    if (btnGoogle) {
+      btnGoogle.classList.remove('active');
+      btnGoogle.style.background = 'rgba(255, 255, 255, 0.05)';
+      btnGoogle.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      btnGoogle.style.color = 'var(--text-muted)';
+    }
+  }
+}
+
+// 1-Click Google Banking Link (uses gmail.readonly scope)
+async function linkGoogleBankingGmail() {
+  if (!currentUser) return;
+  const upiInput = (document.getElementById('inputMerchantUpi')?.value || currentUser.upiVpa || '').trim();
+  const bizInput = (document.getElementById('inputMerchantBusiness')?.value || currentUser.businessName || '').trim();
   const feedback = document.getElementById('settlementConfigFeedback');
 
   if (!upiInput) {
-    alert('Please enter your Merchant UPI ID (e.g. yourname@okhdfcbank).');
+    alert('Please enter your Merchant UPI ID (e.g. yourname@okhdfcbank) first in Step 1 so customers can pay directly to your account.');
+    document.getElementById('inputMerchantUpi')?.focus();
     return;
   }
 
   try {
-    const res = await fetch('/api/v1/user/gmail-config', {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    const btn = document.getElementById('btnLinkGoogleBanking');
+    if (btn) btn.innerHTML = '<span>Connecting with Google...</span> ⏳';
+
+    const result = await firebase.auth().signInWithPopup(provider);
+    const accessToken = result.credential ? result.credential.accessToken : null;
+    const googleEmail = result.user ? result.user.email : '';
+
+    if (!accessToken) {
+      alert('Could not obtain Google authorization token. Please ensure popup is permitted and try again.');
+      if (btn) btn.innerHTML = '<span>🔗 Connect Banking Gmail with 1-Click (Read-Only)</span> <span>⚡</span>';
+      return;
+    }
+
+    const res = await fetch('/api/v1/user/banking/google-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userEmail: currentUser.email,
+        accessToken,
+        googleEmail,
+        upiVpa: upiInput,
+        businessName: bizInput
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      currentUser.upiVpa = data.user.upiVpa || upiInput;
+      currentUser.businessName = data.user.businessName || bizInput;
+      currentUser.gmailConnected = true;
+      currentUser.gmailEmail = data.user.gmailEmail || googleEmail;
+      currentUser.settlementType = 'GOOGLE_OAUTH';
+      sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      renderDashboard();
+
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(16, 185, 129, 0.12)';
+        feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+        feedback.style.color = '#34d399';
+        feedback.innerText = '✅ ' + data.message;
+      }
+      alert(`🎉 Success! Banking email (${currentUser.gmailEmail}) connected with 1-Click Read-Only Google sync! All customer payments to UPI ID (${currentUser.upiVpa}) will be verified in 1 second.`);
+    } else {
+      alert('Error: ' + (data.error || 'Failed to link Google banking email'));
+    }
+  } catch (err) {
+    alert('Google connection cancelled or failed: ' + err.message);
+  } finally {
+    const btn = document.getElementById('btnLinkGoogleBanking');
+    if (btn) btn.innerHTML = '<span>🔗 Connect Banking Gmail with 1-Click (Read-Only)</span> <span>⚡</span>';
+  }
+}
+
+// Manual IMAP Banking Link
+async function saveImapSettlementConfig(event) {
+  event.preventDefault();
+  if (!currentUser) return;
+
+  const upiInput = (document.getElementById('inputMerchantUpi')?.value || currentUser.upiVpa || '').trim();
+  const bizInput = (document.getElementById('inputMerchantBusiness')?.value || currentUser.businessName || '').trim();
+  const emailInput = (document.getElementById('inputImapEmail')?.value || '').trim();
+  const passInput = (document.getElementById('inputImapPass')?.value || '').trim();
+  const hostInput = (document.getElementById('inputImapHost')?.value || 'imap.gmail.com').trim();
+  const portInput = (document.getElementById('inputImapPort')?.value || '993').trim();
+  const feedback = document.getElementById('settlementConfigFeedback');
+
+  if (!upiInput) {
+    alert('Please enter your Merchant UPI ID in Step 1 first.');
+    document.getElementById('inputMerchantUpi')?.focus();
+    return;
+  }
+  if (!emailInput || !passInput) {
+    alert('Please enter both the Bank Alert Email and App Password.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/v1/user/banking/imap-link', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1200,7 +1347,9 @@ async function saveSettlementConfig(event) {
         upiVpa: upiInput,
         businessName: bizInput,
         gmailEmail: emailInput,
-        gmailAppPass: passInput
+        gmailAppPass: passInput,
+        imapHost: hostInput,
+        imapPort: portInput
       })
     });
 
@@ -1210,8 +1359,10 @@ async function saveSettlementConfig(event) {
       currentUser.businessName = data.user.businessName || bizInput;
       currentUser.gmailConnected = true;
       currentUser.gmailEmail = data.user.gmailEmail || emailInput;
+      currentUser.settlementType = 'IMAP';
       sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
       renderDashboard();
+
       if (feedback) {
         feedback.style.display = 'block';
         feedback.style.background = 'rgba(16, 185, 129, 0.12)';
@@ -1219,24 +1370,84 @@ async function saveSettlementConfig(event) {
         feedback.style.color = '#34d399';
         feedback.innerText = '✅ ' + data.message;
       }
-      alert(`🎉 Success! Your UPI ID (${currentUser.upiVpa}) and business name (${currentUser.businessName || 'Default'}) have been activated. Dynamic QR codes will now direct customer funds to your bank account!`);
+      alert(`🎉 Success! Custom IMAP listener connected for ${currentUser.gmailEmail}. Direct payments will route to ${currentUser.upiVpa}!`);
     } else {
-      if (feedback) {
-        feedback.style.display = 'block';
-        feedback.style.background = 'rgba(244, 63, 94, 0.12)';
-        feedback.style.border = '1px solid rgba(244, 63, 94, 0.3)';
-        feedback.style.color = '#f87171';
-        feedback.innerText = '❌ ' + (data.error || 'Failed to save configuration');
-      }
-      alert('Error: ' + (data.error || 'Failed to save configuration'));
+      alert('Error: ' + (data.error || 'Failed to save IMAP configuration'));
     }
   } catch (err) {
-    alert('Error connecting settlement channel: ' + err.message);
+    alert('Error saving IMAP config: ' + err.message);
+  }
+}
+
+// Disconnect Banking Channel
+async function disconnectBankingChannel() {
+  if (!currentUser) return;
+  if (!confirm('Are you sure you want to disconnect this banking alert channel? Auto-verification will pause until you re-link.')) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/v1/user/banking/disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userEmail: currentUser.email })
+    });
+    const data = await res.json();
+    if (data.success) {
+      currentUser.gmailConnected = false;
+      currentUser.gmailEmail = '';
+      sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      renderDashboard();
+      alert('Banking alert channel disconnected.');
+    }
+  } catch (err) {
+    alert('Failed to disconnect: ' + err.message);
+  }
+}
+
+// Live Payment Monitor Feed for Merchant
+async function loadMerchantLivePayments() {
+  if (!currentUser || !currentUser.email) return;
+  const tbody = document.getElementById('merchantLivePaymentsTableBody');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch(`/api/v1/user/banking/payments?email=${encodeURIComponent(currentUser.email)}`);
+    const data = await res.json();
+
+    if (data.success && data.payments && data.payments.length > 0) {
+      tbody.innerHTML = data.payments.map(p => {
+        const dateStr = p.received_at ? new Date(Number(p.received_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '-';
+        const sourceLabel = p.source ? (p.source.includes('GOOGLE') ? '⚡ Google Link' : '⚙️ Bank IMAP') : 'Bank Sync';
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 10px 12px; font-weight: 800; color: #34d399; font-size: 13.5px;">₹${Number(p.amount).toFixed(2)}</td>
+            <td style="padding: 10px 12px; font-family: monospace; color: #38bdf8; font-weight: 700;">${p.utr || 'Auto-Verified'}</td>
+            <td style="padding: 10px 12px; font-weight: 600; color: #fff;">${p.order_code || 'Direct Store Order'}</td>
+            <td style="padding: 10px 12px;"><span style="background: rgba(56,189,248,0.15); color: #38bdf8; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700;">${sourceLabel}</span></td>
+            <td style="padding: 10px 12px; color: var(--text-dim);">${dateStr}</td>
+            <td style="padding: 10px 12px; text-align: right;"><span style="background: rgba(16,185,129,0.2); color: #34d399; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">🟢 SETTLED</span></td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="padding: 24px; text-align: center; color: var(--text-muted);">
+            No customer payments detected yet. When payments arrive at your UPI ID (${currentUser.upiVpa || 'VPA'}), they will appear here instantly!
+          </td>
+        </tr>
+      `;
+    }
+  } catch (err) {
+    // Ignore transient network errors
   }
 }
 
 // Backward compatibility alias
-const saveGmailConfig = saveSettlementConfig;
+const saveSettlementConfig = saveImapSettlementConfig;
+const saveGmailConfig = saveImapSettlementConfig;
+
 
 function copyToClipboard(text) {
   if (!text) return;

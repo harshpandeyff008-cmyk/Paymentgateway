@@ -233,6 +233,72 @@ export const AdminController = {
     } catch (err) {
       next(err);
     }
+  },
+
+  async connectGoogleBanking(req, res, next) {
+    try {
+      const { accessToken, googleEmail } = req.body;
+      if (!accessToken) {
+        return res.status(400).json({ success: false, error: 'Google accessToken is required' });
+      }
+      await SettingModel.set('admin_settlement_type', 'GOOGLE_OAUTH');
+      await SettingModel.set('admin_gmail_access_token', accessToken.trim());
+      await SettingModel.set('admin_gmail_email', (googleEmail || '').trim());
+      await SettingModel.set('admin_gmail_connected', 'true');
+
+      return res.json({
+        success: true,
+        message: 'Admin Google Banking Gmail successfully linked! Auto-monitoring bank credit alerts.',
+        adminSettlement: {
+          type: 'GOOGLE_OAUTH',
+          connected: true,
+          email: (googleEmail || '').trim()
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async disconnectGoogleBanking(req, res, next) {
+    try {
+      await SettingModel.set('admin_settlement_type', 'IMAP');
+      await SettingModel.set('admin_gmail_access_token', '');
+      await SettingModel.set('admin_gmail_connected', 'false');
+
+      return res.json({
+        success: true,
+        message: 'Admin Google Banking Link disconnected. Switched back to IMAP.',
+        adminSettlement: {
+          type: 'IMAP',
+          connected: false
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getBankingStatus(req, res, next) {
+    try {
+      const settlementType = await SettingModel.get('admin_settlement_type', 'IMAP');
+      const googleToken = await SettingModel.get('admin_gmail_access_token', '');
+      const googleEmail = await SettingModel.get('admin_gmail_email', '');
+      const googleConnected = await SettingModel.get('admin_gmail_connected', 'false');
+
+      return res.json({
+        success: true,
+        settlementType,
+        google: {
+          connected: googleConnected === 'true' && !!googleToken,
+          email: googleEmail
+        },
+        merchantUpiVpa: config.merchant.upiVpa,
+        merchantName: config.merchant.name
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 };
 

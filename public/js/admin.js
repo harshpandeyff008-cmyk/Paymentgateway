@@ -2012,6 +2012,104 @@ window.loadAdminSubscriptions = loadAdminSubscriptions;
 
 // ─── IMAP Status & New Tab Functions ────────────────────────────────────────
 
+function switchAdminBankingTab(tab) {
+  const tabGoogle = document.getElementById('adminBankingTabGoogle');
+  const tabImap = document.getElementById('adminBankingTabImap');
+  const btnGoogle = document.getElementById('adminTabBtnGoogle');
+  const btnImap = document.getElementById('adminTabBtnImap');
+
+  if (tab === 'google') {
+    if (tabGoogle) tabGoogle.style.display = 'block';
+    if (tabImap) tabImap.style.display = 'none';
+    if (btnGoogle) {
+      btnGoogle.classList.add('active');
+      btnGoogle.style.background = 'rgba(56, 189, 248, 0.2)';
+      btnGoogle.style.borderColor = '#38bdf8';
+      btnGoogle.style.color = '#fff';
+    }
+    if (btnImap) {
+      btnImap.classList.remove('active');
+      btnImap.style.background = 'transparent';
+      btnImap.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      btnImap.style.color = 'var(--text-muted)';
+    }
+  } else {
+    if (tabGoogle) tabGoogle.style.display = 'none';
+    if (tabImap) tabImap.style.display = 'block';
+    if (btnImap) {
+      btnImap.classList.add('active');
+      btnImap.style.background = 'rgba(56, 189, 248, 0.2)';
+      btnImap.style.borderColor = '#38bdf8';
+      btnImap.style.color = '#fff';
+    }
+    if (btnGoogle) {
+      btnGoogle.classList.remove('active');
+      btnGoogle.style.background = 'transparent';
+      btnGoogle.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      btnGoogle.style.color = 'var(--text-muted)';
+    }
+  }
+}
+window.switchAdminBankingTab = switchAdminBankingTab;
+
+async function linkAdminGoogleBanking() {
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    const btn = document.getElementById('btnAdminLinkGoogle');
+    if (btn) btn.innerHTML = '<span>Connecting Google...</span> ⏳';
+
+    const result = await firebase.auth().signInWithPopup(provider);
+    const accessToken = result.credential ? result.credential.accessToken : null;
+    const googleEmail = result.user ? result.user.email : '';
+
+    if (!accessToken) {
+      alert('Could not obtain Google authorization token.');
+      if (btn) btn.innerHTML = '<span>🔗 Link Admin Banking Gmail with 1-Click (Read-Only)</span> <span>⚡</span>';
+      return;
+    }
+
+    const res = await fetch(API_BASE + '/api/admin/banking/google-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken, googleEmail })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`🎉 Admin Banking email (${googleEmail}) linked with Google OAuth! Bank credit alerts will now auto-verify plan subscriptions.`);
+      loadImapStatus();
+    } else {
+      alert('Error: ' + (data.error || 'Failed to link Google banking email'));
+    }
+  } catch (err) {
+    alert('Google linking failed: ' + err.message);
+  } finally {
+    const btn = document.getElementById('btnAdminLinkGoogle');
+    if (btn) btn.innerHTML = '<span>🔗 Link Admin Banking Gmail with 1-Click (Read-Only)</span> <span>⚡</span>';
+  }
+}
+window.linkAdminGoogleBanking = linkAdminGoogleBanking;
+
+async function disconnectAdminGoogleBanking() {
+  if (!confirm('Disconnect Admin Google Banking Link and switch back to manual IMAP?')) return;
+  try {
+    const res = await fetch(API_BASE + '/api/admin/banking/disconnect-google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('Admin Google banking link disconnected.');
+      loadImapStatus();
+    }
+  } catch (err) {
+    alert('Failed to disconnect: ' + err.message);
+  }
+}
+window.disconnectAdminGoogleBanking = disconnectAdminGoogleBanking;
+
 async function loadImapStatus() {
   try {
     const res = await fetch(API_BASE + '/api/admin/stats');
@@ -2023,6 +2121,32 @@ async function loadImapStatus() {
     const txt = document.getElementById('imapTextImap');
     const topDot = document.getElementById('imapDot');
     const topTxt = document.getElementById('imapText');
+
+    // Check Google Banking status
+    try {
+      const bRes = await fetch(API_BASE + '/api/admin/banking/status');
+      const bData = await bRes.json();
+      if (bData.success) {
+        const isGoogleActive = bData.settlementType === 'GOOGLE_OAUTH' && bData.google && bData.google.connected;
+        const gCard = document.getElementById('adminGoogleConnectedCard');
+        const gAction = document.getElementById('adminGoogleConnectActionBox');
+        const gEmail = document.getElementById('adminGoogleLinkedEmail');
+
+        if (isGoogleActive) {
+          if (gCard) gCard.style.display = 'block';
+          if (gAction) gAction.style.display = 'none';
+          if (gEmail) gEmail.textContent = bData.google.email;
+          if (topDot) topDot.className = 'status-dot connected';
+          if (topTxt) topTxt.textContent = 'Google Bank: Active';
+          if (dot) dot.className = 'status-dot connected';
+          if (txt) txt.textContent = `✅ Google Banking Linked · ${bData.google.email}`;
+          return;
+        } else {
+          if (gCard) gCard.style.display = 'none';
+          if (gAction) gAction.style.display = 'block';
+        }
+      }
+    } catch (_) {}
 
     const cls = isConnected ? 'connected' : 'disconnected';
     const label = isConnected ? `✅ IMAP Connected · ${data.stats.imapUser || ''}` : '⚠️ IMAP Disconnected — Click Save below to start';
@@ -2042,6 +2166,7 @@ async function loadImapStatus() {
   } catch (err) { console.error('[IMAP Status]', err); }
 }
 window.loadImapStatus = loadImapStatus;
+
 
 function handleTestImapConnection() {
   const user = document.getElementById('uiImapUser');

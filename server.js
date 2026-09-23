@@ -8,6 +8,7 @@ import { startExpiryCleaner, stopExpiryCleaner } from './src/jobs/expiryCleaner.
 import { SettingModel } from './src/models/setting.model.js';
 import { setSocketIO } from './src/services/matchingEngine.service.js';
 import { startImapListener, stopImapListener } from './src/services/imapListener.service.js';
+import { startGmailWatcher, stopGmailWatcher } from './services/gmailWatcher.service.js';
 import logger from './src/utils/logger.js';
 
 // Global error handlers for uncaught process exceptions
@@ -68,6 +69,9 @@ async function bootstrap() {
     if (config.imap.enabled) {
       startImapListener(io);
     }
+
+    // 9. Launch real-time Google OAuth Banking Link watcher
+    startGmailWatcher();
   });
 }
 
@@ -77,6 +81,7 @@ async function handleShutdown(signal) {
 
   // Stop background jobs
   stopExpiryCleaner();
+  stopGmailWatcher();
 
   // Stop IMAP connection
   try {
