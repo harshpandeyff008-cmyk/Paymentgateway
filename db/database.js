@@ -530,6 +530,9 @@ export async function updateUserImapBankingLink(email, { upiVpa = '', businessNa
   return await getUserByEmail(email);
 }
 
+// Backward compatibility alias for legacy imports
+export const updateUserSettlementConfig = updateUserImapBankingLink;
+
 export async function disconnectUserBanking(email) {
   if (!email) return null;
   const now = Date.now();
