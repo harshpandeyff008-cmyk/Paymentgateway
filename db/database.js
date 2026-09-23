@@ -817,6 +817,10 @@ export async function setPlanPriceOverride(planId, customPrice) {
   );
 }
 
+export async function deletePlanPriceOverride(planId) {
+  return await query.run('DELETE FROM plan_price_overrides WHERE plan_id = ?', [planId.toUpperCase()]);
+}
+
 export async function updateUserCheckoutBranding(email, { defaultBrandName = '', defaultBrandLogoUrl = '', defaultTheme = 'tiranga', defaultRedirectUrl = '', defaultCustomNote = '' }) {
   const normalizedEmail = (email || '').toLowerCase().trim();
   const now = Date.now();
@@ -872,5 +876,6 @@ export default {
   deleteCoupon,
   getPlanPriceOverrides,
   setPlanPriceOverride,
-  deletePlanPriceOverride
+  deletePlanPriceOverride,
+  updateUserCheckoutBranding
 };
