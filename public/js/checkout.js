@@ -92,6 +92,26 @@ function renderOrder(order) {
     merchantName.innerText = order.merchantName;
   }
 
+  // Custom Merchant Logo
+  const merchantLogoImg = document.getElementById('merchantLogoImg');
+  if (merchantLogoImg && (order.brandLogoUrl || order.customLogoUrl || order.brand_logo_url || order.custom_logo_url)) {
+    merchantLogoImg.src = order.brandLogoUrl || order.customLogoUrl || order.brand_logo_url || order.custom_logo_url;
+  }
+
+  // Custom Note or Order Description
+  const customNoteBox = document.getElementById('customNoteBox');
+  const customNoteText = order.customNote || order.description || order.custom_note;
+  if (customNoteBox && customNoteText) {
+    customNoteBox.innerText = `📝 ${customNoteText}`;
+    customNoteBox.style.display = 'block';
+  }
+
+  // Dynamic Theme Styling
+  const theme = order.theme || 'tiranga';
+  if (theme && theme !== 'tiranga') {
+    applyThemeStyling(theme);
+  }
+
   const uniqueNotice = document.getElementById('uniqueAmountNotice');
   if (uniqueNotice) {
     if (order.base_amount && Number(order.base_amount) !== Number(order.amount)) {
@@ -248,6 +268,46 @@ function showPaymentSuccess(data) {
 
   // Confetti explosion!
   triggerConfetti();
+
+  // Check if Merchant configured an automated redirect URL
+  const targetRedirect = currentOrder?.redirectUrl || currentOrder?.returnUrl || currentOrder?.redirect_url || currentOrder?.return_url;
+  if (targetRedirect && targetRedirect.startsWith('http')) {
+    const redirectBox = document.getElementById('redirectBox');
+    const redirectTimer = document.getElementById('redirectTimer');
+    if (redirectBox && redirectTimer) {
+      redirectBox.style.display = 'block';
+      let secLeft = 3;
+      redirectTimer.innerText = secLeft;
+      const rInterval = setInterval(() => {
+        secLeft--;
+        if (secLeft <= 0) {
+          clearInterval(rInterval);
+          // Append verification query parameters to return URL
+          const delim = targetRedirect.includes('?') ? '&' : '?';
+          window.location.href = `${targetRedirect}${delim}order_code=${encodeURIComponent(data.orderCode || orderCode)}&status=PAID&utr=${encodeURIComponent(data.utr || '')}&amount=${encodeURIComponent(data.amount || currentOrder.amount)}`;
+        } else {
+          redirectTimer.innerText = secLeft;
+        }
+      }, 1000);
+    }
+  }
+}
+
+function applyThemeStyling(themeName) {
+  const root = document.documentElement;
+  if (themeName === 'cyan') {
+    root.style.setProperty('--primary', '#38bdf8');
+    root.style.setProperty('--primary-glow', 'rgba(56, 189, 248, 0.4)');
+  } else if (themeName === 'purple') {
+    root.style.setProperty('--primary', '#a855f7');
+    root.style.setProperty('--primary-glow', 'rgba(168, 85, 247, 0.4)');
+  } else if (themeName === 'emerald') {
+    root.style.setProperty('--primary', '#10b981');
+    root.style.setProperty('--primary-glow', 'rgba(16, 185, 129, 0.4)');
+  } else if (themeName === 'amber') {
+    root.style.setProperty('--primary', '#f59e0b');
+    root.style.setProperty('--primary-glow', 'rgba(245, 158, 11, 0.4)');
+  }
 }
 
 function playSuccessSound() {

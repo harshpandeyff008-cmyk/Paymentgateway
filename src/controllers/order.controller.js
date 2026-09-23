@@ -18,7 +18,24 @@ export const OrderController = {
     try {
       const origin = req.headers.origin || req.headers.referer || '';
       const clientIp = req.ip || req.connection?.remoteAddress || '';
-      const { amount, customerName = 'Guest', customerPhone = '', webhookUrl = '', expiryMinutes } = req.body;
+      const { 
+        amount, 
+        customerName = 'Guest', 
+        customerPhone = '', 
+        webhookUrl = '', 
+        expiryMinutes,
+        // Merchant Customer Checkout Customization Options
+        merchantName: customMerchantName,
+        businessName: customBusinessName,
+        brandName: customBrandName,
+        brandLogoUrl = '',
+        customLogoUrl = '',
+        customNote = '',
+        description = '',
+        theme = '',
+        redirectUrl = '',
+        returnUrl = ''
+      } = req.body;
       const parsedAmount = parseFloat(amount);
 
       if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -51,6 +68,14 @@ export const OrderController = {
       const expiresAt = createdAt + expiryMin * 60 * 1000;
 
       const userEmail = req.userRecord?.email || '';
+
+      // Resolve custom checkout options with merchant defaults fallback
+      const finalBrandName = customMerchantName || customBusinessName || customBrandName || req.userRecord?.default_brand_name || req.userRecord?.business_name || req.userRecord?.name || config.merchant.name;
+      const finalBrandLogoUrl = brandLogoUrl || customLogoUrl || req.userRecord?.default_brand_logo_url || '';
+      const finalCustomNote = customNote || description || req.userRecord?.default_custom_note || '';
+      const finalTheme = theme || req.userRecord?.default_theme || 'tiranga';
+      const finalRedirectUrl = redirectUrl || returnUrl || req.userRecord?.default_redirect_url || '';
+
       const order = await OrderModel.create({
         orderCode,
         amount: payableAmount,
@@ -60,12 +85,17 @@ export const OrderController = {
         createdAt,
         expiresAt,
         webhookUrl,
-        userEmail
+        userEmail,
+        brandName: finalBrandName,
+        brandLogoUrl: finalBrandLogoUrl,
+        customNote: finalCustomNote,
+        theme: finalTheme,
+        redirectUrl: finalRedirectUrl
       });
 
-      // Use merchant's own registered UPI VPA and business name if configured, otherwise fallback to platform defaults
+      // Use merchant's own registered UPI VPA if configured, otherwise fallback to platform defaults
       const merchantVpa = req.userRecord?.upi_vpa || config.merchant.upiVpa;
-      const merchantName = req.userRecord?.business_name || req.userRecord?.name || config.merchant.name;
+      const merchantName = finalBrandName;
 
       const upiUri = buildUpiUri({
         vpa: merchantVpa,
@@ -185,7 +215,15 @@ export const OrderController = {
           ...order,
           orderId: order.id,
           orderCode: order.order_code,
-          merchantName,
+          merchantName: order.brand_name || merchantName,
+          brandName: order.brand_name || merchantName,
+          brandLogoUrl: order.brand_logo_url || '',
+          customLogoUrl: order.brand_logo_url || '',
+          customNote: order.custom_note || '',
+          description: order.custom_note || '',
+          theme: order.theme || 'tiranga',
+          redirectUrl: order.redirect_url || '',
+          returnUrl: order.redirect_url || '',
           merchantVpa,
           upiUri,
           checkoutUrl: `/checkout/${order.order_code}`,

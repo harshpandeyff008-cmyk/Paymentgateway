@@ -148,6 +148,21 @@ export async function initDatabase() {
   try {
     await query.run('ALTER TABLE orders ADD COLUMN base_amount REAL');
   } catch (_) {}
+  try {
+    await query.run('ALTER TABLE orders ADD COLUMN brand_name TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE orders ADD COLUMN brand_logo_url TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE orders ADD COLUMN custom_note TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE orders ADD COLUMN theme TEXT DEFAULT "tiranga"');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE orders ADD COLUMN redirect_url TEXT DEFAULT ""');
+  } catch (_) {}
 
   // 1.5 Users table for QR API platform
   await query.run(`
@@ -210,6 +225,21 @@ export async function initDatabase() {
   } catch (_) {}
   try {
     await query.run('ALTER TABLE users ADD COLUMN upi_provider TEXT DEFAULT "AUTO"');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN default_brand_name TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN default_brand_logo_url TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN default_theme TEXT DEFAULT "tiranga"');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN default_redirect_url TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN default_custom_note TEXT DEFAULT ""');
   } catch (_) {}
 
   // 2. Payments table
@@ -787,8 +817,15 @@ export async function setPlanPriceOverride(planId, customPrice) {
   );
 }
 
-export async function deletePlanPriceOverride(planId) {
-  return await query.run('DELETE FROM plan_price_overrides WHERE plan_id = ?', [planId.toUpperCase()]);
+export async function updateUserCheckoutBranding(email, { defaultBrandName = '', defaultBrandLogoUrl = '', defaultTheme = 'tiranga', defaultRedirectUrl = '', defaultCustomNote = '' }) {
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  const now = Date.now();
+  return await query.run(
+    `UPDATE users 
+     SET default_brand_name = ?, default_brand_logo_url = ?, default_theme = ?, default_redirect_url = ?, default_custom_note = ?, updated_at = ?
+     WHERE lower(email) = ?`,
+    [defaultBrandName, defaultBrandLogoUrl, defaultTheme, defaultRedirectUrl, defaultCustomNote, now, normalizedEmail]
+  );
 }
 
 export function closeDatabase() {

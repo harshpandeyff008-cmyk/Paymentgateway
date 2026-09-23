@@ -24,7 +24,7 @@
       
       <!-- Brand Header -->
       <div class="sidebar-brand-box">
-        <div class="sidebar-brand-icon" style="background: linear-gradient(135deg, #ff671f, #041e42 50%, #046a38); border: 1px solid rgba(255,255,255,0.2);">🇮🇳</div>
+        <img src="/images/logo.png" alt="NPCI UPI Gateway Logo" style="height: 40px; width: 40px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 12px rgba(56,189,248,0.3);">
         <div>
           <div class="sidebar-brand-title">PayPerpendicular</div>
           <div class="sidebar-brand-subtitle" style="color: #ff9933; font-weight: 700;">🇮🇳 देश का अपना UPI गेटवे</div>
@@ -81,7 +81,16 @@
           </div>
         </button>
 
-        <!-- 5. DOCUMENTATION & SDKS -->
+        <!-- 5. CHECKOUT CUSTOMIZER & BRANDING -->
+        <button type="button" class="sidebar-item-2line" id="nav_customizer" onclick="switchSidebarView('customizer')">
+          <div class="sidebar-item-icon" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.3); color: #c084fc;">🎨</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1" style="color: #c084fc;">Checkout Customizer</div>
+            <div class="sidebar-item-line2">Brand Name, Logo, Theme &amp; API</div>
+          </div>
+        </button>
+
+        <!-- 6. DOCUMENTATION & SDKS -->
         <button type="button" class="sidebar-item-2line" id="nav_docs" onclick="switchSidebarView('docs')">
           <div class="sidebar-item-icon">📑</div>
           <div class="sidebar-item-texts">
@@ -90,7 +99,7 @@
           </div>
         </button>
 
-        <!-- 6. SETTLEMENT ENGINE (LOCKED UNTIL PLAN PURCHASED) -->
+        <!-- 7. SETTLEMENT ENGINE (LOCKED UNTIL PLAN PURCHASED) -->
         <button type="button" class="sidebar-item-2line" id="nav_settlement" onclick="switchSidebarView('settlement')" style="display: none;">
           <div class="sidebar-item-icon">⚙️</div>
           <div class="sidebar-item-texts">
@@ -99,7 +108,7 @@
           </div>
         </button>
 
-        <!-- 7. ENTERPRISE / VIP CONTACT -->
+        <!-- 8. ENTERPRISE / VIP CONTACT -->
         <button type="button" class="sidebar-item-2line" id="nav_contact" onclick="openContactModal()">
           <div class="sidebar-item-icon" style="background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24;">👑</div>
           <div class="sidebar-item-texts">
@@ -1395,6 +1404,170 @@ echo "Order: " . $data['order']['orderCode'];
 
         </section>
 
+        <!-- ======================================================== -->
+        <!-- VIEW 6: CHECKOUT CUSTOMIZER & BRANDING                   -->
+        <!-- ======================================================== -->
+        <section id="view_customizer" class="dashboard-view-section">
+          
+          <div class="section-header">
+            <h2 class="section-title"><span>🎨 Customer Checkout Branding &amp; API Customizer</span></h2>
+            <p class="section-desc">
+              Tailor the end-customer checkout experience for your brand. Set your default store logo, custom color theme, order note, and post-payment return URL. You can also pass these dynamically via API when generating orders.
+            </p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; margin-bottom: 28px;">
+            
+            <!-- LEFT: BRANDING FORM CONTROLS -->
+            <div class="gmail-card" style="margin: 0;">
+              <h3 style="font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                <span>⚙️ Default Checkout Appearance</span>
+              </h3>
+
+              <form id="formCheckoutBranding" onsubmit="handleSaveBranding(event)">
+                <!-- Brand / Business Name -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label">Store / Brand Name (Displayed at Top)</label>
+                  <input type="text" id="customizerBrandName" class="form-input" placeholder="e.g. Acme Store or My Brand" oninput="updateLiveStandPreview()">
+                  <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 4px;">Appears on customer checkout stand header.</div>
+                </div>
+
+                <!-- Brand Logo URL -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label">Brand Logo Image URL (PNG/SVG/WebP)</label>
+                  <input type="url" id="customizerBrandLogo" class="form-input" placeholder="https://yourstore.com/logo.png" oninput="updateLiveStandPreview()">
+                  <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 4px;">Direct link to your company logo. Defaults to Bharat UPI badge if blank.</div>
+                </div>
+
+                <!-- Theme Color Palette -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label">Checkout Theme Palette</label>
+                  <select id="customizerTheme" class="form-input" onchange="updateLiveStandPreview()" style="cursor: pointer;">
+                    <option value="tiranga">🇮🇳 Tiranga Standard (Saffron, White &amp; Green) - Recommended</option>
+                    <option value="cyan">⚡ Neon Cyan (Modern Tech / SaaS)</option>
+                    <option value="purple">👑 Royal Purple (VIP / Luxury)</option>
+                    <option value="emerald">🏦 Direct Bank Emerald (Fintech)</option>
+                    <option value="amber">🔥 Golden Amber (High Contrast)</option>
+                  </select>
+                </div>
+
+                <!-- Success Redirect URL -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label">Auto-Redirect URL After Payment Success</label>
+                  <input type="url" id="customizerRedirectUrl" class="form-input" placeholder="https://yourstore.com/checkout/success">
+                  <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 4px;">End customer will be automatically redirected 3s after payment with status and UTR.</div>
+                </div>
+
+                <!-- Custom Note / Order Notice -->
+                <div class="form-group" style="margin-bottom: 18px;">
+                  <label class="form-label">Default Custom Note / Order Notice</label>
+                  <input type="text" id="customizerCustomNote" class="form-input" placeholder="e.g. Instant License Key Delivery on Payment" oninput="updateLiveStandPreview()">
+                  <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 4px;">Short reassurance message shown below order amount.</div>
+                </div>
+
+                <div id="brandingSaveFeedback" style="display: none; font-size: 13px; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px;"></div>
+
+                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; font-weight: 800;">
+                  <span>💾 Save Default Branding</span>
+                </button>
+              </form>
+            </div>
+
+            <!-- RIGHT: INTERACTIVE LIVE STAND PREVIEW -->
+            <div class="gmail-card" style="margin: 0; background: rgba(8, 12, 20, 0.7); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+              <div style="font-size: 12px; font-weight: 700; color: #ff9933; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px;">
+                👁️ Live Customer Stand Preview
+              </div>
+
+              <!-- Mini Stand Replica -->
+              <div id="previewStandCard" style="background: #ffffff; border-radius: 18px; width: 280px; overflow: hidden; box-shadow: 0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(255,103,31,0.2); border: 2px solid #e2e8f0; color: #0f172a; text-align: center; transition: all 0.3s ease;">
+                
+                <!-- Stand Top Accent Strip -->
+                <div id="previewTricolorStrip" style="height: 5px; width: 100%; background: linear-gradient(90deg, #FF671F 0%, #FFFFFF 50%, #046A38 100%);"></div>
+
+                <!-- Stand Header -->
+                <div style="background: #091428; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #041e42;">
+                  <div style="display: flex; align-items: center; gap: 6px; text-align: left;">
+                    <img id="previewMerchantLogo" src="/images/logo.png" alt="Merchant" style="height: 26px; width: 26px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2);">
+                    <div>
+                      <div id="previewMerchantName" style="font-size: 12px; font-weight: 900; color: #ffffff; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Your Brand Name</div>
+                      <div style="font-size: 8.5px; color: #94a3b8; font-weight: 700;">BHARAT UPI VERIFIED</div>
+                    </div>
+                  </div>
+                  <div style="font-size: 8px; font-weight: 800; color: #ffb86c; background: rgba(255,103,31,0.2); border: 1px solid rgba(255,153,51,0.4); border-radius: 999px; padding: 2px 6px;">
+                    🛡️ Safe
+                  </div>
+                </div>
+
+                <!-- Amount Section -->
+                <div style="padding: 10px 10px 4px;">
+                  <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Payable Amount</div>
+                  <div style="font-size: 24px; font-weight: 900; color: #0f172a;">₹ 499.00</div>
+                  <div id="previewCustomNote" style="font-size: 9.5px; color: #0369a1; background: #e0f2fe; border: 1px dashed #bae6fd; border-radius: 4px; padding: 2px 6px; margin: 4px auto 0; display: inline-block; max-width: 250px;">
+                    📝 Instant License Key Delivery on Payment
+                  </div>
+                </div>
+
+                <!-- Stand QR Body -->
+                <div style="padding: 8px; background: #ffffff; display: flex; justify-content: center; position: relative;">
+                  <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=upi%3A%2F%2Fpay%3Fpa%3Ddemo%40upi%26pn%3DDemo%26am%3D499" alt="Demo QR" style="width: 150px; height: 150px; border-radius: 6px;">
+                  <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 34px; height: 34px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid #041e42; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                    <svg viewBox="0 0 36 36" style="width: 20px; height: 20px;" fill="none">
+                      <circle cx="18" cy="18" r="16" fill="#041E42"/>
+                      <path d="M11 25L18 9L22 17L18 25H11Z" fill="#138808"/>
+                      <path d="M18 25L22 17L29 25H18Z" fill="#FF9933"/>
+                    </svg>
+                  </div>
+                </div>
+
+                <!-- Stand Footer Apps Strip -->
+                <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 6px 8px;">
+                  <div style="font-size: 8.5px; font-weight: 800; color: #046a38; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                    🇮🇳 देश का अपना QR • 0% कमीशन • सीधा बैंक
+                  </div>
+                </div>
+
+              </div>
+
+              <div style="margin-top: 14px; font-size: 11.5px; color: var(--text-dim); text-align: center;">
+                ⚡ This preview demonstrates how your end customers view your custom checkout.
+              </div>
+            </div>
+
+          </div>
+
+          <!-- API INTEGRATION INSTRUCTIONS (PASSING BRANDING DYNAMICALLY VIA API) -->
+          <div class="panel-card" style="border-color: rgba(56, 189, 248, 0.3);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span style="font-size: 22px;">💻</span>
+              <div>
+                <h3 style="font-size: 16.5px; font-weight: 800; color: #fff; margin: 0;">Dynamic API Customization Reference</h3>
+                <div style="font-size: 12px; color: var(--text-muted);">Override any branding parameter on a per-order basis when calling <code>POST /api/v1/order/create</code>.</div>
+              </div>
+            </div>
+
+            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
+              Pass <code>merchantName</code>, <code>brandLogoUrl</code>, <code>theme</code>, <code>customNote</code>, and <code>redirectUrl</code> directly in your JSON payload:
+            </p>
+
+            <pre style="background: #000; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 14px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #38bdf8; overflow-x: auto; margin-bottom: 14px;"><code>curl -X POST https://personal-payment-gateway.onrender.com/api/v1/order/create \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <span class="inject-api-key">pg_live_your_key</span>" \
+  -d '{
+    "amount": 499.00,
+    "customerName": "Rohan Sharma",
+    "customerPhone": "9876543210",
+    "merchantName": "Rohan Tech Store",
+    "brandLogoUrl": "https://yourstore.com/logo.png",
+    "theme": "cyan",
+    "customNote": "Order #4092 - Instant Delivery",
+    "redirectUrl": "https://yourstore.com/payment/success",
+    "webhookUrl": "https://yourstore.com/api/webhook"
+  }'</code></pre>
+          </div>
+
+        </section>
+
 
       </main>
 
@@ -1499,6 +1672,11 @@ echo "Order: " . $data['order']['orderCode'];
           Order Code: <span id="modalOrderCode" style="color: #cbd5e1; font-family: 'JetBrains Mono', monospace;">ORD-...</span>
         </div>
 
+        <!-- Mandatory DPDP Act Non-Refundable Disclosure -->
+        <div style="font-size: 11px; color: #fca5a5; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 8px 12px; margin: 10px 0 12px; text-align: left; line-height: 1.5;">
+          🔒 <strong>DPDP Act 2023 Statutory Notice:</strong> All plan purchases are strictly 100% <strong>NON-REFUNDABLE</strong> once initiated. Engine operates via automated email notification monitoring (Paytm/FamPay/PhonePe). By paying, you accept our <a href="/terms.html" target="_blank" style="color: #ff9933; text-decoration: underline;">Terms of Service</a> &amp; <a href="/privacy.html" target="_blank" style="color: #38bdf8; text-decoration: underline;">Privacy Policy</a>. Owner: Harsh Pandey (+91 6388050042).
+        </div>
+
         <div id="modalStatusText" class="verification-status-step">
           <div class="spinner"></div>
           <span>Awaiting UPI payment...</span>
@@ -1536,10 +1714,10 @@ echo "Order: " . $data['order']['orderCode'];
 
       <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
         <span style="font-size: 26px;">👑</span>
-        <h2 style="font-size: 20px; font-weight: 800; color: #fff; margin: 0;">VIP Dealer &amp; Custom Tier</h2>
+        <h2 style="font-size: 20px; font-weight: 800; color: #fff; margin: 0;">VIP Desk &amp; Platform Ownership</h2>
       </div>
       <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px;">
-        Need more than 5 websites, custom volume licensing, or a dedicated enterprise settlement server? Contact our founding desk directly via your preferred channel:
+        Need more than 5 websites, custom banking alert integrations, or enterprise settlement assistance? Contact platform owner <strong>Harsh Pandey</strong> directly:
       </p>
 
       <div class="vip-contact-grid">
@@ -1550,14 +1728,14 @@ echo "Order: " . $data['order']['orderCode'];
             <div class="vip-icon-box" style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.3); color: #38bdf8;">📞</div>
             <div>
               <div style="font-size: 14px; font-weight: 800; color: #fff;">Direct Phone Call</div>
-              <div style="font-size: 12px; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">+91 93347 88461</div>
+              <div style="font-size: 12px; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">+91 6388050042</div>
             </div>
           </div>
           <div style="display: flex; gap: 6px;">
-            <a href="tel:+919334788461" class="vip-btn-action" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8;">
+            <a href="tel:+916388050042" class="vip-btn-action" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8;">
               Call Now
             </a>
-            <button type="button" class="vip-btn-action" style="background: rgba(255,255,255,0.06); color: var(--text-dim);" onclick="copyToClipboard('+919334788461')">
+            <button type="button" class="vip-btn-action" style="background: rgba(255,255,255,0.06); color: var(--text-dim);" onclick="copyToClipboard('+916388050042')">
               Copy
             </button>
           </div>
@@ -1569,10 +1747,10 @@ echo "Order: " . $data['order']['orderCode'];
             <div class="vip-icon-box" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399;">💬</div>
             <div>
               <div style="font-size: 14px; font-weight: 800; color: #fff;">Instant WhatsApp Chat</div>
-              <div style="font-size: 12px; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">+91 93347 88461</div>
+              <div style="font-size: 12px; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">+91 6388050042</div>
             </div>
           </div>
-          <a href="https://wa.me/919334788461?text=Hello%2C%20I%20need%20a%20custom%20UPI%20Gateway%20setup%20for%20more%20than%205%20websites" target="_blank" class="vip-btn-action" style="background: #10B981; color: #fff;">
+          <a href="https://wa.me/916388050042?text=Hello%20Harsh%2C%20I%20need%20assistance%20with%20the%20NPCI%20UPI%20Gateway%20platform" target="_blank" class="vip-btn-action" style="background: #10B981; color: #fff;">
             Chat on WhatsApp ↗
           </a>
         </div>
@@ -1582,7 +1760,7 @@ echo "Order: " . $data['order']['orderCode'];
           <div style="display: flex; align-items: center; gap: 12px;">
             <div class="vip-icon-box" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); color: #c084fc;">✉️</div>
             <div>
-              <div style="font-size: 14px; font-weight: 800; color: #fff;">Official Founder Email</div>
+              <div style="font-size: 14px; font-weight: 800; color: #fff;">Owner Contact Email</div>
               <div style="font-size: 12px; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">hapa1929@gmail.com</div>
             </div>
           </div>

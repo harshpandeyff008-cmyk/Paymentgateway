@@ -28,5 +28,6 @@ router.get('/banking/payments', UserController.getMerchantPayments);
 router.post('/bind-website', UserController.bindWebsite);
 router.post('/regenerate-key', UserController.regenerateApiKey);
 router.post('/payment-links', UserController.createPaymentLink);
+router.post('/checkout-branding', UserController.saveCheckoutBranding);
 
 export default router;

@@ -229,6 +229,7 @@ function switchSidebarView(viewId) {
       plans: '💳 Subscription Plans & Pricing',
       api: '🔑 API Key & Strict Website Lock',
       payments: '⚡ Live Payment Orders & UTR Tracking',
+      customizer: '🎨 Customer Checkout Branding & API Customizer',
       docs: '📑 Developer API Docs & SDK Integration',
       settlement: '⚙️ Automated Settlement & UPI Routing Engine'
     };
@@ -475,6 +476,21 @@ function renderDashboard() {
       googleLinkStatusBadge.innerHTML = `<span style="color: #94a3b8;">⚪ Not Linked</span>`;
     }
   }
+
+  // 8. Checkout Branding & Customizer state
+  const custName = document.getElementById('customizerBrandName');
+  const custLogo = document.getElementById('customizerBrandLogo');
+  const custTheme = document.getElementById('customizerTheme');
+  const custRedir = document.getElementById('customizerRedirectUrl');
+  const custNote = document.getElementById('customizerCustomNote');
+
+  if (custName && !custName.value) custName.value = currentUser.defaultBrandName || currentUser.default_brand_name || '';
+  if (custLogo && !custLogo.value) custLogo.value = currentUser.defaultBrandLogoUrl || currentUser.default_brand_logo_url || '';
+  if (custTheme && (!custTheme.value || custTheme.value === 'tiranga')) custTheme.value = currentUser.defaultTheme || currentUser.default_theme || 'tiranga';
+  if (custRedir && !custRedir.value) custRedir.value = currentUser.defaultRedirectUrl || currentUser.default_redirect_url || '';
+  if (custNote && !custNote.value) custNote.value = currentUser.defaultCustomNote || currentUser.default_custom_note || '';
+
+  updateLiveStandPreview();
 
   // Update Plan Pricing Cards for Extend & Upgrade states
   updatePlanCardsUI();
@@ -1666,4 +1682,147 @@ function copyPaymentLinkUrl() {
   navigator.clipboard.writeText(input.value);
   alert('📋 Payment link copied to clipboard!\n\n' + input.value);
 }
+
+// ==========================================
+// CHECKOUT CUSTOMIZER & BRANDING CONTROLS
+// ==========================================
+
+function updateLiveStandPreview() {
+  const nameInput = document.getElementById('customizerBrandName');
+  const logoInput = document.getElementById('customizerBrandLogo');
+  const themeInput = document.getElementById('customizerTheme');
+  const noteInput = document.getElementById('customizerCustomNote');
+
+  const previewName = document.getElementById('previewMerchantName');
+  const previewLogo = document.getElementById('previewMerchantLogo');
+  const previewNote = document.getElementById('previewCustomNote');
+  const previewStrip = document.getElementById('previewTricolorStrip');
+  const previewCard = document.getElementById('previewStandCard');
+
+  if (previewName) {
+    const val = nameInput?.value?.trim();
+    previewName.innerText = val || (currentUser?.name ? `${currentUser.name}'s Store` : 'Your Brand Name');
+  }
+
+  if (previewLogo) {
+    const url = logoInput?.value?.trim();
+    if (url) {
+      previewLogo.src = url;
+    } else {
+      previewLogo.src = '/images/logo.png';
+    }
+    previewLogo.onerror = () => {
+      previewLogo.src = '/images/logo.png';
+    };
+  }
+
+  if (previewNote) {
+    const note = noteInput?.value?.trim();
+    if (note) {
+      previewNote.innerText = '📝 ' + note;
+      previewNote.style.display = 'inline-block';
+    } else {
+      previewNote.innerText = '📝 Instant License Delivery on Payment';
+      previewNote.style.display = 'inline-block';
+    }
+  }
+
+  const theme = themeInput?.value || 'tiranga';
+  if (previewStrip && previewCard) {
+    if (theme === 'cyan') {
+      previewStrip.style.background = 'linear-gradient(90deg, #06b6d4, #3b82f6)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(6,182,212,0.3)';
+    } else if (theme === 'purple') {
+      previewStrip.style.background = 'linear-gradient(90deg, #8b5cf6, #ec4899)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(139,92,246,0.3)';
+    } else if (theme === 'emerald') {
+      previewStrip.style.background = 'linear-gradient(90deg, #10b981, #059669)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(16,185,129,0.3)';
+    } else if (theme === 'amber') {
+      previewStrip.style.background = 'linear-gradient(90deg, #f59e0b, #d97706)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(245,158,11,0.3)';
+    } else {
+      // Default: Tiranga
+      previewStrip.style.background = 'linear-gradient(90deg, #FF671F 0%, #FFFFFF 50%, #046A38 100%)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(255,103,31,0.2)';
+    }
+  }
+}
+
+async function handleSaveBranding(event) {
+  event.preventDefault();
+  if (!currentUser || !currentUser.email) {
+    alert('Please log in first.');
+    return;
+  }
+
+  const name = document.getElementById('customizerBrandName')?.value?.trim() || '';
+  const logo = document.getElementById('customizerBrandLogo')?.value?.trim() || '';
+  const theme = document.getElementById('customizerTheme')?.value || 'tiranga';
+  const redirectUrl = document.getElementById('customizerRedirectUrl')?.value?.trim() || '';
+  const customNote = document.getElementById('customizerCustomNote')?.value?.trim() || '';
+  const feedback = document.getElementById('brandingSaveFeedback');
+
+  const btn = event.target.querySelector('button[type="submit"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'Saving Customizer Defaults...';
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/user/checkout-branding`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userEmail: currentUser.email,
+        defaultBrandName: name,
+        defaultBrandLogoUrl: logo,
+        defaultTheme: theme,
+        defaultRedirectUrl: redirectUrl,
+        defaultCustomNote: customNote
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      currentUser.defaultBrandName = name;
+      currentUser.defaultBrandLogoUrl = logo;
+      currentUser.defaultTheme = theme;
+      currentUser.defaultRedirectUrl = redirectUrl;
+      currentUser.defaultCustomNote = customNote;
+      sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+        feedback.style.color = '#34d399';
+        feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+        feedback.innerHTML = '✅ <strong>Branding Saved!</strong> Customer checkout pages and API orders will now reflect these customized styling defaults.';
+        setTimeout(() => { if (feedback) feedback.style.display = 'none'; }, 6000);
+      }
+    } else {
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+        feedback.style.color = '#f87171';
+        feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+        feedback.innerHTML = '❌ ' + (data.error || 'Failed to update checkout branding');
+      }
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.style.display = 'block';
+      feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      feedback.style.color = '#f87171';
+      feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      feedback.innerHTML = '❌ Network error: ' + err.message;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>💾 Save Default Branding</span>';
+    }
+  }
+}
+
 

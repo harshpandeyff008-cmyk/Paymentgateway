@@ -15,7 +15,8 @@ import {
   getUniquePayableAmount,
   validateCoupon,
   markCouponUsed,
-  getPlanPriceOverrides
+  getPlanPriceOverrides,
+  updateUserCheckoutBranding
 } from '../../db/database.js';
 import { buildUpiUri, generateQrDataUrl } from '../utils/qr.util.js';
 import { config } from '../../config.js';
@@ -276,6 +277,11 @@ export const UserController = {
           businessName: user.business_name || '',
           upiProvider: user.upi_provider || 'AUTO',
           settlementType: user.settlement_type || 'GOOGLE_OAUTH',
+          defaultBrandName: user.default_brand_name || '',
+          defaultBrandLogoUrl: user.default_brand_logo_url || '',
+          defaultTheme: user.default_theme || 'tiranga',
+          defaultRedirectUrl: user.default_redirect_url || '',
+          defaultCustomNote: user.default_custom_note || '',
           hasActivePlan
         }
       });
@@ -332,6 +338,11 @@ export const UserController = {
           businessName: user.business_name || '',
           upiProvider: user.upi_provider || 'AUTO',
           settlementType: user.settlement_type || 'GOOGLE_OAUTH',
+          defaultBrandName: user.default_brand_name || '',
+          defaultBrandLogoUrl: user.default_brand_logo_url || '',
+          defaultTheme: user.default_theme || 'tiranga',
+          defaultRedirectUrl: user.default_redirect_url || '',
+          defaultCustomNote: user.default_custom_note || '',
           hasActivePlan,
           createdAt: user.created_at
         },
@@ -904,6 +915,55 @@ export const UserController = {
     } catch (err) {
       console.error('[UserController] createPaymentLink error:', err.message);
       return res.status(500).json({ success: false, error: 'Failed to create payment link: ' + err.message });
+    }
+  },
+
+  async saveCheckoutBranding(req, res) {
+    try {
+      const email = req.userRecord?.email || req.body.email || req.query.email;
+      if (!email) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+
+      const { 
+        defaultBrandName = '', 
+        defaultBrandLogoUrl = '', 
+        defaultTheme = 'tiranga', 
+        defaultRedirectUrl = '', 
+        defaultCustomNote = '' 
+      } = req.body;
+
+      await updateUserCheckoutBranding(email, {
+        defaultBrandName,
+        defaultBrandLogoUrl,
+        defaultTheme,
+        defaultRedirectUrl,
+        defaultCustomNote
+      });
+
+      await logActivity({
+        eventType: 'MERCHANT_BRANDING_UPDATED',
+        status: 'SUCCESS',
+        title: `Merchant Branding Updated: ${email}`,
+        details: `Brand: ${defaultBrandName || 'Default'} | Theme: ${defaultTheme} | Logo: ${defaultBrandLogoUrl ? 'Custom' : 'Default'}`,
+        clientIp: req.ip || '',
+        origin: req.headers.origin || ''
+      });
+
+      return res.json({
+        success: true,
+        message: 'Checkout branding options saved successfully',
+        branding: {
+          defaultBrandName,
+          defaultBrandLogoUrl,
+          defaultTheme,
+          defaultRedirectUrl,
+          defaultCustomNote
+        }
+      });
+    } catch (err) {
+      console.error('[UserController] saveCheckoutBranding error:', err.message);
+      return res.status(500).json({ success: false, error: 'Failed to save checkout branding: ' + err.message });
     }
   }
 };
