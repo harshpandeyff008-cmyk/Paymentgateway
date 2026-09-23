@@ -1,14 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg-dark: #090d16;
-  --card-bg: rgba(18, 24, 38, 0.75);
-  --card-border: rgba(255, 255, 255, 0.08);
-  --card-glow: rgba(56, 189, 248, 0.15);
+  --bg-dark: #080c14;
+  --card-bg: rgba(14, 20, 34, 0.82);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --card-glow: rgba(255, 103, 31, 0.12);
   
+  /* Indian Tiranga Theme Colors */
+  --saffron: #FF671F;
+  --saffron-light: #FF9933;
+  --saffron-glow: rgba(255, 103, 31, 0.35);
+  --white: #FFFFFF;
+  --ashoka-navy: #041E42;
+  --ashoka-blue: #000080;
+  --india-green: #046A38;
+  --india-green-light: #138808;
+  --india-green-glow: rgba(19, 136, 8, 0.35);
+
   --primary: #38bdf8;
   --primary-glow: rgba(56, 189, 248, 0.4);
-  --primary-gradient: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+  --primary-gradient: linear-gradient(135deg, #FF671F 0%, #ffffff 50%, #138808 100%);
+  --tiranga-gradient: linear-gradient(90deg, #FF671F 0%, #FF671F 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #046A38 66.66%, #046A38 100%);
   
   --accent-green: #10b981;
   --accent-green-glow: rgba(16, 185, 129, 0.35);
@@ -30,6 +42,18 @@
   box-sizing: border-box;
 }
 
+/* Tiranga Top Indicator Bar */
+.tiranga-top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--tiranga-gradient);
+  z-index: 9999;
+  box-shadow: 0 0 15px rgba(255, 103, 31, 0.45);
+}
+
 body {
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-dark);
@@ -38,41 +62,41 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px 16px;
   position: relative;
   overflow-x: hidden;
 }
 
-/* Dynamic Ambient Glow */
+/* Tiranga Ambient Glow Orbs (Saffron top-left, Navy Center, Green bottom-right) */
 body::before, body::after {
   content: '';
   position: fixed;
-  width: 450px;
-  height: 450px;
+  width: 480px;
+  height: 480px;
   border-radius: 50%;
-  filter: blur(120px);
+  filter: blur(140px);
   z-index: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: 0.32;
   animation: floatOrb 14s infinite alternate ease-in-out;
 }
 
 body::before {
-  background: #38bdf8;
-  top: -100px;
-  left: -100px;
+  background: radial-gradient(circle, #ff671f 0%, rgba(255, 103, 31, 0) 70%);
+  top: -120px;
+  left: -120px;
 }
 
 body::after {
-  background: #8b5cf6;
-  bottom: -100px;
-  right: -100px;
+  background: radial-gradient(circle, #046a38 0%, rgba(4, 106, 56, 0) 70%);
+  bottom: -120px;
+  right: -120px;
   animation-delay: -7s;
 }
 
 @keyframes floatOrb {
   0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(60px, 80px) scale(1.15); }
+  100% { transform: translate(50px, 70px) scale(1.12); }
 }
 
 .checkout-container {
@@ -82,18 +106,55 @@ body::after {
   z-index: 10;
 }
 
-/* Glassmorphism Card */
+/* Glassmorphism Card with Tiranga Top Accent */
 .checkout-card {
   background: var(--card-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
-  padding: 28px 24px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 40px var(--card-glow);
+  padding: 24px 22px 28px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 50px rgba(0, 0, 0, 0.5);
   position: relative;
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.checkout-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--tiranga-gradient);
+}
+
+/* Desh Ka Gateway Mini Pill */
+.desh-ka-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 103, 31, 0.12);
+  border: 1px solid rgba(255, 103, 31, 0.35);
+  color: #ff9933;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  margin-bottom: 12px;
+}
+
+.desh-ka-tag .chakra-mini {
+  width: 13px;
+  height: 13px;
+  animation: spinChakra 16s linear infinite;
+}
+
+@keyframes spinChakra {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Brand Header */
@@ -101,9 +162,9 @@ body::after {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .brand-info {
@@ -113,73 +174,85 @@ body::after {
 }
 
 .brand-icon {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-sm);
-  background: var(--primary-gradient);
+  background: linear-gradient(135deg, #ff671f, #041e42 50%, #046a38);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 20px;
+  font-size: 22px;
   color: #fff;
-  box-shadow: 0 4px 15px var(--primary-glow);
+  box-shadow: 0 4px 16px rgba(255, 103, 31, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .brand-name {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.3px;
   color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .brand-sub {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .order-badge {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  padding: 6px 10px;
+  font-size: 11.5px;
+  padding: 5px 9px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .order-badge:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 /* Amount Section */
 .amount-section {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .amount-label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .amount-value {
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: -1px;
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-top: 4px;
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: -1.2px;
+  color: #ffffff;
+  margin-top: 2px;
+  text-shadow: 0 2px 14px rgba(255, 255, 255, 0.15);
+}
+
+.amount-value .curr-symbol {
+  color: #ff9933;
+  margin-right: 2px;
 }
 
 /* QR Code Display */
@@ -187,85 +260,96 @@ body::after {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   position: relative;
 }
 
-/* Official NPCI / Bharat UPI Merchant Stand Card */
+/* Official NPCI / Bharat UPI Merchant Tabletop Stand Card */
 .official-upi-stand {
   background: #ffffff;
-  border-radius: 18px;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1), 0 0 35px rgba(56, 189, 248, 0.25);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.15), 0 0 35px rgba(255, 103, 31, 0.2);
   width: 100%;
-  max-width: 300px;
+  max-width: 320px;
   margin: 0 auto;
   color: #0f172a;
   text-align: center;
   position: relative;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  border: 2px solid #e2e8f0;
 }
 
 .official-upi-stand:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6), 0 0 40px rgba(56, 189, 248, 0.35);
+  transform: translateY(-3px);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 45px rgba(255, 103, 31, 0.3);
 }
 
+/* Tricolor Top Edge with Center Ashok Chakra Medallion */
 .upi-tricolor-strip {
-  height: 4px;
+  height: 6px;
   width: 100%;
-  background: linear-gradient(90deg, #ff9933 0%, #ff9933 33.3%, #ffffff 33.3%, #ffffff 66.6%, #138808 66.6%, #138808 100%);
+  background: linear-gradient(90deg, #FF671F 0%, #FF671F 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #046A38 66.66%, #046A38 100%);
+  position: relative;
 }
 
+/* Stand Header */
 .upi-stand-header {
-  background: #0b1528;
-  padding: 8px 12px;
+  background: linear-gradient(180deg, #091428 0%, #060c18 100%);
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid #041e42;
 }
 
 .upi-stand-brand {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   text-align: left;
 }
 
 .upi-stand-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 900;
   color: #ffffff;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
   line-height: 1.1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .upi-stand-sub {
   font-size: 9px;
   color: #94a3b8;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .npci-ribbon {
-  background: linear-gradient(135deg, #1e293b, #0f172a);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
+  background: linear-gradient(135deg, rgba(255, 103, 31, 0.25), rgba(4, 106, 56, 0.25));
+  border: 1px solid rgba(255, 153, 51, 0.5);
+  color: #ffb86c;
   font-size: 9px;
   font-weight: 800;
-  padding: 2px 7px;
-  border-radius: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
+/* Stand Banner (Hindi + English) */
 .upi-scan-banner {
-  background: linear-gradient(135deg, #f8fafc, #edf2f7);
-  padding: 5px 8px;
+  background: linear-gradient(90deg, #fff7ed 0%, #f0fdf4 100%);
+  padding: 6px 10px;
   font-size: 11px;
-  font-weight: 700;
-  color: #334155;
+  font-weight: 800;
+  color: #1e293b;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -273,21 +357,38 @@ body::after {
   border-bottom: 1px solid #e2e8f0;
 }
 
+/* Stand QR Body with Ashok Chakra Watermark */
 .upi-qr-body {
-  padding: 10px;
+  padding: 12px;
   background: #ffffff;
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
+  overflow: hidden;
+}
+
+/* Subtle Translucent Ashok Chakra Watermark */
+.upi-qr-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 190px;
+  height: 190px;
+  opacity: 0.055;
+  pointer-events: none;
+  z-index: 1;
 }
 
 #qrImage, .upi-qr-img {
   width: 220px;
   height: 220px;
   display: block;
-  border-radius: 6px;
+  border-radius: 8px;
   margin: 0 auto;
+  position: relative;
+  z-index: 2;
 }
 
 .upi-center-pill {
@@ -295,26 +396,27 @@ body::after {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   background: #ffffff;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  border: 2px solid #0f172a;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  border: 2px solid #041e42;
+  z-index: 3;
 }
 
 .upi-center-pill svg {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
 }
 
 .upi-stand-footer {
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
-  padding: 8px 10px;
+  padding: 10px 12px;
 }
 
 .upi-apps-row {
@@ -322,34 +424,36 @@ body::after {
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 5px;
+  margin-bottom: 6px;
 }
 
 .app-pill {
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 3px 7px;
+  border-radius: 5px;
   display: inline-flex;
   align-items: center;
+  letter-spacing: 0.2px;
 }
 
 .app-pill.gpay { background: #e8f0fe; color: #1a73e8; border: 1px solid #c2e7ff; }
-.app-pill.phonepe { background: #f3e8ff; color: #6739b7; border: 1px solid #e9d5ff; }
-.app-pill.paytm { background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; }
-.app-pill.bhim { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-.app-pill.any { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+.app-pill.phonepe { background: #f3e8ff; color: #5f259f; border: 1px solid #e9d5ff; }
+.app-pill.paytm { background: #e0f2fe; color: #002970; border: 1px solid #bae6fd; }
+.app-pill.bhim { background: #ecfdf5; color: #046a38; border: 1px solid #a7f3d0; font-weight: 900; }
+.app-pill.cred { background: #0f172a; color: #f8fafc; border: 1px solid #334155; }
+.app-pill.any { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 700; }
 
 .upi-footer-tagline {
-  font-size: 9.5px;
-  color: #64748b;
-  font-weight: 700;
+  font-size: 10px;
+  color: #046a38;
+  font-weight: 800;
   letter-spacing: 0.3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .qr-frame {

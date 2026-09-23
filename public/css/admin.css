@@ -20,6 +20,30 @@
   --radius-lg: 18px;
   --radius-md: 12px;
   --radius-sm: 8px;
+
+  /* Tiranga Theme Tokens */
+  --saffron: #FF671F;
+  --white: #FFFFFF;
+  --ashoka-navy: #041E42;
+  --india-green: #046A38;
+  --tiranga-gradient: linear-gradient(90deg, #FF671F 0%, #FF671F 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #046A38 66.66%, #046A38 100%);
+}
+
+/* Tiranga Top Indicator Bar */
+.tiranga-top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--tiranga-gradient);
+  z-index: 99999;
+  box-shadow: 0 0 15px rgba(255, 103, 31, 0.45);
+}
+
+@keyframes spinChakra {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 * {

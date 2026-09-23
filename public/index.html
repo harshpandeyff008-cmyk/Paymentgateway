@@ -9,27 +9,52 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <style>
+    /* Indian Tiranga Accent Bar */
+    .tiranga-top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #FF671F 0%, #FF671F 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #046A38 66.66%, #046A38 100%);
+      z-index: 9999;
+      box-shadow: 0 0 15px rgba(255, 103, 31, 0.45);
+    }
+
     /* Landing Page Specific Enhancements */
     .hero-section {
       text-align: center;
-      padding: 60px 20px 40px;
-      max-width: 900px;
+      padding: 60px 20px 30px;
+      max-width: 960px;
       margin: 0 auto;
     }
-    .hero-badge {
+    
+    .tiranga-hero-badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 16px;
+      padding: 7px 18px;
       border-radius: 999px;
-      background: rgba(56, 189, 248, 0.12);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      color: var(--accent-cyan);
+      background: rgba(255, 103, 31, 0.12);
+      border: 1px solid rgba(255, 103, 31, 0.35);
+      color: #ff9933;
       font-size: 13px;
       font-weight: 700;
       margin-bottom: 24px;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
+      box-shadow: 0 4px 20px rgba(255, 103, 31, 0.15);
     }
+
+    .chakra-spin {
+      display: inline-block;
+      animation: spinChakra 18s linear infinite;
+    }
+
+    @keyframes spinChakra {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     .hero-h1 {
       font-size: 52px;
       font-weight: 900;
@@ -37,25 +62,30 @@
       line-height: 1.15;
       margin-bottom: 20px;
     }
-    .hero-h1 span.gradient {
-      background: linear-gradient(135deg, #38bdf8 0%, #a855f7 50%, #10b981 100%);
+
+    .tiranga-text {
+      background: linear-gradient(135deg, #FF671F 0%, #FFFFFF 48%, #138808 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 2px 10px rgba(255, 103, 31, 0.25));
     }
+
     .hero-p {
-      font-size: 18px;
+      font-size: 17.5px;
       color: var(--text-muted);
-      line-height: 1.6;
-      max-width: 720px;
-      margin: 0 auto 36px;
+      line-height: 1.65;
+      max-width: 740px;
+      margin: 0 auto 32px;
     }
+
     .cta-row {
       display: flex;
       justify-content: center;
       gap: 16px;
       flex-wrap: wrap;
-      margin-bottom: 48px;
+      margin-bottom: 36px;
     }
+
     .btn-google-cta {
       display: inline-flex;
       align-items: center;
@@ -71,10 +101,99 @@
       box-shadow: 0 10px 30px rgba(255, 255, 255, 0.2);
       transition: all 0.25s ease;
     }
+
     .btn-google-cta:hover {
       transform: translateY(-2px);
       box-shadow: 0 15px 40px rgba(255, 255, 255, 0.3);
     }
+
+    /* National Pride Trust Strip */
+    .national-trust-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      max-width: 960px;
+      margin: 10px auto 40px;
+      padding: 16px;
+      background: rgba(13, 18, 29, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+    }
+
+    .trust-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .trust-title {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .trust-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Patriotic Mission Banner */
+    .desh-pride-banner {
+      background: linear-gradient(135deg, rgba(255, 103, 31, 0.08) 0%, rgba(4, 106, 56, 0.08) 100%);
+      border: 1px solid rgba(255, 153, 51, 0.3);
+      border-radius: 18px;
+      padding: 22px 28px;
+      max-width: 860px;
+      margin: 0 auto 50px;
+      text-align: center;
+      position: relative;
+    }
+
+    .pride-quote {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f8fafc;
+      line-height: 1.5;
+      font-style: italic;
+    }
+
+    .pride-author {
+      font-size: 12px;
+      color: #ff9933;
+      font-weight: 700;
+      margin-top: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .npci-nav-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 5px 12px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
     .workflow-flowchart {
       background: rgba(13, 18, 29, 0.7);
       border: 1px solid var(--border-glow);
@@ -112,24 +231,31 @@
       margin: 0 auto 12px;
     }
     @media (max-width: 768px) {
-      .hero-h1 { font-size: 34px; }
-      .hero-p { font-size: 15px; }
+      .hero-h1 { font-size: 32px; }
+      .hero-p { font-size: 14px; }
+      .national-trust-strip { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
+  <!-- Top Tiranga Accent Line -->
+  <div class="tiranga-top-bar"></div>
+
   <!-- NAVBAR -->
   <nav class="navbar">
     <a href="/" class="brand">
-      <div class="brand-icon">⚡</div>
+      <div class="brand-icon" style="background: linear-gradient(135deg, #ff671f, #041e42 50%, #046a38); border: 1px solid rgba(255,255,255,0.2);">🇮🇳</div>
       <div>
         <div class="brand-title">PayPerpendicular</div>
-        <div style="font-size: 11px; color: var(--text-dim);">Personal UPI Gateway Platform</div>
+        <div style="font-size: 11px; color: #ff9933; font-weight: 700;">🇮🇳 देश का अपना UPI गेटवे • 100% स्वदेशी</div>
       </div>
     </a>
 
     <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="npci-nav-badge" style="display: none; @media(min-width: 600px){display: inline-flex;}">
+        <span>🛡️ Bharat UPI Compatible</span>
+      </div>
       <a href="/login" class="btn-primary" style="text-decoration: none; padding: 10px 18px; font-size: 13.5px; font-weight: 700;">
         <svg width="18" height="18" viewBox="0 0 24 24" style="margin-right: 6px;">
           <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -144,10 +270,15 @@
 
   <!-- HERO SECTION -->
   <header class="hero-section">
-    <div class="hero-badge">🔥 Automated Instant UPI Payment Infrastructure</div>
-    <h1 class="hero-h1">The Modern <span class="gradient">Personal UPI Gateway</span> For Developers & Merchants</h1>
+    <div class="tiranga-hero-badge">
+      <span class="chakra-spin">☸️</span>
+      <span>🇮🇳 आत्मनिर्भर भारत • देश का अपना 100% स्वदेशी UPI पेमेंट गेटवे</span>
+    </div>
+    
+    <h1 class="hero-h1">भारत का अपना <span class="tiranga-text">Next-Gen UPI Gateway</span> &amp; Dynamic QR Engine</h1>
+    
     <p class="hero-p">
-      Accept direct UPI payments into your own bank account. No third-party settlement delays, 0% gateway fees, and automated 1-second payment verification with instant webhooks.
+      भारतीय व्यापारियों, स्टार्टअप्स और डेवलपर्स के लिए गर्व से निर्मित। 0% गेटवे फीस, बिना किसी मीडिएटर के सीधे आपके बैंक खाते में 1-सेकंड ऑटोमैटिक सेटलमेंट। NPCI Bharat UPI सुरक्षा मानकों पर आधारित।
     </p>
 
     <div class="cta-row">
@@ -161,6 +292,53 @@
         <span>Get Started with Google</span>
       </button>
       <a href="#plans" class="nav-btn" style="padding: 16px 24px; font-size: 15px; border-color: var(--border-subtle);">Explore Pricing ➔</a>
+    </div>
+
+    <!-- National Pride Quote Banner -->
+    <div class="desh-pride-banner">
+      <div class="pride-quote">
+        "विदेशी पेमेंट कंपनियों को 2% से 3% कमीशन क्यों देना? जब भारत का अपना UPI सीधा आपके बैंक खाते में 100% पेमेंट दे सकता है!"
+      </div>
+      <div class="pride-author">🇮🇳 हर भारतीय व्यापारी का अधिकार — 0% कटौती, 100% अपना पैसा!</div>
+    </div>
+
+    <!-- NPCI & National Trust Badges Strip -->
+    <div class="national-trust-strip">
+      <div class="trust-item">
+        <span class="trust-icon">🇮🇳</span>
+        <div>
+          <div class="trust-title">100% स्वदेशी</div>
+          <div class="trust-desc">आत्मनिर्भर भारत इनिशिएटिव</div>
+        </div>
+      </div>
+      <div class="trust-item">
+        <span class="trust-icon">🛡️</span>
+        <div>
+          <div class="trust-title">NPCI Architecture</div>
+          <div class="trust-desc">Bharat UPI Compatible</div>
+        </div>
+      </div>
+      <div class="trust-item">
+        <span class="trust-icon">⚡</span>
+        <div>
+          <div class="trust-title">0% MDR कमीशन</div>
+          <div class="trust-desc">कोई हिडन फीस या कटौती नहीं</div>
+        </div>
+      </div>
+      <div class="trust-item">
+        <span class="trust-icon">🏦</span>
+        <div>
+          <div class="trust-title">डायरेक्ट बैंक सेटलमेंट</div>
+          <div class="trust-desc">सीधे आपके खाते में पैसा</div>
+        </div>
+      </div>
+      <div class="trust-item">
+        <span class="trust-icon">⏱️</span>
+        <div>
+          <div class="trust-title">1-Sec ऑटो वेरिफिकेशन</div>
+          <div class="trust-desc">फास्टेस्ट IMAP &amp; Webhooks</div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -386,8 +564,15 @@
 
   </main>
 
-  <footer style="text-align: center; padding: 40px 20px; border-top: 1px solid var(--border-subtle); color: var(--text-dim); font-size: 13px;">
-    <div>© 2026 PayPerpendicular Platform. Self-Hosted Personal UPI Gateway & Dynamic QR Engine.</div>
+  <footer style="text-align: center; padding: 48px 20px 40px; border-top: 1px solid var(--border-subtle); color: var(--text-dim); font-size: 13px; position: relative;">
+    <div style="height: 2px; width: 120px; background: linear-gradient(90deg, #FF671F, #FFFFFF, #046A38); margin: 0 auto 20px; border-radius: 2px;"></div>
+    <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 6px;">
+      🇮🇳 देश का अपना UPI गेटवे प्लेटफॉर्म • गर्व से भारत में निर्मित (Made in India)
+    </div>
+    <div style="color: var(--text-muted); font-size: 12px; max-width: 600px; margin: 0 auto 12px; line-height: 1.6;">
+      राष्ट्रीय भुगतान निगम (NPCI) Bharat UPI प्रोटोकॉल पर आधारित। 100% भारतीय व्यापारियों के स्वाभिमान और 0% MDR बचत के लिए समर्पित।
+    </div>
+    <div>© 2026 PayPerpendicular Platform. Self-Hosted Personal UPI Gateway &amp; Dynamic QR Engine.</div>
   </footer>
 
   <script>
