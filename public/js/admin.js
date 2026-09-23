@@ -1,6 +1,6 @@
 // Dynamically resolve Gateway Backend URL (supports paypendicular.web.app, localhost, and Render)
-const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
-  ? 'https://payment-gateway-ydl1.onrender.com' 
+const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
+  ? 'https://personal-payment-gateway.onrender.com' 
   : '';
 
 // ==================== MASTER KEY AUTH & FETCH INTERCEPTOR ==================== //

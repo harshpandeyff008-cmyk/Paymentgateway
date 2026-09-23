@@ -102,7 +102,7 @@ export async function checkGoogleBankingAlerts(accessToken, targetEmail, isMerch
 
         if (paymentData.success && paymentData.amount && paymentData.utr) {
           const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
-          if (!paymentRow || paymentRow.is_matched === 0) {
+          if (!paymentRow) {
             console.log(`[GmailWatcher] Detected ₹${paymentData.amount} via Google Banking Link for ${targetEmail}. UTR: ${paymentData.utr}`);
             await processIncomingPayment({
               amount: paymentData.amount,

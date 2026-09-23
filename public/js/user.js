@@ -4,7 +4,7 @@
 
 // Dynamically resolve Gateway Backend URL (supports Firebase Hosting and local dev)
 const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
-  ? 'https://payment-gateway-ydl1.onrender.com' 
+  ? 'https://personal-payment-gateway.onrender.com' 
   : '';
 
 if (API_BASE) {

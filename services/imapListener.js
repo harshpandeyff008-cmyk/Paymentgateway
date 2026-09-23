@@ -59,7 +59,7 @@ export async function scanAndProcessRecentEmails() {
             const paymentData = parsePaymentEmail(subject, bodyText, emailDate);
             if (paymentData.success && paymentData.amount && paymentData.utr) {
               const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
-              if (!paymentRow || paymentRow.is_matched === 0) {
+              if (!paymentRow) {
                 console.log(`[Admin IMAP Poller] Processing payment: ₹${paymentData.amount}, UTR: ${paymentData.utr}, Sender: ${paymentData.sender}`);
                 await processIncomingPayment({
                   amount: paymentData.amount,
@@ -143,7 +143,7 @@ export async function scanAndProcessMerchantEmails() {
               const paymentData = parsePaymentEmail(subject, bodyText, emailDate);
               if (paymentData.success && paymentData.amount && paymentData.utr) {
                 const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
-                if (!paymentRow || paymentRow.is_matched === 0) {
+                if (!paymentRow) {
                   console.log(`[Merchant IMAP] Payment detected for merchant ${merchant.email}: ₹${paymentData.amount}, UTR: ${paymentData.utr}`);
                   await processIncomingPayment({
                     amount: paymentData.amount,

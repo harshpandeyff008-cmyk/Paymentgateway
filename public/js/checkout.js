@@ -2,6 +2,11 @@
 const pathParts = window.location.pathname.split('/');
 const orderCode = pathParts[pathParts.length - 1] || '';
 
+// API Base configuration for static hosting (Firebase) vs local / monolithic server
+const API_BASE = (window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com'))
+  ? 'https://personal-payment-gateway.onrender.com'
+  : '';
+
 let timerInterval = null;
 let currentOrder = null;
 let totalDurationSeconds = 300;
@@ -44,7 +49,7 @@ async function loadOrder() {
   }
 
   try {
-    const res = await fetch(`/api/orders/${orderCode}`);
+    const res = await fetch(`${API_BASE}/api/orders/${orderCode}`);
     const data = await res.json();
 
     if (!data.success || !data.order) {
@@ -178,7 +183,7 @@ function initRealtimeSocket() {
     if (fastPoller) clearInterval(fastPoller);
     fastPoller = setInterval(async () => {
       try {
-        const res = await fetch(`/api/v1/orders/${orderCode}`);
+        const res = await fetch(`${API_BASE}/api/v1/orders/${orderCode}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data.success && data.order && data.order.status === 'PAID') {
@@ -197,7 +202,7 @@ function initRealtimeSocket() {
 
   if (typeof io === 'undefined') return;
 
-  const socket = io();
+  const socket = io(API_BASE || undefined);
 
   socket.on('connect', () => {
     console.log('[Socket] Connected to realtime gateway.');
@@ -296,7 +301,7 @@ btnSubmitUtr.addEventListener('click', async () => {
   utrFeedback.innerText = '';
 
   try {
-    const res = await fetch(`/api/orders/${orderCode}/verify-utr`, {
+    const res = await fetch(`${API_BASE}/api/orders/${orderCode}/verify-utr`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ utr: val })
