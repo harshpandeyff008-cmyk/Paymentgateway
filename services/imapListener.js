@@ -535,7 +535,7 @@ export async function startImapListener(io = null) {
       scanAndProcessRecentEmails().catch(() => {});
       scanAndProcessMerchantEmails().catch(() => {});
       reconcileUnmatchedPayments().catch(() => {});
-    }, 5000);
+    }, 3000);
 
     client.on('exists', async (data) => {
       console.log(`[IMAP] New email detected! Total inbox count: ${data.count}`);

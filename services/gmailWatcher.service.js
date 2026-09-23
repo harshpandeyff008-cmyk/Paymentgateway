@@ -172,11 +172,11 @@ export async function scanGoogleBankingAccounts() {
  */
 export function startGmailWatcher() {
   if (watcherInterval) clearInterval(watcherInterval);
-  // Scan every 8 seconds
+  // Ultra-fast 3-second bank credit scan
   watcherInterval = setInterval(() => {
     scanGoogleBankingAccounts().catch(() => {});
-  }, 8000);
-  console.log('[GmailWatcher] Background Google Banking Link poller initialized (8s interval).');
+  }, 3000);
+  console.log('[GmailWatcher] Background Google Banking Link poller initialized (3s ultra-fast interval).');
 }
 
 export function stopGmailWatcher() {

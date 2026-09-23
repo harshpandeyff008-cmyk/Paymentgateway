@@ -169,8 +169,32 @@ function showExpired() {
   btnPayDirect.style.opacity = '0.5';
 }
 
-// 4. Connect WebSockets for Instant Push Alert
+// 4. Connect WebSockets for Instant Push Alert + 1.5s Poller Fallback
+let fastPoller = null;
+
 function initRealtimeSocket() {
+  // Ultra-fast 1.5s HTTP Polling Fallback
+  if (orderCode) {
+    if (fastPoller) clearInterval(fastPoller);
+    fastPoller = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/v1/orders/${orderCode}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.order && data.order.status === 'PAID') {
+          clearInterval(fastPoller);
+          showPaymentSuccess({
+            orderCode: data.order.orderCode,
+            amount: data.order.amount,
+            utr: data.order.utr,
+            sender: data.order.sender,
+            paidAt: data.order.paidAt
+          });
+        }
+      } catch (_) {}
+    }, 1500);
+  }
+
   if (typeof io === 'undefined') return;
 
   const socket = io();
@@ -184,8 +208,10 @@ function initRealtimeSocket() {
   socket.on('order_status_update', (data) => {
     console.log('[Socket] Order update received:', data);
     if (data.status === 'PAID') {
+      if (fastPoller) clearInterval(fastPoller);
       showPaymentSuccess(data);
     } else if (data.status === 'EXPIRED') {
+      if (fastPoller) clearInterval(fastPoller);
       showExpired();
     }
   });
@@ -193,6 +219,7 @@ function initRealtimeSocket() {
 
 // 5. Success Screen & Confetti
 function showPaymentSuccess(data) {
+  if (fastPoller) clearInterval(fastPoller);
   clearInterval(timerInterval);
 
   successOrderCode.innerText = data.orderCode || orderCode;

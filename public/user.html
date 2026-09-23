@@ -1363,14 +1363,55 @@ echo "Order: " . $data['order']['orderCode'];
           <span id="modalTimerText">10:00</span>
         </div>
 
-        <div>
-          <div class="qr-image-container">
-            <img id="modalQrImage" src="" alt="UPI QR Code">
-          </div>
-        </div>
+        <!-- Official NPCI Bharat UPI Stand QR -->
+        <div class="official-upi-stand">
+          <!-- Tricolor Top Edge -->
+          <div class="upi-tricolor-strip"></div>
 
-        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
-          Scan with Any UPI App (GPay, PhonePe, Paytm, BHIM)
+          <!-- Header Ribbon -->
+          <div class="upi-stand-header">
+            <div class="upi-stand-brand">
+              <svg width="34" height="20" viewBox="0 0 64 36" fill="none">
+                <path d="M8 28L22 6L30 18L22 28H8Z" fill="#097939"/>
+                <path d="M22 28L30 18L44 28H22Z" fill="#ED7524"/>
+                <text x="34" y="24" fill="#ffffff" font-size="14" font-weight="900" font-family="Arial, sans-serif">UPI</text>
+              </svg>
+              <div>
+                <div class="upi-stand-title">BHARAT UPI</div>
+                <div class="upi-stand-sub">DIRECT MERCHANT SETTLEMENT</div>
+              </div>
+            </div>
+            <div class="npci-ribbon">NPCI Verified</div>
+          </div>
+
+          <!-- Scan Banner -->
+          <div class="upi-scan-banner">
+            <span>⚡ Scan &amp; Pay using any UPI App</span>
+          </div>
+
+          <!-- QR Body -->
+          <div class="upi-qr-body">
+            <img id="modalQrImage" class="upi-qr-img" src="" alt="UPI QR Code">
+            <div class="upi-center-pill">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M6 3h12M6 8h12M6 13l8.5 8M6 13h3a4 4 0 0 0 0-8" stroke="#0ea5e9" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Accepted Apps Footer Sticker -->
+          <div class="upi-stand-footer">
+            <div class="upi-apps-row">
+              <span class="app-pill gpay">GPay</span>
+              <span class="app-pill phonepe">PhonePe</span>
+              <span class="app-pill paytm">Paytm</span>
+              <span class="app-pill bhim">BHIM</span>
+              <span class="app-pill any">+ Any UPI</span>
+            </div>
+            <div class="upi-footer-tagline">
+              🔒 Instant Auto-Verification • 0% Extra Fee
+            </div>
+          </div>
         </div>
 
         <!-- Mobile Intent Buttons -->

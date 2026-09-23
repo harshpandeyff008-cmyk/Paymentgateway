@@ -863,8 +863,28 @@ async function initiateBuyPlan(planId, couponCode = '') {
 
     startCountdownTimer(order.expiresAt);
 
+    // Fast 1.5s Poller Fallback for Instant Plan Verification
+    if (modalFastPoller) clearInterval(modalFastPoller);
+    modalFastPoller = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/v1/orders/${order.orderCode}`);
+        if (!res.ok) return;
+        const oData = await res.json();
+        if (oData.success && oData.order && oData.order.status === 'PAID') {
+          if (modalFastPoller) clearInterval(modalFastPoller);
+          handlePaymentSuccess({
+            orderCode: oData.order.orderCode,
+            status: 'PAID',
+            amount: oData.order.amount,
+            utr: oData.order.utr
+          }, order);
+        }
+      } catch (_) {}
+    }, 1500);
+
     const onOrderUpdate = (update) => {
       if (update.orderCode === order.orderCode && update.status === 'PAID') {
+        if (modalFastPoller) clearInterval(modalFastPoller);
         socket.off('order_status_update', onOrderUpdate);
         handlePaymentSuccess(update, order);
       }
@@ -878,6 +898,8 @@ async function initiateBuyPlan(planId, couponCode = '') {
   }
 }
 
+let modalFastPoller = null;
+
 function startCountdownTimer(expiresAt) {
   if (activeOrderTimer) clearInterval(activeOrderTimer);
   const timerEl = document.getElementById('modalTimerText');
@@ -890,6 +912,7 @@ function startCountdownTimer(expiresAt) {
 
     if (diff <= 0) {
       clearInterval(activeOrderTimer);
+      if (modalFastPoller) clearInterval(modalFastPoller);
       const statusEl = document.getElementById('modalStatusText');
       if (statusEl) statusEl.innerHTML = '<span style="color: var(--accent-rose);">Order Expired. Please try again.</span>';
     }
@@ -901,6 +924,7 @@ function startCountdownTimer(expiresAt) {
 
 function handlePaymentSuccess(update, order) {
   if (activeOrderTimer) clearInterval(activeOrderTimer);
+  if (modalFastPoller) clearInterval(modalFastPoller);
 
   const modalPaymentDetails = document.getElementById('modalPaymentDetails');
   const modalCelebration = document.getElementById('modalCelebration');
@@ -945,6 +969,7 @@ function closePaymentModal() {
   const modal = document.getElementById('paymentModal');
   if (modal) modal.classList.remove('open');
   if (activeOrderTimer) clearInterval(activeOrderTimer);
+  if (modalFastPoller) clearInterval(modalFastPoller);
   currentAppliedCoupon = null;
   const input = document.getElementById('modalCouponInput');
   if (input) input.value = '';

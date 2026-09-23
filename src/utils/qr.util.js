@@ -39,9 +39,10 @@ export function streamQrPng(text, res) {
 export async function generateQrDataUrl(text) {
   return QRCode.toDataURL(text, {
     margin: 1,
-    width: 280,
+    width: 320,
+    errorCorrectionLevel: 'M',
     color: {
-      dark: '#0f172a',
+      dark: '#0a0f1d',
       light: '#ffffff'
     }
   });
