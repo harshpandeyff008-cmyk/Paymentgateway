@@ -3,6 +3,7 @@ import { AdminController } from '../controllers/admin.controller.js';
 import { ImapController } from '../controllers/imap.controller.js';
 import { LedgerController } from '../controllers/ledger.controller.js';
 import { ApiKeyController } from '../controllers/apiKey.controller.js';
+import { CouponController } from '../controllers/coupon.controller.js';
 import { adminAuth } from '../middlewares/adminAuth.js';
 import { config } from '../../config.js';
 import { SettingModel } from '../models/setting.model.js';
@@ -37,6 +38,8 @@ router.get('/stats', AdminController.getStats);
 router.get('/orders', AdminController.getOrders);
 router.get('/payments', AdminController.getPayments);
 router.get('/logs', AdminController.getLogs);
+router.get('/users', AdminController.getUsers);
+router.post('/users/adjust', AdminController.adjustUser);
 router.post('/simulate-payment', AdminController.simulatePayment);
 router.post('/orders/:orderCode/mark-paid', AdminController.markOrderPaidManually);
 router.post('/reconcile', AdminController.reconcileOrder);
@@ -61,5 +64,15 @@ router.post('/imap/sync-history', ImapController.syncHistory);
 // Financial Ledger endpoints
 router.get('/ledger', LedgerController.getSummary);
 router.post('/ledger/parse-paste', LedgerController.parsePaste);
+
+// Coupon Management endpoints
+router.get('/coupons', CouponController.listCoupons);
+router.post('/coupons', CouponController.createCoupon);
+router.delete('/coupons/:id', CouponController.deleteCoupon);
+
+// Plan Price Override endpoints
+router.get('/plan-prices', CouponController.getPlanPrices);
+router.post('/plan-prices', CouponController.setPlanPrice);
+router.delete('/plan-prices/:planId', CouponController.resetPlanPrice);
 
 export default router;

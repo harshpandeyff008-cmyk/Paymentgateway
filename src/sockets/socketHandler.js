@@ -16,6 +16,15 @@ export function setupSocketHandlers(io) {
       logger.debug(`Socket ${socket.id} joined room admin_room`);
     });
 
+    // Join user room for real-time plan activation and user events
+    socket.on('join_user', (email) => {
+      if (email) {
+        const cleanEmail = email.trim().toLowerCase();
+        socket.join(`user_${cleanEmail}`);
+        logger.debug(`Socket ${socket.id} joined room user_${cleanEmail}`);
+      }
+    });
+
     socket.on('disconnect', () => {
       logger.debug(`Socket disconnected: ${socket.id}`);
     });

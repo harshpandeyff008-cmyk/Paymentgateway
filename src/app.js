@@ -47,6 +47,7 @@ export function createApp(io = null) {
       const isAllowed = dynamicAllowed.some(allowed => {
         return allowed === '*' || normalized === allowed;
       }) ||
+      normalized.includes('upigateway') ||
       normalized.includes('paypendicular') ||
       normalized.includes('dealsbyshiv') ||
       normalized.includes('onrender.com') ||
@@ -101,6 +102,14 @@ export function createApp(io = null) {
     res.sendFile(path.join(publicDir, 'admin.html'));
   });
 
+  app.get('/user', (req, res) => {
+    res.sendFile(path.join(publicDir, 'user.html'));
+  });
+
+  app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(publicDir, 'user.html'));
+  });
+
   app.get('/docs', (req, res) => {
     res.sendFile(path.join(publicDir, 'docs.html'));
   });
@@ -110,7 +119,7 @@ export function createApp(io = null) {
   });
 
   app.get('/', (req, res) => {
-    res.redirect('/admin');
+    res.sendFile(path.join(publicDir, 'index.html'));
   });
 
   // Global Error Handling (404 catch-all then centralized error handler)

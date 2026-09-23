@@ -83,6 +83,17 @@ async function loadOrder() {
 function renderOrder(order) {
   orderCodeDisplay.innerText = order.order_code;
   amountDisplay.innerText = `₹ ${Number(order.amount).toFixed(2)}`;
+  if (order.merchantName && merchantName) {
+    merchantName.innerText = order.merchantName;
+  }
+
+  const uniqueNotice = document.getElementById('uniqueAmountNotice');
+  if (uniqueNotice) {
+    if (order.base_amount && Number(order.base_amount) !== Number(order.amount)) {
+      const diffPaise = Math.round((Number(order.amount) - Number(order.base_amount)) * 100);
+      uniqueNotice.innerHTML = `⚡ <span>Pay exact <b>₹${Number(order.amount).toFixed(2)}</b> (+₹0.${diffPaise < 10 ? '0' : ''}${diffPaise} unique tracking code)</span>`;
+    }
+  }
 
   // Set dynamic QR code image source (instant base64 or stream endpoint)
   qrImage.src = order.qrDataUrl || `/api/qr?data=${encodeURIComponent(order.upiUri)}`;

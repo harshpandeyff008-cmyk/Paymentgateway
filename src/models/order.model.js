@@ -1,13 +1,14 @@
 import { query } from '../../db/database.js';
 
 export const OrderModel = {
-  async create({ orderCode, amount, customerName = 'Guest', customerPhone = '', createdAt, expiresAt, webhookUrl = '' }) {
+  async create({ orderCode, amount, baseAmount = null, customerName = 'Guest', customerPhone = '', createdAt, expiresAt, webhookUrl = '', userEmail = '' }) {
+    const finalBaseAmount = baseAmount !== null ? baseAmount : amount;
     const result = await query.run(
-      `INSERT INTO orders (order_code, amount, customer_name, customer_phone, status, created_at, expires_at, webhook_url)
-       VALUES (?, ?, ?, ?, 'PENDING', ?, ?, ?)`,
-      [orderCode, amount, customerName, customerPhone, createdAt, expiresAt, webhookUrl]
+      `INSERT INTO orders (order_code, amount, base_amount, customer_name, customer_phone, status, created_at, expires_at, webhook_url, user_email)
+       VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?)`,
+      [orderCode, amount, finalBaseAmount, customerName, customerPhone, createdAt, expiresAt, webhookUrl, userEmail]
     );
-    return { id: result.lastID, orderCode, amount, customerName, customerPhone, status: 'PENDING', createdAt, expiresAt };
+    return { id: result.lastID, orderCode, amount, baseAmount: finalBaseAmount, customerName, customerPhone, status: 'PENDING', createdAt, expiresAt, userEmail };
   },
 
   async getByCode(orderCode) {

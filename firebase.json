@@ -1,13 +1,26 @@
 {
   "hosting": {
-    "site": "paypendicular",
+    "site": "upigateway",
     "public": "public",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ],
     "rewrites": [
+      {
+        "source": "/user",
+        "destination": "/user.html"
+      },
+      {
+        "source": "/admin",
+        "destination": "/admin.html"
+      },
+      {
+        "source": "/checkout/**",
+        "destination": "/checkout.html"
+      },
       {
         "source": "**",
         "destination": "/index.html"

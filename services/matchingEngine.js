@@ -1,4 +1,4 @@
-import { query, logActivity } from '../db/database.js';
+import { query, logActivity, updateUserPlanAndCredits, getUserByEmail } from '../db/database.js';
 
 let ioInstance = null;
 
@@ -16,11 +16,12 @@ export async function processIncomingPayment({
   sender = 'Unknown',
   receivedAt = new Date(),
   source = 'IMAP',
-  rawSnippet = ''
+  rawSnippet = '',
+  merchantEmail = null
 }) {
   const receivedTimestamp = receivedAt instanceof Date ? receivedAt.getTime() : Number(receivedAt);
 
-  console.log(`[MatchingEngine] Processing payment: ₹${amount}, UTR: ${utr}, Source: ${source}`);
+  console.log(`[MatchingEngine] Processing payment: ₹${amount}, UTR: ${utr}, Source: ${source}${merchantEmail ? ` (Merchant: ${merchantEmail})` : ''}`);
 
   // 1. Duplicate Check
   const existingPayment = await query.get(
@@ -51,7 +52,36 @@ export async function processIncomingPayment({
     [utr, rawSnippet, rawSnippet, amount]
   );
 
-  // Step B: Search for any PENDING orders matching this amount (within 30 minutes window)
+  // Step B1: If incoming payment is from a Merchant's Gmail, prioritize that merchant's store orders
+  if (!matchingOrder && merchantEmail) {
+    matchingOrder = await query.get(
+      `SELECT * FROM orders 
+       WHERE user_email = ? 
+         AND status = 'PENDING'
+         AND (plan_id IS NULL OR plan_id = '')
+         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND ABS(created_at - ?) <= 30 * 60 * 1000
+       ORDER BY ABS(created_at - ?) ASC 
+       LIMIT 1`,
+      [merchantEmail, amount, receivedTimestamp, receivedTimestamp]
+    );
+  }
+
+  // Step B2: If incoming payment is from Admin IMAP, prioritize pending Subscription Plan orders
+  if (!matchingOrder && source === 'IMAP' && !merchantEmail) {
+    matchingOrder = await query.get(
+      `SELECT * FROM orders 
+       WHERE (plan_id IS NOT NULL OR order_code LIKE 'PLAN-%')
+         AND status = 'PENDING'
+         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND ABS(created_at - ?) <= 30 * 60 * 1000
+       ORDER BY ABS(created_at - ?) ASC 
+       LIMIT 1`,
+      [amount, receivedTimestamp, receivedTimestamp]
+    );
+  }
+
+  // Step B3: General PENDING orders matching this amount (within 30 minutes window)
   if (!matchingOrder) {
     matchingOrder = await query.get(
       `SELECT * FROM orders 
@@ -143,6 +173,21 @@ export async function processIncomingPayment({
       origin: orderOrigin
     });
 
+    // Automatic User Plan Activation & Credit Allocation
+    let activatedUser = null;
+    if (matchingOrder.user_email && matchingOrder.plan_id) {
+      try {
+        activatedUser = await updateUserPlanAndCredits(
+          matchingOrder.user_email,
+          matchingOrder.plan_id,
+          matchingOrder.credits_to_add || 0
+        );
+        console.log(`[MatchingEngine] Plan activated for user: ${matchingOrder.user_email}. Plan: ${matchingOrder.plan_id}, Credits: ${matchingOrder.credits_to_add}`);
+      } catch (userErr) {
+        console.error('[MatchingEngine] Failed to auto-activate plan for user:', userErr.message);
+      }
+    }
+
     // Real-time notification via WebSockets
     if (ioInstance) {
       // Notify checkout room
@@ -152,21 +197,35 @@ export async function processIncomingPayment({
         amount,
         utr,
         sender,
-        paidAt: receivedTimestamp
+        paidAt: receivedTimestamp,
+        planActivated: !!activatedUser,
+        user: activatedUser
       });
+
+      // If user order, notify user's private channel
+      if (matchingOrder.user_email) {
+        ioInstance.to(`user_${matchingOrder.user_email}`).emit('user_plan_activated', {
+          orderCode: matchingOrder.order_code,
+          plan: matchingOrder.plan_id,
+          creditsAdded: matchingOrder.credits_to_add,
+          user: activatedUser
+        });
+      }
 
       // Notify admin dashboard
       ioInstance.to('admin_room').emit('payment_event', {
         type: 'ORDER_PAID',
         order: updatedOrder,
-        paymentId
+        paymentId,
+        userEmail: matchingOrder.user_email || null,
+        planId: matchingOrder.plan_id || null
       });
 
       ioInstance.to('admin_room').emit('api_log', {
         event_type: 'ORDER_PAID',
         status: 'SUCCESS',
         title: `Order Paid: ${matchingOrder.order_code}`,
-        details: `₹${amount} auto-matched via ${source}. UTR: ${utr}`,
+        details: `₹${amount} auto-matched via ${source}. UTR: ${utr}${matchingOrder.plan_id ? ` (Plan: ${matchingOrder.plan_id})` : ''}`,
         origin: orderOrigin,
         created_at: Date.now()
       });

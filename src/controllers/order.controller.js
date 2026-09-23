@@ -2,7 +2,7 @@ import { OrderModel } from '../models/order.model.js';
 import { claimOrderWithUtr, reconcileUnmatchedPayments } from '../services/matchingEngine.service.js';
 import { buildUpiUri, streamQrPng, generateQrDataUrl } from '../utils/qr.util.js';
 import { config } from '../../config.js';
-import { logActivity } from '../../db/database.js';
+import { logActivity, getUniquePayableAmount, getUserByEmail } from '../../db/database.js';
 
 function generateOrderCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -33,24 +33,35 @@ export const OrderController = {
         return res.status(400).json({ success: false, error: 'Valid positive amount is required' });
       }
 
+      // Unique Paise Offset Engine (Resolves multiple concurrent payments collision)
+      const baseAmount = parsedAmount;
+      const payableAmount = await getUniquePayableAmount(baseAmount, 20);
+
       const orderCode = generateOrderCode();
       const createdAt = Date.now();
       const expiresAt = createdAt + config.orderExpiryMinutes * 60 * 1000;
 
+      const userEmail = req.userRecord?.email || '';
       const order = await OrderModel.create({
         orderCode,
-        amount: parsedAmount,
+        amount: payableAmount,
+        baseAmount,
         customerName,
         customerPhone,
         createdAt,
         expiresAt,
-        webhookUrl
+        webhookUrl,
+        userEmail
       });
 
+      // Use merchant's own registered UPI VPA and business name if configured, otherwise fallback to platform defaults
+      const merchantVpa = req.userRecord?.upi_vpa || config.merchant.upiVpa;
+      const merchantName = req.userRecord?.business_name || req.userRecord?.name || config.merchant.name;
+
       const upiUri = buildUpiUri({
-        vpa: config.merchant.upiVpa,
-        merchantName: config.merchant.name,
-        amount: parsedAmount,
+        vpa: merchantVpa,
+        merchantName: merchantName,
+        amount: payableAmount,
         orderCode
       });
 
@@ -70,7 +81,9 @@ export const OrderController = {
         ...order,
         orderId: order.id,
         orderCode,
-        amount: parsedAmount,
+        amount: payableAmount,
+        baseAmount,
+        isUniqueOffset: payableAmount !== baseAmount,
         currency: 'INR',
         status: 'PENDING',
         expiryMinutes: config.orderExpiryMinutes,
@@ -129,9 +142,22 @@ export const OrderController = {
         order.status = 'EXPIRED';
       }
 
+      const isPlanOrder = !!order.plan_id || (order.order_code && order.order_code.startsWith('PLAN-'));
+      let merchantVpa = config.merchant.upiVpa;
+      let merchantName = config.merchant.name;
+
+      // Only merchant customer orders (non-plan orders) route to the merchant's own registered UPI VPA
+      if (!isPlanOrder && order.user_email) {
+        const u = await getUserByEmail(order.user_email);
+        if (u) {
+          if (u.upi_vpa) merchantVpa = u.upi_vpa;
+          if (u.business_name || u.name) merchantName = u.business_name || u.name;
+        }
+      }
+
       const upiUri = buildUpiUri({
-        vpa: config.merchant.upiVpa,
-        merchantName: config.merchant.name,
+        vpa: merchantVpa,
+        merchantName: merchantName,
         amount: order.amount,
         orderCode: order.order_code
       });
@@ -150,6 +176,8 @@ export const OrderController = {
           ...order,
           orderId: order.id,
           orderCode: order.order_code,
+          merchantName,
+          merchantVpa,
           upiUri,
           checkoutUrl: `/checkout/${order.order_code}`,
           fullCheckoutUrl,

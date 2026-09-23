@@ -12,10 +12,18 @@ function getAdminMasterKey() {
 
 const originalFetch = window.fetch;
 window.fetch = async function (url, options = {}) {
-  const urlStr = typeof url === 'string' ? url : (url?.url || '');
+  let urlStr = typeof url === 'string' ? url : (url?.url || '');
   
-  // Attach x-admin-key to ANY admin endpoint (relative or absolute URL)
-  if (urlStr.includes('/api/admin') && !urlStr.includes('/auth/verify-master-key')) {
+  // If this is a relative /api/ endpoint and API_BASE is configured (e.g. on paypendicular.web.app), prepend API_BASE!
+  if (API_BASE && urlStr.startsWith('/api/')) {
+    urlStr = API_BASE + urlStr;
+    if (typeof url === 'string') {
+      url = urlStr;
+    }
+  }
+
+  // Attach x-admin-key to ANY admin endpoint (relative or absolute URL, including /api/admin and /api/v1/admin)
+  if ((urlStr.includes('/api/admin') || urlStr.includes('/api/v1/admin')) && !urlStr.includes('/auth/verify-master-key')) {
     const key = getAdminMasterKey();
     options = options || {};
     options.headers = options.headers || {};
@@ -33,7 +41,7 @@ window.fetch = async function (url, options = {}) {
 
   const response = await originalFetch.call(this, url, options);
 
-  if (response.status === 401 && urlStr.includes('/api/admin') && !urlStr.includes('/auth/verify-master-key')) {
+  if (response.status === 401 && (urlStr.includes('/api/admin') || urlStr.includes('/api/v1/admin')) && !urlStr.includes('/auth/verify-master-key')) {
     console.warn('[AdminAuth] Received 401 from', urlStr);
     showMasterKeyLockScreen();
   }
@@ -83,7 +91,7 @@ async function submitMasterKey(e) {
   if (errorBox) errorBox.style.display = 'none';
 
   try {
-    const res = await originalFetch('/api/admin/auth/verify-master-key', {
+    const res = await originalFetch((API_BASE || '') + '/api/admin/auth/verify-master-key', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ masterKey: key })
@@ -92,6 +100,7 @@ async function submitMasterKey(e) {
     const data = await res.json();
     if (data.success) {
       localStorage.setItem('admin_master_key', key);
+      sessionStorage.setItem('gateway_master_key', key);
       hideMasterKeyLockScreen();
       initDashboardData();
     } else {
@@ -137,14 +146,6 @@ const ordersTableBody = document.getElementById('ordersTableBody');
 const paymentsFeed = document.getElementById('paymentsFeed');
 const paymentsCount = document.getElementById('paymentsCount');
 
-// Elements - Simulator
-const simulatorForm = document.getElementById('simulatorForm');
-const simAmount = document.getElementById('simAmount');
-const simUtr = document.getElementById('simUtr');
-const simSender = document.getElementById('simSender');
-const btnSimulate = document.getElementById('btnSimulate');
-const simResult = document.getElementById('simResult');
-
 // Elements - Create Order Modal
 const createOrderForm = document.getElementById('createOrderForm');
 const orderAmount = document.getElementById('orderAmount');
@@ -163,12 +164,13 @@ const uiBtnTestImap = document.getElementById('uiBtnTestImap');
 const uiBtnSaveImap = document.getElementById('uiBtnSaveImap');
 const uiImapFeedback = document.getElementById('uiImapFeedback');
 
-const frontendSettingsForm = document.getElementById('frontendSettingsForm');
-const uiUpiVpa = document.getElementById('uiUpiVpa');
-const uiMerchantName = document.getElementById('uiMerchantName');
-const uiExpiryMinutes = document.getElementById('uiExpiryMinutes');
-const uiBtnSaveSettings = document.getElementById('uiBtnSaveSettings');
-const uiSettingsFeedback = document.getElementById('uiSettingsFeedback');
+const configMerchantVpa = document.getElementById('configMerchantVpa');
+const configMerchantName = document.getElementById('configMerchantName');
+const configExpiryMinutes = document.getElementById('configExpiryMinutes');
+const settingsFeedback = document.getElementById('settingsFeedback');
+const adminImapUpiVpa = document.getElementById('adminImapUpiVpa');
+const adminImapMerchantName = document.getElementById('adminImapMerchantName');
+const adminImapUpiFeedback = document.getElementById('adminImapUpiFeedback');
 
 const uiBtnScanInbox = document.getElementById('uiBtnScanInbox');
 const inboxScanResults = document.getElementById('inboxScanResults');
@@ -187,29 +189,71 @@ const btnParsePaste = document.getElementById('btnParsePaste');
 const pasteFeedback = document.getElementById('pasteFeedback');
 const ledgerTableBody = document.getElementById('ledgerTableBody');
 
-// Tab Switching Logic
-function switchTab(tab) {
-  document.getElementById('tabBtnDashboard').classList.toggle('active', tab === 'dashboard');
-  document.getElementById('tabBtnLedger').classList.toggle('active', tab === 'ledger');
-  document.getElementById('tabBtnConfig').classList.toggle('active', tab === 'config');
-  document.getElementById('tabBtnApiKey').classList.toggle('active', tab === 'apiKey');
-  const btnLogs = document.getElementById('tabBtnLogs');
-  if (btnLogs) btnLogs.classList.toggle('active', tab === 'logs');
+// Modern 2-Line Sidebar Navigation Switching
+function switchAdminSidebar(viewId) {
+  // Update sidebar active buttons
+  document.querySelectorAll('.sidebar-item-2line').forEach(btn => btn.classList.remove('active'));
+  const targetBtn = document.getElementById(`nav_admin_${viewId}`);
+  if (targetBtn) targetBtn.classList.add('active');
 
-  document.getElementById('tabContentDashboard').classList.toggle('active', tab === 'dashboard');
-  document.getElementById('tabContentLedger').classList.toggle('active', tab === 'ledger');
-  document.getElementById('tabContentConfig').classList.toggle('active', tab === 'config');
-  document.getElementById('tabContentApiKey').classList.toggle('active', tab === 'apiKey');
-  const contentLogs = document.getElementById('tabContentLogs');
-  if (contentLogs) contentLogs.classList.toggle('active', tab === 'logs');
+  // Toggle content views
+  document.querySelectorAll('.admin-view-section').forEach(view => view.classList.remove('active'));
+  const targetView = document.getElementById(`view_admin_${viewId}`);
+  if (targetView) targetView.classList.add('active');
 
-  if (tab === 'ledger') {
+  // Update topbar title
+  const titleEl = document.getElementById('adminViewTitle');
+  if (titleEl) {
+    const titles = {
+      users: '👥 Registered Users & Merchant Directory',
+      subscriptions: '💳 Subscription Purchases & Plan Invoices',
+      orders: '📦 Live Store Orders & Checkout Sessions',
+      ledger: '💰 Bank Alerts & IMAP Payments Ledger',
+      config: '⚡ Gateway Controls & Zero .env Settings',
+      imap: '📧 IMAP & Settlement Setup',
+      coupons: '🏷️ Coupons & Plan Pricing Control',
+      apiKey: '🔑 Developer API Keys & Domain Locks',
+      logs: '📝 System Activity Logs & Audit Trail'
+    };
+    titleEl.innerText = titles[viewId] || 'Admin Dashboard';
+  }
+
+  // Trigger loads based on active view
+  if (viewId === 'users') {
+    loadAdminUsers();
+  } else if (viewId === 'subscriptions') {
+    loadAdminSubscriptions();
+  } else if (viewId === 'orders') {
+    loadOrders('ALL');
+  } else if (viewId === 'ledger') {
     loadLedger();
-  } else if (tab === 'apiKey') {
-    loadApiKeyDetails();
-  } else if (tab === 'logs') {
+  } else if (viewId === 'config') {
+    loadStats();
+  } else if (viewId === 'imap') {
+    loadImapStatus();
+  } else if (viewId === 'coupons') {
+    loadCoupons();
+    loadPlanPrices();
+  } else if (viewId === 'apiKey') {
+    loadDomainKeysList();
+  } else if (viewId === 'logs') {
     loadApiLogs();
   }
+}
+window.switchAdminSidebar = switchAdminSidebar;
+
+// Backward-compatible switchTab mapping
+function switchTab(tab) {
+  const map = {
+    dashboard: 'orders',
+    ledger: 'ledger',
+    config: 'config',
+    apiKey: 'apiKey',
+    users: 'users',
+    logs: 'logs',
+    subscriptions: 'subscriptions'
+  };
+  switchAdminSidebar(map[tab] || tab);
 }
 window.switchTab = switchTab;
 
@@ -260,10 +304,22 @@ async function loadStats() {
     // IMAP Status
     updateImapPill(stats.imapStatus);
 
-    // Populate Frontend Configurator fields
-    uiUpiVpa.value = stats.merchantVpa || '';
-    uiMerchantName.value = stats.merchantName || '';
-    uiExpiryMinutes.value = stats.expiryMinutes || 5;
+    // Populate Frontend Configurator and IMAP fields
+    const vpa = stats.merchantVpa || '';
+    const name = stats.merchantName || '';
+    const exp = stats.expiryMinutes || 5;
+
+    const elVpa = document.getElementById('configMerchantVpa');
+    const elName = document.getElementById('configMerchantName');
+    const elExp = document.getElementById('configExpiryMinutes');
+    const elAdminVpa = document.getElementById('adminImapUpiVpa');
+    const elAdminName = document.getElementById('adminImapMerchantName');
+
+    if (elVpa) elVpa.value = vpa;
+    if (elName) elName.value = name;
+    if (elExp) elExp.value = exp;
+    if (elAdminVpa) elAdminVpa.value = vpa;
+    if (elAdminName) elAdminName.value = name;
 
     if (stats.imapStatus) {
       uiImapEnabled.checked = Boolean(stats.imapStatus.enabled);
@@ -492,163 +548,9 @@ createOrderForm.addEventListener('submit', async (e) => {
   }
 });
 
-// 5. Simulator Helpers & Handler
-function selectPendingOrderForSim(code, amount) {
-  simAmount.value = amount;
-  simUtr.value = `SIM-UTR-${Date.now().toString().slice(-6)}`;
-  simResult.style.display = 'block';
-  simResult.style.background = 'rgba(56, 189, 248, 0.1)';
-  simResult.style.border = '1px solid rgba(56, 189, 248, 0.3)';
-  simResult.style.color = '#38bdf8';
-  simResult.innerHTML = `Selected Order <b>${code}</b> for ₹${amount}. Now click "🚀 Simulate Incoming Payment"!`;
-}
-window.selectPendingOrderForSim = selectPendingOrderForSim;
+// 5. (Simulator removed — Real IMAP & FamPay auto-verification handles production payment matching)
 
-async function quickCreateAndSimulate(amount = 100) {
-  const btn = document.getElementById('btnQuickSimulate');
-  const originalText = btn ? btn.innerText : '';
-  if (btn) {
-    btn.disabled = true;
-    btn.innerText = '⏳ Creating & Matching...';
-  }
-  simResult.style.display = 'block';
-  simResult.style.background = 'rgba(56, 189, 248, 0.1)';
-  simResult.style.border = '1px solid rgba(56, 189, 248, 0.3)';
-  simResult.style.color = '#38bdf8';
-  simResult.innerHTML = `⏳ <b>Step 1/2:</b> Creating test order for ₹${amount}...`;
 
-  try {
-    // 1. Create order
-    const orderRes = await fetch(API_BASE + '/api/orders/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(currentApiKey ? { 'x-api-key': currentApiKey } : {})
-      },
-      body: JSON.stringify({
-        amount: amount,
-        customerName: 'Quick Simulation Buyer',
-        customerPhone: '9876543210'
-      })
-    });
-    const orderData = await orderRes.json();
-    if (!orderData.success) {
-      simResult.style.background = 'rgba(239, 68, 68, 0.15)';
-      simResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-      simResult.style.color = '#f87171';
-      simResult.innerHTML = `❌ Failed to create test order: ${orderData.error}`;
-      return;
-    }
-
-    const orderCode = orderData.order.orderCode;
-    simResult.innerHTML = `⏳ <b>Step 2/2:</b> Order <b>${orderCode}</b> created! Simulating incoming UPI payment...`;
-
-    // 2. Simulate payment for that exact amount
-    const simRes = await fetch(API_BASE + '/api/admin/simulate-payment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount: amount,
-        sender: 'Test Buyer (Auto)',
-        utr: `SIM-${Date.now().toString().slice(-8)}`
-      })
-    });
-    const simData = await simRes.json();
-
-    if (simData.success && simData.result && simData.result.matched) {
-      simResult.style.background = 'rgba(16, 185, 129, 0.15)';
-      simResult.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-      simResult.style.color = '#34d399';
-      simResult.innerHTML = `
-        🎉 <b>100% SUCCESS MATCH!</b><br>
-        Order <b>${orderCode}</b> (₹${amount}) matched with simulated payment!<br>
-        Status: <span class="badge PAID">PAID</span><br>
-        UTR: <code>${simData.result.order.utr}</code>
-      `;
-    } else {
-      simResult.style.background = 'rgba(245, 158, 11, 0.15)';
-      simResult.style.border = '1px solid rgba(245, 158, 11, 0.3)';
-      simResult.style.color = '#fbbf24';
-      simResult.innerHTML = `⚠️ Order created (${orderCode}), but matching pending: ${simData.result?.reason || ''}`;
-    }
-
-    loadStats();
-    loadOrders(currentFilter);
-    loadPayments();
-  } catch (err) {
-    simResult.style.background = 'rgba(239, 68, 68, 0.15)';
-    simResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-    simResult.style.color = '#f87171';
-    simResult.innerHTML = `❌ Error: ${err.message}`;
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerText = originalText;
-    }
-  }
-}
-window.quickCreateAndSimulate = quickCreateAndSimulate;
-
-simulatorForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  btnSimulate.disabled = true;
-  btnSimulate.innerText = 'Simulating...';
-  simResult.style.display = 'none';
-
-  try {
-    const payload = {
-      amount: simAmount.value,
-      utr: simUtr.value || undefined,
-      sender: simSender.value
-    };
-
-    const res = await fetch(API_BASE + '/api/admin/simulate-payment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    simResult.style.display = 'block';
-
-    if (data.success && data.result.matched) {
-      simResult.style.background = 'rgba(16, 185, 129, 0.15)';
-      simResult.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-      simResult.style.color = '#34d399';
-      simResult.innerHTML = `✅ <b>Success!</b> Matched with Order <b>${data.result.order.order_code}</b> for ₹${data.result.order.amount}!`;
-    } else if (data.success && !data.result.matched) {
-      simResult.style.background = 'rgba(245, 158, 11, 0.12)';
-      simResult.style.border = '1px solid rgba(245, 158, 11, 0.3)';
-      simResult.style.color = '#fbbf24';
-      simResult.innerHTML = `
-        ⚠️ <b>Payment Recorded, But No Pending Order Matched!</b><br>
-        ₹${simAmount.value} database me save ho gaya, lekin matching ke liye is exact amount ka active <b>PENDING</b> order hona chahiye.<br>
-        <button type="button" class="btn btn-primary" onclick="quickCreateAndSimulate(${simAmount.value})" style="margin-top: 8px; font-size: 11.5px; padding: 4px 10px;">
-          ⚡ Click Here: Create ₹${simAmount.value} Order & Match Instantly
-        </button>
-      `;
-    } else {
-      simResult.style.background = 'rgba(239, 68, 68, 0.15)';
-      simResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-      simResult.style.color = '#f87171';
-      simResult.innerHTML = `❌ ${data.result?.reason || data.error || 'Simulation failed'}`;
-    }
-
-    loadStats();
-    loadOrders(currentFilter);
-    loadPayments();
-
-  } catch (err) {
-    simResult.style.display = 'block';
-    simResult.style.background = 'rgba(239, 68, 68, 0.15)';
-    simResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-    simResult.style.color = '#f87171';
-    simResult.innerText = 'Error simulating: ' + err.message;
-  } finally {
-    btnSimulate.disabled = false;
-    btnSimulate.innerText = '🚀 Simulate Incoming Payment';
-  }
-});
 
 // 6. Test IMAP 1-Click Button Handler
 uiBtnTestImap.addEventListener('click', async () => {
@@ -748,45 +650,95 @@ frontendImapForm.addEventListener('submit', async (e) => {
 });
 
 // 8. Save UPI & Merchant Settings (Zero .env)
-frontendSettingsForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  uiBtnSaveSettings.disabled = true;
-  uiBtnSaveSettings.innerText = 'Saving...';
+async function handleSaveSettings(e) {
+  if (e) e.preventDefault();
+  const vpa = document.getElementById('configMerchantVpa')?.value.trim();
+  const name = document.getElementById('configMerchantName')?.value.trim();
+  const expiry = document.getElementById('configExpiryMinutes')?.value;
+  const fb = document.getElementById('settingsFeedback');
+  const btn = e?.target?.querySelector('button[type="submit"]');
+
+  if (btn) { btn.disabled = true; btn.innerText = 'Saving...'; }
+  if (fb) fb.style.display = 'none';
 
   try {
     const res = await fetch(API_BASE + '/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        upiVpa: uiUpiVpa.value.trim(),
-        merchantName: uiMerchantName.value.trim(),
-        expiryMinutes: uiExpiryMinutes.value
-      })
+      body: JSON.stringify({ upiVpa: vpa, merchantName: name, expiryMinutes: expiry })
     });
     const data = await res.json();
-
-    uiSettingsFeedback.style.display = 'block';
-    if (data.success) {
-      uiSettingsFeedback.style.background = 'rgba(16, 185, 129, 0.15)';
-      uiSettingsFeedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-      uiSettingsFeedback.style.color = '#34d399';
-      uiSettingsFeedback.innerText = '✅ UPI settings saved to database successfully!';
-      loadStats();
-    } else {
-      uiSettingsFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
-      uiSettingsFeedback.style.color = '#f87171';
-      uiSettingsFeedback.innerText = '❌ ' + data.error;
+    if (fb) {
+      fb.style.display = 'block';
+      if (data.success) {
+        fb.style.background = 'rgba(16, 185, 129, 0.15)';
+        fb.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+        fb.style.color = '#34d399';
+        fb.innerHTML = `✅ Platform settings saved! Merchant UPI: <b>${vpa}</b> (${name})`;
+        const elAdminVpa = document.getElementById('adminImapUpiVpa');
+        const elAdminName = document.getElementById('adminImapMerchantName');
+        if (elAdminVpa) elAdminVpa.value = vpa;
+        if (elAdminName) elAdminName.value = name;
+      } else {
+        fb.style.background = 'rgba(239, 68, 68, 0.15)';
+        fb.style.color = '#f87171';
+        fb.innerText = '❌ ' + (data.error || 'Failed');
+      }
     }
   } catch (err) {
-    uiSettingsFeedback.style.display = 'block';
-    uiSettingsFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
-    uiSettingsFeedback.style.color = '#f87171';
-    uiSettingsFeedback.innerText = 'Error: ' + err.message;
+    if (fb) { fb.style.display = 'block'; fb.style.color = '#f87171'; fb.innerText = 'Error: ' + err.message; }
   } finally {
-    uiBtnSaveSettings.disabled = false;
-    uiBtnSaveSettings.innerText = '💾 Save UPI Settings';
+    if (btn) { btn.disabled = false; btn.innerText = '💾 Save Platform Settings'; }
   }
-});
+}
+window.handleSaveSettings = handleSaveSettings;
+
+async function saveAdminCollectionUpi() {
+  const vpa = document.getElementById('adminImapUpiVpa')?.value.trim();
+  const name = document.getElementById('adminImapMerchantName')?.value.trim();
+  const fb = document.getElementById('adminImapUpiFeedback');
+
+  if (!vpa || !name) {
+    if (fb) {
+      fb.style.display = 'block';
+      fb.style.background = 'rgba(239, 68, 68, 0.15)';
+      fb.style.color = '#f87171';
+      fb.innerText = '⚠️ Please enter both UPI VPA and Business Name.';
+    }
+    return;
+  }
+
+  if (fb) fb.style.display = 'none';
+
+  try {
+    const res = await fetch(API_BASE + '/api/admin/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upiVpa: vpa, merchantName: name })
+    });
+    const data = await res.json();
+    if (fb) {
+      fb.style.display = 'block';
+      if (data.success) {
+        fb.style.background = 'rgba(16, 185, 129, 0.15)';
+        fb.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+        fb.style.color = '#34d399';
+        fb.innerHTML = `✅ <b>Admin Collection UPI Saved!</b> Plan purchases will now go directly to <b>${vpa}</b>.`;
+        const elVpa = document.getElementById('configMerchantVpa');
+        const elName = document.getElementById('configMerchantName');
+        if (elVpa) elVpa.value = vpa;
+        if (elName) elName.value = name;
+      } else {
+        fb.style.background = 'rgba(239, 68, 68, 0.15)';
+        fb.style.color = '#f87171';
+        fb.innerText = '❌ ' + (data.error || 'Failed');
+      }
+    }
+  } catch (err) {
+    if (fb) { fb.style.display = 'block'; fb.style.color = '#f87171'; fb.innerText = 'Error: ' + err.message; }
+  }
+}
+window.saveAdminCollectionUpi = saveAdminCollectionUpi;
 
 // 9. Scan Inbox Now Button (Diagnostic live tester)
 uiBtnScanInbox.addEventListener('click', async () => {
@@ -843,6 +795,8 @@ function initSocket() {
   socket.on('new_order', () => {
     loadStats();
     loadOrders(currentFilter);
+    loadAdminUsers();
+    loadAdminSubscriptions();
     loadApiLogs();
   });
 
@@ -851,6 +805,8 @@ function initSocket() {
     loadOrders(currentFilter);
     loadPayments();
     loadLedger();
+    loadAdminUsers();
+    loadAdminSubscriptions();
     loadApiLogs();
   });
 
@@ -1401,14 +1357,30 @@ async function testApiKeyOrderCreation() {
 window.testApiKeyOrderCreation = testApiKeyOrderCreation;
 
 function initDashboardData() {
+  loadAdminUsers();
+  loadAdminSubscriptions();
   loadStats();
   loadOrders('ALL');
   loadPayments();
   loadLedger();
   loadApiKeyDetails();
+  loadDomainKeysList();
   loadApiLogs();
   initSocket();
 }
+
+function refreshAdminAll() {
+  loadAdminUsers();
+  loadAdminSubscriptions();
+  loadStats();
+  loadOrders(currentFilter);
+  loadPayments();
+  loadLedger();
+  loadApiKeyDetails();
+  loadDomainKeysList();
+  loadApiLogs();
+}
+window.refreshAdminAll = refreshAdminAll;
 
 async function checkAdminAuthOnStartup() {
   const savedKey = getAdminMasterKey();
@@ -1418,7 +1390,7 @@ async function checkAdminAuthOnStartup() {
   }
 
   try {
-    const res = await originalFetch('/api/admin/auth/verify-master-key', {
+    const res = await originalFetch((API_BASE || '') + '/api/admin/auth/verify-master-key', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ masterKey: savedKey })
@@ -1428,11 +1400,16 @@ async function checkAdminAuthOnStartup() {
       hideMasterKeyLockScreen();
       initDashboardData();
     } else {
-      localStorage.removeItem('admin_master_key');
+      if (res.status === 401) {
+        localStorage.removeItem('admin_master_key');
+        sessionStorage.removeItem('gateway_master_key');
+      }
       showMasterKeyLockScreen();
     }
   } catch (_) {
-    showMasterKeyLockScreen();
+    // If transient network error / Render spin-up, do NOT wipe saved key; unlock and let requests sync
+    hideMasterKeyLockScreen();
+    initDashboardData();
   }
 }
 
@@ -1685,13 +1662,14 @@ window.testApiKeyOrderCreation = testApiKeyOrderCreation;
 const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCBdKUeKjvShFwL3_S5F9M0uYdQHf5poRU",
-  authDomain: "payment-gatway-18d03.firebaseapp.com",
-  projectId: "payment-gatway-18d03",
-  storageBucket: "payment-gatway-18d03.firebasestorage.app",
-  messagingSenderId: "90403754513",
-  appId: "1:90403754513:web:5f3cc2279461ec14d797b0",
-  measurementId: "G-Z8H449C6LX"
+  apiKey: "AIzaSyCdeUo_GtvqTlgq-gXG71wtPPehC2mCOpw",
+  authDomain: "upigateway-ccaa4.firebaseapp.com",
+  databaseURL: "https://upigateway-ccaa4-default-rtdb.firebaseio.com",
+  projectId: "upigateway-ccaa4",
+  storageBucket: "upigateway-ccaa4.firebasestorage.app",
+  messagingSenderId: "493744816437",
+  appId: "1:493744816437:web:6316a146951e7f0b8d0c7c",
+  measurementId: "G-096R1MKTV2"
 };
 
 let fbApp = null;
@@ -1828,3 +1806,573 @@ async function handleAdminLogout() {
   window.location.reload();
 }
 window.handleAdminLogout = handleAdminLogout;
+
+// ==========================================
+// ADMIN USER TRACKING & SUBSCRIPTIONS
+// ==========================================
+let adminUsersList = [];
+let currentUserFilter = 'ALL';
+
+async function loadAdminUsers() {
+  const tbody = document.getElementById('adminUsersTableBody');
+  const countEl = document.getElementById('adminUsersCount');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch((API_BASE || '') + '/api/v1/admin/users', {
+      headers: {
+        'x-admin-key': getAdminMasterKey()
+      }
+    });
+    const data = await res.json();
+    if (!data.success || !data.users) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user directory.</td></tr>';
+      return;
+    }
+
+    adminUsersList = data.users || [];
+
+    // Calculate Analytics & Metrics
+    const totalUsers = adminUsersList.length;
+    const paidUsers = adminUsersList.filter(u => u.plan && u.plan !== 'NONE').length;
+    const freeUsers = totalUsers - paidUsers;
+    const convRate = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : '0.0';
+    const lockedWebsites = adminUsersList.filter(u => u.is_website_locked || (u.website_url && u.website_url.trim().length > 0)).length;
+
+    // Update Metric Cards
+    const elTotal = document.getElementById('metricAdminUsersTotal');
+    const elPaid = document.getElementById('metricAdminUsersPaid');
+    const elSubRate = document.getElementById('metricAdminSubRate');
+    const elFree = document.getElementById('metricAdminUsersFree');
+    const elConv = document.getElementById('metricAdminConversion');
+    const elLocked = document.getElementById('metricAdminLockedWebsites');
+
+    if (elTotal) elTotal.innerText = totalUsers;
+    if (elPaid) elPaid.innerText = paidUsers;
+    if (elSubRate) elSubRate.innerText = `${convRate}% of registered merchants`;
+    if (elFree) elFree.innerText = freeUsers;
+    if (elConv) elConv.innerText = `${convRate}%`;
+    if (elLocked) elLocked.innerText = lockedWebsites;
+
+    // Update Topbar Badges
+    const tbTotal = document.getElementById('topbarStatTotalUsers');
+    const tbPaid = document.getElementById('topbarStatPaidUsers');
+    const tbFree = document.getElementById('topbarStatFreeUsers');
+    const badgeTotal = document.getElementById('badgeTotalUsersCount');
+
+    if (tbTotal) tbTotal.innerText = totalUsers;
+    if (tbPaid) tbPaid.innerText = paidUsers;
+    if (tbFree) tbFree.innerText = freeUsers;
+    if (badgeTotal) badgeTotal.innerText = totalUsers;
+
+    filterAdminUsersTable();
+  } catch (err) {
+    console.error('Failed to load admin users:', err);
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Network error loading user records.</td></tr>';
+  }
+}
+window.loadAdminUsers = loadAdminUsers;
+
+function filterAdminUsersTable() {
+  const searchInput = document.getElementById('adminUsersSearchInput');
+  const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+  let filtered = adminUsersList;
+
+  // Filter by Plan Status
+  if (currentUserFilter === 'PAID') {
+    filtered = filtered.filter(u => u.plan && u.plan !== 'NONE');
+  } else if (currentUserFilter === 'FREE') {
+    filtered = filtered.filter(u => !u.plan || u.plan === 'NONE');
+  }
+
+  // Filter by Search Query
+  if (query) {
+    filtered = filtered.filter(u => {
+      const name = (u.name || '').toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const upi = (u.upi_vpa || '').toLowerCase();
+      const plan = (u.plan || '').toLowerCase();
+      const website = (u.website_url || '').toLowerCase();
+      const apiKey = (u.api_key || '').toLowerCase();
+      return name.includes(query) || email.includes(query) || upi.includes(query) || plan.includes(query) || website.includes(query) || apiKey.includes(query);
+    });
+  }
+
+  renderAdminUsersTable(filtered);
+}
+window.filterAdminUsersTable = filterAdminUsersTable;
+
+function setUserFilter(filter, btn) {
+  currentUserFilter = filter;
+  ['filterUserBtnAll', 'filterUserBtnPaid', 'filterUserBtnFree'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
+  if (btn) btn.classList.add('active');
+  filterAdminUsersTable();
+}
+window.setUserFilter = setUserFilter;
+
+function renderAdminUsersTable(users) {
+  const tbody = document.getElementById('adminUsersTableBody');
+  const countEl = document.getElementById('adminUsersCount');
+  if (!tbody) return;
+
+  if (countEl) countEl.innerText = `${users.length} shown (of ${adminUsersList.length})`;
+
+  if (!users || users.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" style="text-align: center; color: var(--text-dim); padding: 30px;">
+          No matching users found in directory.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = users.map(u => {
+    const isNone = !u.plan || u.plan === 'NONE';
+    const isPaid = !isNone;
+
+    const planBadge = isNone
+      ? '<span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-dim); border: 1px solid var(--border-card);">NO PLAN</span>'
+      : `<span class="badge PAID" style="background: rgba(168,85,247,0.18); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); font-weight: 700;">${u.plan}</span>`;
+
+    const subStatusBadge = isPaid
+      ? '<span class="badge PAID" style="font-size: 10px;">👑 SUBSCRIBED</span>'
+      : '<span class="badge EXPIRED" style="font-size: 10px; background: rgba(239,68,68,0.1); color: #f87171; border-color: rgba(239,68,68,0.3);">FREE / NONE</span>';
+
+    const upiDisplay = u.upi_vpa
+      ? `<div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 700; color: #38bdf8;">${escapeHtml(u.upi_vpa)}</div><div style="font-size: 10px; color: var(--text-dim);">${escapeHtml(u.business_name || '')}</div>`
+      : '<span style="color: var(--text-dim); font-size: 11px;">Not Configured</span>';
+
+    const websiteBadge = u.is_website_locked
+      ? `<div style="color: #34d399; font-weight: 600; font-size: 11.5px; display: flex; align-items: center; gap: 4px;" title="${escapeHtml(u.website_url || '')}"><span>🔒</span><span>${escapeHtml(u.website_url ? u.website_url.replace(/^[a-zA-Z]+:\/\//, '').split('/')[0] : 'Locked')}</span></div>`
+      : (u.website_url ? `<span style="color: var(--primary); font-size: 11px;">${escapeHtml(u.website_url)}</span>` : '<span style="color: var(--text-dim); font-size: 11px;">Not Bound</span>');
+
+    const gmailBadge = u.gmail_connected
+      ? `<div style="color: #34d399; font-weight: 600; font-size: 11px;">✅ Active</div><div style="font-size: 9.5px; color: var(--text-dim);">${escapeHtml(u.gmail_email || '')}</div>`
+      : '<span style="color: var(--text-dim); font-size: 11px;">Standby</span>';
+
+    const apiKeyDisplay = u.api_key
+      ? `<div style="display: flex; align-items: center; gap: 4px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--primary);">${u.api_key.substring(0, 10)}...</span><button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText('${u.api_key}'); alert('API Key Copied!');" style="padding: 2px 6px; font-size: 10px;" title="Copy Full Key">📋</button></div>`
+      : '<span style="color: var(--text-dim); font-size: 11px;">-</span>';
+
+    const userInitial = (u.name || u.email || 'U').charAt(0).toUpperCase();
+
+    return `
+      <tr>
+        <td style="color: var(--text-dim); font-size: 11.5px; font-family: 'JetBrains Mono';">#${u.id}</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-purple), var(--primary)); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;">
+              ${userInitial}
+            </div>
+            <div>
+              <div style="font-weight: 600; color: #fff; font-size: 12.5px;">${escapeHtml(u.name || 'Merchant User')}</div>
+              <div style="font-size: 11px; color: var(--text-dim);">${escapeHtml(u.email)}</div>
+            </div>
+          </div>
+        </td>
+        <td>${planBadge}</td>
+        <td>${subStatusBadge}</td>
+        <td>${upiDisplay}</td>
+        <td>${websiteBadge}</td>
+        <td>${gmailBadge}</td>
+        <td>${apiKeyDisplay}</td>
+        <td>
+          <button type="button" class="btn btn-secondary" onclick="openAdjustUserModal('${escapeHtml(u.email)}', '${escapeHtml(u.plan || 'NONE')}')" style="padding: 4px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;">
+            <span>⚙️</span> Manage
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openAdjustUserModal(email, currentPlan) {
+  const emailHidden = document.getElementById('adjustUserEmailHidden');
+  const emailDisplay = document.getElementById('adjustUserEmailDisplay');
+  const planSelect = document.getElementById('adjustUserPlanSelect');
+  const feedback = document.getElementById('adjustUserFeedback');
+
+  if (emailHidden) emailHidden.value = email;
+  if (emailDisplay) emailDisplay.innerText = email;
+  if (planSelect) planSelect.value = currentPlan || 'NONE';
+  if (feedback) feedback.style.display = 'none';
+
+  openModal('modalAdjustUser');
+}
+window.openAdjustUserModal = openAdjustUserModal;
+
+async function handleAdminAdjustUser(event) {
+  if (event) event.preventDefault();
+  const email = document.getElementById('adjustUserEmailHidden').value;
+  const plan = document.getElementById('adjustUserPlanSelect').value;
+  const creditsToAdd = parseInt(document.getElementById('adjustUserCreditsInput').value, 10) || 999999;
+  const feedback = document.getElementById('adjustUserFeedback');
+
+  if (feedback) {
+    feedback.style.display = 'block';
+    feedback.style.background = 'rgba(56, 189, 248, 0.15)';
+    feedback.style.color = '#38bdf8';
+    feedback.innerText = 'Updating user plan and settings...';
+  }
+
+  try {
+    const res = await fetch((API_BASE || '') + '/api/v1/admin/users/adjust', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': getAdminMasterKey()
+      },
+      body: JSON.stringify({ email, plan, creditsToAdd })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (feedback) {
+        feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+        feedback.style.color = '#34d399';
+        feedback.innerText = `✅ Successfully updated plan to ${plan}!`;
+      }
+      await loadAdminUsers();
+      setTimeout(() => {
+        closeModal('modalAdjustUser');
+      }, 1000);
+    } else {
+      if (feedback) {
+        feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+        feedback.style.color = '#f87171';
+        feedback.innerText = `❌ Error: ${data.error || 'Failed to update'}`;
+      }
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      feedback.style.color = '#f87171';
+      feedback.innerText = `Network error: ${err.message}`;
+    }
+  }
+}
+window.handleAdminAdjustUser = handleAdminAdjustUser;
+
+async function loadAdminSubscriptions() {
+  const tbody = document.getElementById('adminSubscriptionsTableBody');
+  const countEl = document.getElementById('adminSubscriptionsCount');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch((API_BASE || '') + '/api/admin/orders?type=PLANS&limit=100');
+    const data = await res.json();
+
+    if (!data.success || !data.orders) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load subscriptions.</td></tr>';
+      return;
+    }
+
+    const orders = data.orders || [];
+    if (countEl) countEl.innerText = `${orders.length} orders`;
+
+    // Compute Subscription Revenue
+    const totalSubRevenue = orders
+      .filter(o => o.status === 'PAID')
+      .reduce((sum, o) => sum + Number(o.amount || 0), 0);
+
+    const elSubRev = document.getElementById('metricAdminSubRevenue');
+    const tbSubRev = document.getElementById('topbarStatSubRevenue');
+    const formattedRev = `₹ ${totalSubRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+    if (elSubRev) elSubRev.innerText = formattedRev;
+    if (tbSubRev) tbSubRev.innerText = formattedRev;
+
+    if (orders.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 30px;">No subscription orders recorded yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = orders.map(o => {
+      const isPaid = o.status === 'PAID';
+      const isExpired = o.status === 'EXPIRED';
+      const isPending = o.status === 'PENDING';
+      const dateStr = o.created_at ? new Date(o.created_at).toLocaleString() : 'N/A';
+
+      const statusBadge = isPaid
+        ? '<span class="badge PAID">✅ PAID</span>'
+        : (isExpired ? '<span class="badge EXPIRED">EXPIRED</span>' : '<span class="badge PENDING">⏳ PENDING</span>');
+
+      const utrDisplay = o.utr
+        ? `<div style="font-family: 'JetBrains Mono', monospace; color: #34d399; font-weight: 700; font-size: 11.5px;">${escapeHtml(o.utr)}</div>`
+        : '<span style="color: var(--text-dim); font-size: 11px;">Awaiting Bank</span>';
+
+      return `
+        <tr>
+          <td>
+            <a href="/checkout/${escapeHtml(o.order_code)}" target="_blank" class="code-badge" title="Open Subscription Checkout">
+              ${escapeHtml(o.order_code)} ↗
+            </a>
+          </td>
+          <td>
+            <div style="font-weight: 600; color: #fff; font-size: 12.5px;">${escapeHtml(o.customer_name || 'Merchant')}</div>
+            <div style="font-size: 11px; color: var(--text-dim);">${escapeHtml(o.user_email || o.customer_phone || '')}</div>
+          </td>
+          <td>
+            <span class="badge PAID" style="background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.35); font-weight: 700;">
+              ${escapeHtml(o.plan_id || 'Subscription')}
+            </span>
+          </td>
+          <td style="font-weight: 700; font-size: 14px; color: #fff;">
+            ₹ ${Number(o.amount).toFixed(2)}
+          </td>
+          <td>${statusBadge}</td>
+          <td>${utrDisplay}</td>
+          <td style="font-size: 11.5px; color: var(--text-dim);">${dateStr}</td>
+          <td>
+            <a href="/checkout/${escapeHtml(o.order_code)}" target="_blank" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;">
+              View QR ↗
+            </a>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Failed to load subscriptions:', err);
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--accent-red); padding: 24px;">Network error loading subscriptions.</td></tr>';
+  }
+}
+window.loadAdminSubscriptions = loadAdminSubscriptions;
+
+// ─── IMAP Status & New Tab Functions ────────────────────────────────────────
+
+async function loadImapStatus() {
+  try {
+    const res = await fetch(API_BASE + '/api/admin/stats');
+    const data = await res.json();
+    if (!data.success) return;
+    const status = data.stats.imapStatus || {};
+    const isConnected = !!(status.isConnected || status.connected);
+    const dot = document.getElementById('imapDotImap');
+    const txt = document.getElementById('imapTextImap');
+    const topDot = document.getElementById('imapDot');
+    const topTxt = document.getElementById('imapText');
+
+    const cls = isConnected ? 'connected' : 'disconnected';
+    const label = isConnected ? `✅ IMAP Connected · ${data.stats.imapUser || ''}` : '⚠️ IMAP Disconnected — Click Save below to start';
+
+    if (dot) dot.className = `status-dot ${cls}`;
+    if (txt) txt.textContent = label;
+    if (topDot) topDot.className = `status-dot ${cls}`;
+    if (topTxt) topTxt.textContent = isConnected ? 'IMAP: Connected' : 'IMAP: Off';
+
+    // Pre-fill IMAP form
+    const userEl = document.getElementById('uiImapUser');
+    const filterEl = document.getElementById('uiImapFilter');
+    const enabledEl = document.getElementById('uiImapEnabled');
+    if (userEl && !userEl.value) userEl.value = data.stats.imapUser || '';
+    if (filterEl && !filterEl.value) filterEl.value = data.stats.imapFilter || 'fampay,famapp,fam';
+    if (enabledEl && status.enabled !== undefined) enabledEl.checked = status.enabled !== false;
+  } catch (err) { console.error('[IMAP Status]', err); }
+}
+window.loadImapStatus = loadImapStatus;
+
+function handleTestImapConnection() {
+  const user = document.getElementById('uiImapUser');
+  const pass = document.getElementById('uiImapPass');
+  const fb = document.getElementById('uiImapFeedback');
+  const btn = document.getElementById('uiBtnTestImap');
+  if (!user || !pass) return;
+
+  if (!user.value.trim() || !pass.value.trim()) {
+    if (fb) { fb.style.display='block'; fb.style.background='rgba(239,68,68,0.15)'; fb.style.border='1px solid rgba(239,68,68,0.3)'; fb.style.color='#f87171'; fb.innerText='⚠️ Enter Gmail and App Password first.'; }
+    return;
+  }
+  if (btn) { btn.disabled=true; btn.innerText='⏳ Connecting...'; }
+  if (fb) fb.style.display='none';
+
+  fetch(API_BASE + '/api/admin/imap/test', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user: user.value.trim(), pass: pass.value.trim() }) })
+    .then(r => r.json())
+    .then(data => {
+      if (!fb) return;
+      fb.style.display = 'block';
+      if (data.success) {
+        fb.style.background='rgba(16,185,129,0.15)'; fb.style.border='1px solid rgba(16,185,129,0.3)'; fb.style.color='#34d399';
+        fb.innerHTML = `✅ <b>Connected!</b> Found ${data.totalMessages} emails (${data.unseenMessages} unread). FamPay & bank alerts will be auto-scanned.`;
+      } else {
+        fb.style.background='rgba(239,68,68,0.15)'; fb.style.border='1px solid rgba(239,68,68,0.3)'; fb.style.color='#f87171';
+        fb.innerHTML = `❌ <b>Failed:</b> ${data.error || 'Connection error'}`;
+      }
+    })
+    .catch(err => { if (fb) { fb.style.display='block'; fb.style.color='#f87171'; fb.innerText='Network error: '+err.message; } })
+    .finally(() => { if (btn) { btn.disabled=false; btn.innerText='🔌 Test Connection'; } });
+}
+window.handleTestImapConnection = handleTestImapConnection;
+
+function handleSaveImapSettings(e) {
+  if (e) e.preventDefault();
+  const user = document.getElementById('uiImapUser');
+  const pass = document.getElementById('uiImapPass');
+  const filter = document.getElementById('uiImapFilter');
+  const enabled = document.getElementById('uiImapEnabled');
+  const fb = document.getElementById('uiImapFeedback');
+  const btn = document.getElementById('uiBtnSaveImap');
+
+  if (btn) { btn.disabled=true; btn.innerText='⏳ Saving...'; }
+  if (fb) fb.style.display='none';
+
+  const payload = { enabled: enabled ? enabled.checked : true, user: user ? user.value.trim() : '', senderFilter: filter ? filter.value.trim() : 'fampay,famapp,fam' };
+  if (pass && pass.value.trim()) payload.pass = pass.value.trim();
+
+  fetch(API_BASE + '/api/admin/imap/restart', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(r => r.json())
+    .then(data => {
+      if (!fb) return;
+      fb.style.display='block';
+      if (data.success) {
+        fb.style.background='rgba(16,185,129,0.15)'; fb.style.border='1px solid rgba(16,185,129,0.3)'; fb.style.color='#34d399';
+        fb.innerHTML = `💾 <b>Saved!</b> IMAP is now <b>${payload.enabled ? '🟢 ACTIVE — scanning FamPay, GPay, bank alerts' : '⚪ DISABLED'}</b>.`;
+        loadImapStatus();
+      } else {
+        fb.style.background='rgba(239,68,68,0.15)'; fb.style.color='#f87171';
+        fb.innerText = '❌ ' + (data.error || 'Failed');
+      }
+    })
+    .catch(err => { if (fb) { fb.style.display='block'; fb.style.color='#f87171'; fb.innerText='Error: '+err.message; } })
+    .finally(() => { if (btn) { btn.disabled=false; btn.innerText='💾 Save & Restart IMAP Listener'; } });
+}
+window.handleSaveImapSettings = handleSaveImapSettings;
+
+// ─── Coupons Management ──────────────────────────────────────────────────────
+
+async function loadCoupons() {
+  const tbody = document.getElementById('couponsTableBody');
+  const badge = document.getElementById('badgeCouponsCount');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-dim);">Loading...</td></tr>';
+  try {
+    const res = await fetch(API_BASE + '/api/admin/coupons');
+    const data = await res.json();
+    if (!data.success) { tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--accent-red);">Failed to load</td></tr>'; return; }
+    const coupons = data.coupons || [];
+    if (badge) badge.textContent = coupons.filter(c=>c.is_active).length;
+    if (!coupons.length) { tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-dim);">No coupons yet. Create your first one above! 🏷️</td></tr>'; return; }
+    tbody.innerHTML = coupons.map(c => {
+      const expiry = c.expires_at ? new Date(c.expires_at).toLocaleDateString('en-IN') : 'Never';
+      const isExpired = c.expires_at && Date.now() > c.expires_at;
+      const usageMax = c.max_uses === -1 ? '∞' : c.max_uses;
+      const statusBadge = (!c.is_active || isExpired)
+        ? `<span style="font-size:11px;padding:2px 8px;background:rgba(239,68,68,0.15);color:#f87171;border-radius:20px;border:1px solid rgba(239,68,68,0.3);">Inactive</span>`
+        : `<span style="font-size:11px;padding:2px 8px;background:rgba(16,185,129,0.15);color:#34d399;border-radius:20px;border:1px solid rgba(16,185,129,0.3);">Active</span>`;
+      return `<tr>
+        <td><span style="font-family:monospace;font-weight:800;font-size:14px;color:#fbbf24;letter-spacing:1px;">${escapeHtml(c.code)}</span></td>
+        <td><span style="font-weight:700;color:#34d399;">${c.discount_percent}% OFF</span></td>
+        <td>${usageMax}</td>
+        <td>${c.used_count}</td>
+        <td style="font-size:12px;color:${isExpired?'#f87171':'var(--text-dim)'};">${expiry}</td>
+        <td>${statusBadge}</td>
+        <td><button onclick="deleteCouponById(${c.id},'${escapeHtml(c.code)}')" class="btn btn-secondary" style="padding:3px 8px;font-size:11px;color:#f87171;border-color:rgba(239,68,68,0.3);">🗑️</button></td>
+      </tr>`;
+    }).join('');
+  } catch (err) { tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--accent-red);">${err.message}</td></tr>`; }
+}
+window.loadCoupons = loadCoupons;
+
+async function handleCreateCoupon(e) {
+  e.preventDefault();
+  const code = document.getElementById('couponCode')?.value.trim();
+  const discount = document.getElementById('couponDiscount')?.value;
+  const maxUses = document.getElementById('couponMaxUses')?.value ?? -1;
+  const expiryEl = document.getElementById('couponExpiry');
+  const fb = document.getElementById('createCouponFeedback');
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (!code || !discount) { if(fb){fb.style.display='block';fb.style.color='#f87171';fb.innerText='Code and discount are required.';} return; }
+  if (btn) { btn.disabled=true; btn.innerText='⏳ Creating...'; }
+  if (fb) fb.style.display='none';
+  const payload = { code, discountPercent: parseFloat(discount), maxUses: parseInt(maxUses), expiresAt: expiryEl?.value ? new Date(expiryEl.value).getTime() : null };
+  try {
+    const res = await fetch(API_BASE+'/api/admin/coupons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data = await res.json();
+    if (fb) {
+      fb.style.display='block';
+      if (data.success) {
+        fb.style.background='rgba(16,185,129,0.15)';fb.style.border='1px solid rgba(16,185,129,0.3)';fb.style.color='#34d399';
+        fb.innerHTML=`✅ Coupon <b>${escapeHtml(data.coupon.code)}</b> created — ${data.coupon.discount_percent}% discount!`;
+        e.target.reset(); loadCoupons();
+      } else { fb.style.background='rgba(239,68,68,0.15)';fb.style.color='#f87171';fb.innerText='❌ '+(data.error||'Failed'); }
+    }
+  } catch(err){ if(fb){fb.style.display='block';fb.style.color='#f87171';fb.innerText='Error: '+err.message;} }
+  finally { if(btn){btn.disabled=false;btn.innerText='🏷️ Create Coupon Code';} }
+}
+window.handleCreateCoupon = handleCreateCoupon;
+
+async function deleteCouponById(id, code) {
+  if (!confirm(`Deactivate coupon "${code}"?`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/coupons/${id}`,{method:'DELETE'});
+    const data = await res.json();
+    if (data.success) loadCoupons(); else alert('Failed: '+data.error);
+  } catch(err){ alert('Error: '+err.message); }
+}
+window.deleteCouponById = deleteCouponById;
+
+// ─── Plan Price Override ─────────────────────────────────────────────────────
+
+async function loadPlanPrices() {
+  const container = document.getElementById('planPricesContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim);">Loading plan prices...</div>';
+  try {
+    const res = await fetch(API_BASE+'/api/admin/plan-prices');
+    const data = await res.json();
+    if (!data.success) { container.innerHTML='<div style="color:var(--accent-red);padding:20px;">Failed to load.</div>'; return; }
+    const plans = data.plans||[];
+    if (!plans.length) { container.innerHTML='<div style="color:var(--text-dim);padding:20px;">No plans found.</div>'; return; }
+    container.innerHTML=`<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:0;border:1px solid var(--border-card);border-radius:10px;overflow:hidden;">
+      <div style="background:rgba(255,255,255,0.04);padding:10px 14px;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;">Plan</div>
+      <div style="background:rgba(255,255,255,0.04);padding:10px 14px;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;">Default</div>
+      <div style="background:rgba(255,255,255,0.04);padding:10px 14px;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;">Current</div>
+      <div style="background:rgba(255,255,255,0.04);padding:10px 14px;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;">New Price (₹)</div>
+      <div style="background:rgba(255,255,255,0.04);padding:10px 14px;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;">Save</div>
+      ${plans.map(p=>`
+        <div style="padding:10px 14px;border-top:1px solid var(--border-card);">
+          <div style="font-weight:700;color:#fff;font-size:13px;">${escapeHtml(p.name)}</div>
+          <div style="font-size:11px;color:var(--text-dim);">${p.period} · ${p.maxWebsites}W</div>
+        </div>
+        <div style="padding:10px 14px;border-top:1px solid var(--border-card);color:var(--text-muted);">₹${p.basePrice}</div>
+        <div style="padding:10px 14px;border-top:1px solid var(--border-card);font-weight:700;color:${p.isOverridden?'#fbbf24':'#34d399'};">₹${p.currentPrice}${p.isOverridden?' ✏️':''}</div>
+        <div style="padding:8px 14px;border-top:1px solid var(--border-card);">
+          <input type="number" id="priceInput_${p.id}" value="${p.currentPrice}" min="1" class="form-control" style="padding:5px 8px;font-size:13px;width:90px;">
+        </div>
+        <div style="padding:8px 14px;border-top:1px solid var(--border-card);display:flex;gap:6px;align-items:center;">
+          <button onclick="savePlanPrice('${p.id}')" class="btn btn-primary" style="padding:4px 10px;font-size:11px;">💾</button>
+          ${p.isOverridden?`<button onclick="resetPlanPrice('${p.id}')" class="btn btn-secondary" style="padding:4px 8px;font-size:11px;" title="Reset to default">↩️</button>`:''}
+        </div>
+      `).join('')}
+    </div>`;
+  } catch(err){ container.innerHTML=`<div style="color:var(--accent-red);padding:20px;">${err.message}</div>`; }
+}
+window.loadPlanPrices = loadPlanPrices;
+
+async function savePlanPrice(planId) {
+  const input = document.getElementById(`priceInput_${planId}`);
+  if (!input) return;
+  const price = parseFloat(input.value);
+  if (!price || price < 1) { alert('Enter valid price (min ₹1)'); return; }
+  try {
+    const res = await fetch(API_BASE+'/api/admin/plan-prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planId,price})});
+    const data = await res.json();
+    if (data.success) { input.style.borderColor='#34d399'; setTimeout(()=>{ input.style.borderColor=''; loadPlanPrices(); },800); }
+    else alert('Failed: '+data.error);
+  } catch(err){ alert('Error: '+err.message); }
+}
+window.savePlanPrice = savePlanPrice;
+
+async function resetPlanPrice(planId) {
+  if (!confirm('Reset price to default?')) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/plan-prices/${planId}`,{method:'DELETE'});
+    const data = await res.json();
+    if (data.success) loadPlanPrices(); else alert('Failed: '+data.error);
+  } catch(err){ alert('Error: '+err.message); }
+}
+window.resetPlanPrice = resetPlanPrice;

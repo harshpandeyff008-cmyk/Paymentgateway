@@ -30,14 +30,14 @@ export const config = {
     requireApiKey: process.env.REQUIRE_API_KEY !== 'false'
   },
 
-  allowedOrigins: (process.env.ALLOWED_ORIGINS || 'https://paypendicular.web.app,https://paypendicular.firebaseapp.com,https://dealsbyshiv.web.app,https://payment-gateway-ydl1.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000')
+  allowedOrigins: (process.env.ALLOWED_ORIGINS || 'https://upigateway-ccaa4.web.app,https://upigateway-ccaa4.firebaseapp.com,https://paypendicular.web.app,https://paypendicular.firebaseapp.com,https://dealsbyshiv.web.app,https://payment-gateway-ydl1.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000')
     .split(',')
     .map(s => s.trim().replace(/\/+$/, ''))
     .filter(Boolean),
 
   cloudSync: {
-    projectId: process.env.FIREBASE_PROJECT_ID || 'ff-store-4a61e',
-    apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyBcuSIz3NvPh2kU-BziQfjYsGKCMSjeWR4',
+    projectId: process.env.FIREBASE_PROJECT_ID || 'upigateway-ccaa4',
+    apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyCdeUo_GtvqTlgq-gXG71wtPPehC2mCOpw',
     enabled: true
   }
 };

@@ -1,6 +1,6 @@
 import { config } from '../../config.js';
 import logger from '../utils/logger.js';
-import { logActivity, findDomainApiKey, updateDomainKeyLastUsed } from '../../db/database.js';
+import { logActivity, findDomainApiKey, updateDomainKeyLastUsed, getUserByApiKey, parseUserWebsites } from '../../db/database.js';
 
 // Helper to normalize domain strings (strips http://, https://, ports, paths, www.)
 function normalizeDomain(input) {
@@ -65,10 +65,11 @@ export async function apiKeyAuth(req, res, next) {
   const expectedKey = config.auth?.apiKey;
   const isGlobalMatch = clientKey === expectedKey || clientKey === 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0';
 
-  // 2. Check in domain_api_keys table
+  // 2. Check in domain_api_keys table or users table
   const domainKeyRecord = await findDomainApiKey(clientKey);
+  const userRecord = await getUserByApiKey(clientKey);
 
-  if (!isGlobalMatch && !domainKeyRecord) {
+  if (!isGlobalMatch && !domainKeyRecord && !userRecord) {
     logger.warn(`[Auth] Blocked request to ${req.method} ${req.originalUrl}: Invalid API Key supplied`);
     logActivity({
       eventType: 'API_AUTH_FAILED',
@@ -80,8 +81,64 @@ export async function apiKeyAuth(req, res, next) {
     });
     return res.status(401).json({
       success: false,
-      error: "Unauthorized: Invalid API Key. Please verify your API Key in the Admin Dashboard."
+      error: "Unauthorized: Invalid API Key. Please verify your API Key in your Dashboard."
     });
+  }
+
+  // 2.1 If user key, enforce Active Plan and 1-Website Lock
+  if (userRecord && userRecord.role !== 'admin') {
+    if (!userRecord.plan || userRecord.plan === 'NONE') {
+      return res.status(403).json({
+        success: false,
+        error: "Forbidden: No active plan found. Please activate Monthly (₹299/mo) or 1-Year (₹1999/yr) plan on your dashboard."
+      });
+    }
+
+    // Enforce Strict Website Lock: API Key will NOT work until website domain is registered & locked
+    if (!userRecord.is_website_locked || !userRecord.website_url) {
+      logger.warn(`[Auth] Blocked request from ${userRecord.email}: Website domain not registered/locked`);
+      logActivity({
+        eventType: 'API_AUTH_FAILED',
+        status: 'FAILED',
+        title: 'API Authentication Rejected: Website Domain Not Locked',
+        details: `Merchant ${userRecord.email} has not locked their website domain yet. API calls are blocked until website is bound.`,
+        clientIp,
+        origin: rawOrigin
+      });
+      return res.status(403).json({
+        success: false,
+        error: "Forbidden: API Key is INACTIVE. You must register and permanently lock your authorized website domain in your Merchant Dashboard before this key can process payments."
+      });
+    }
+
+    if (userRecord.is_website_locked === 1) {
+      const websites = parseUserWebsites(userRecord);
+      const allowedDomains = websites.map(w => normalizeDomain(w.url || w.domain || w)).filter(Boolean);
+      const hostDomain = normalizeDomain(req.headers.host || '');
+      const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || 
+                                originDomain.includes('paypendicular') || 
+                                originDomain === hostDomain;
+
+      if (allowedDomains.length > 0 && originDomain && !isAdminConsoleTest) {
+        const isDomainMatch = allowedDomains.some(d => originDomain === d || originDomain.endsWith('.' + d));
+        if (!isDomainMatch) {
+          logger.warn(`[Auth] Blocked: API Key locked to [${allowedDomains.join(', ')}] was called from "${originDomain}"`);
+          logActivity({
+            eventType: 'API_AUTH_DOMAIN_MISMATCH',
+            status: 'FAILED',
+            title: 'API Authentication Rejected: Locked Website Mismatch',
+            details: `API Key is locked to [${allowedDomains.join(', ')}], but order request was sent from "${originDomain}"`,
+            clientIp,
+            origin: rawOrigin
+          });
+          return res.status(403).json({
+            success: false,
+            error: `Forbidden: This API Key is strictly locked to [${allowedDomains.join(', ')}]. Requests from '${originDomain}' are strictly prohibited.`
+          });
+        }
+      }
+    }
+    req.userRecord = userRecord;
   }
 
   // 3. If matched a domain-specific key, verify domain permission

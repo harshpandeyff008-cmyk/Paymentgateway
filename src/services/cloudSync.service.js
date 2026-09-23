@@ -127,6 +127,94 @@ export const CloudSyncService = {
       logger.warn(`[CloudSync] Failed to save domain keys: ${e.message}`);
     }
     return false;
+  },
+
+  async loadOrders() {
+    try {
+      const url = `${FIRESTORE_BASE}/gateway_orders_data`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = fromFirestoreFields(data.fields);
+        if (parsed.orders_json) {
+          const orders = JSON.parse(parsed.orders_json);
+          logger.info(`[CloudSync] Loaded ${orders.length} orders from Firestore`);
+          return orders;
+        }
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to load orders: ${e.message}`);
+    }
+    return [];
+  },
+
+  async saveOrders(ordersArray) {
+    try {
+      const url = `${FIRESTORE_BASE}/gateway_orders_data`;
+      const slice = ordersArray.slice(0, 200);
+      const body = JSON.stringify({
+        fields: toFirestoreFields({
+          orders_json: JSON.stringify(slice),
+          updated_at: Date.now()
+        })
+      });
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+      if (res.ok) {
+        logger.info(`[CloudSync] Synced ${slice.length} orders to Firestore`);
+        return true;
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save orders: ${e.message}`);
+    }
+    return false;
+  },
+
+  async loadPayments() {
+    try {
+      const url = `${FIRESTORE_BASE}/gateway_payments_data`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = fromFirestoreFields(data.fields);
+        if (parsed.payments_json) {
+          const payments = JSON.parse(parsed.payments_json);
+          logger.info(`[CloudSync] Loaded ${payments.length} payments from Firestore`);
+          return payments;
+        }
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to load payments: ${e.message}`);
+    }
+    return [];
+  },
+
+  async savePayments(paymentsArray) {
+    try {
+      const url = `${FIRESTORE_BASE}/gateway_payments_data`;
+      const slice = paymentsArray.slice(0, 200);
+      const body = JSON.stringify({
+        fields: toFirestoreFields({
+          payments_json: JSON.stringify(slice),
+          updated_at: Date.now()
+        })
+      });
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+      if (res.ok) {
+        logger.info(`[CloudSync] Synced ${slice.length} payments to Firestore`);
+        return true;
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save payments: ${e.message}`);
+    }
+    return false;
   }
 };
 

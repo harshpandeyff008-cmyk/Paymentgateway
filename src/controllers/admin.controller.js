@@ -4,7 +4,7 @@ import { SettingModel } from '../models/setting.model.js';
 import { processIncomingPayment, claimOrderWithUtr, triggerWebhook, reconcileUnmatchedPayments } from '../services/matchingEngine.service.js';
 import { getImapStatus } from '../services/imapListener.service.js';
 import { config } from '../../config.js';
-import { query, getRecentApiLogs } from '../../db/database.js';
+import { query, getRecentApiLogs, getAllUsers, updateUserPlanAndCredits } from '../../db/database.js';
 
 export const AdminController = {
   async getStats(req, res, next) {
@@ -47,8 +47,30 @@ export const AdminController = {
 
   async getOrders(req, res, next) {
     try {
-      const { status = 'ALL', limit = 50 } = req.query;
-      const orders = await OrderModel.list({ status, limit: parseInt(limit, 10) });
+      const { status = 'ALL', limit = 100, type = 'ALL' } = req.query;
+      let sql = 'SELECT * FROM orders';
+      const params = [];
+      const conditions = [];
+
+      if (status !== 'ALL') {
+        conditions.push('status = ?');
+        params.push(status);
+      }
+
+      if (type === 'PLANS') {
+        conditions.push('(order_code LIKE "PLAN-%" OR plan_id IS NOT NULL)');
+      } else if (type === 'MERCHANT') {
+        conditions.push('(order_code NOT LIKE "PLAN-%" AND (plan_id IS NULL OR plan_id = ""))');
+      }
+
+      if (conditions.length > 0) {
+        sql += ' WHERE ' + conditions.join(' AND ');
+      }
+
+      sql += ' ORDER BY created_at DESC LIMIT ?';
+      params.push(parseInt(limit, 10));
+
+      const orders = await query.all(sql, params);
       return res.json({ success: true, orders });
     } catch (err) {
       next(err);
@@ -186,6 +208,28 @@ export const AdminController = {
       }
 
       return res.json({ success: true, message: 'Settings saved to database successfully!' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async getUsers(req, res, next) {
+    try {
+      const users = await getAllUsers();
+      return res.json({ success: true, users });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async adjustUser(req, res, next) {
+    try {
+      const { email, plan, creditsToAdd } = req.body;
+      if (!email) {
+        return res.status(400).json({ success: false, error: 'Email is required' });
+      }
+      const updated = await updateUserPlanAndCredits(email, plan || 'NONE', creditsToAdd || 0);
+      return res.json({ success: true, user: updated });
     } catch (err) {
       next(err);
     }

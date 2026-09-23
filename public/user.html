@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Merchant Portal - PayPerpendicular UPI Gateway</title>
+  <link rel="stylesheet" href="/css/user.css">
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+</head>
+<body>
+
+  <div class="app-shell">
+    
+    <!-- ======================================================== -->
+    <!-- LEFT 2-LINE SIDEBAR                                      -->
+    <!-- ======================================================== -->
+    <aside class="sidebar-2line" id="sidebar">
+      
+      <!-- Brand Header -->
+      <div class="sidebar-brand-box">
+        <div class="sidebar-brand-icon">⚡</div>
+        <div>
+          <div class="sidebar-brand-title">PayPerpendicular</div>
+          <div class="sidebar-brand-subtitle">Merchant Control Portal</div>
+        </div>
+      </div>
+
+      <!-- User Card -->
+      <div class="sidebar-user-card">
+        <img id="sidebarUserAvatar" class="sidebar-user-avatar" src="https://ui-avatars.com/api/?name=User&background=0ea5e9&color=fff" alt="Avatar">
+        <div class="sidebar-user-info">
+          <div id="sidebarUserName" class="sidebar-user-name">Loading...</div>
+          <div id="sidebarUserEmail" class="sidebar-user-email">...</div>
+          <span id="sidebarUserPlanPill" class="sidebar-plan-pill">NO PLAN</span>
+        </div>
+      </div>
+
+      <!-- 2-Line Nav Items -->
+      <nav class="sidebar-nav">
+        
+        <!-- 1. DASHBOARD -->
+        <button type="button" class="sidebar-item-2line active" id="nav_dashboard" onclick="switchSidebarView('dashboard')">
+          <div class="sidebar-item-icon">📊</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Dashboard</div>
+            <div class="sidebar-item-line2">Realtime Overview & Engine</div>
+          </div>
+        </button>
+
+        <!-- 2. SUBSCRIPTION & PLANS -->
+        <button type="button" class="sidebar-item-2line" id="nav_plans" onclick="switchSidebarView('plans')">
+          <div class="sidebar-item-icon">💳</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Pricing & Plans</div>
+            <div class="sidebar-item-line2">1 & 2 Sites • ♾️ Unlimited QRs</div>
+          </div>
+        </button>
+
+        <!-- 3. API KEY & WEBSITE LOCK -->
+        <button type="button" class="sidebar-item-2line" id="nav_api" onclick="switchSidebarView('api')">
+          <div class="sidebar-item-icon">🔑</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">API Key & Website Lock</div>
+            <div class="sidebar-item-line2">Domain Lock (Required)</div>
+          </div>
+          <span id="sidebarApiBadge" class="sidebar-item-badge warning" style="display: none;">LOCK REQ</span>
+        </button>
+
+        <!-- 4. LIVE PAYMENT TRACKING -->
+        <button type="button" class="sidebar-item-2line" id="nav_payments" onclick="switchSidebarView('payments')">
+          <div class="sidebar-item-icon">⚡</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Payment Tracking</div>
+            <div class="sidebar-item-line2">Monitor Realtime Orders & UTR</div>
+          </div>
+        </button>
+
+        <!-- 5. DOCUMENTATION & SDKS -->
+        <button type="button" class="sidebar-item-2line" id="nav_docs" onclick="switchSidebarView('docs')">
+          <div class="sidebar-item-icon">📑</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">API Documentation</div>
+            <div class="sidebar-item-line2">Endpoints, Node, Python, Webhooks</div>
+          </div>
+        </button>
+
+        <!-- 6. SETTLEMENT ENGINE (LOCKED UNTIL PLAN PURCHASED) -->
+        <button type="button" class="sidebar-item-2line" id="nav_settlement" onclick="switchSidebarView('settlement')" style="display: none;">
+          <div class="sidebar-item-icon">⚙️</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Settlement Engine</div>
+            <div class="sidebar-item-line2">UPI Routing & Bank Sync</div>
+          </div>
+        </button>
+
+        <!-- 7. ENTERPRISE / VIP CONTACT -->
+        <button type="button" class="sidebar-item-2line" id="nav_contact" onclick="openContactModal()">
+          <div class="sidebar-item-icon" style="background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24;">👑</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1" style="color: #fbbf24;">Custom / &gt;5 Sites</div>
+            <div class="sidebar-item-line2">Talk to VIP Desk (Call / WhatsApp)</div>
+          </div>
+        </button>
+
+        <!-- 7. ADMIN PORTAL (SHOWN ONLY TO ADMINS) -->
+        <a href="/admin" class="sidebar-item-2line" id="nav_admin" style="display: none;">
+          <div class="sidebar-item-icon" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.3); color: var(--accent-purple);">🛡️</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1" style="color: #c084fc;">Admin Control Room</div>
+            <div class="sidebar-item-line2">Gateway Platform & System Logs</div>
+          </div>
+          <span class="sidebar-item-badge admin">ADMIN</span>
+        </a>
+
+      </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <div class="sidebar-engine-status">
+          <span>🟢</span>
+          <span>Engine: 100% Automated (1-Sec Sync)</span>
+        </div>
+        <button type="button" class="sidebar-btn-signout" onclick="handleSignOut()">
+          <span>🚪</span>
+          <span>Sign Out</span>
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- ======================================================== -->
+    <!-- MAIN CONTENT AREA                                        -->
+    <!-- ======================================================== -->
+    <div class="main-content-area">
+
+      <!-- Top Header Bar -->
+      <header class="content-topbar">
+        <div class="topbar-title-wrap">
+          <button type="button" id="mobileMenuBtn" class="nav-btn" style="display: none; padding: 6px 10px;" onclick="toggleMobileSidebar()">☰</button>
+          <h1 id="activeViewTitle" class="topbar-page-title">📊 Merchant Dashboard Overview</h1>
+        </div>
+
+        <div class="topbar-quick-stats">
+          <div class="topbar-stat-pill" id="topbarPlanPill">
+            <span>⭐ Plan:</span>
+            <strong id="topbarPlanName" style="color: var(--accent-purple);">NONE</strong>
+          </div>
+          <div class="topbar-stat-pill emerald">
+            <span>💳 QRs:</span>
+            <strong id="topbarCredits">♾️ UNLIMITED</strong>
+          </div>
+          <div class="topbar-stat-pill cyan" id="topbarWebsitePill">
+            <span>🌐 Website:</span>
+            <strong id="topbarWebsiteDomain">NOT BOUND</strong>
+          </div>
+          <button type="button" class="btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="switchSidebarView('plans')">
+            <span>⚡ Upgrade</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- URGENT WARNING BANNER: IF WEBSITE NOT LOCKED -->
+      <div id="urgentWebsiteBanner" class="urgent-banner" style="display: none;">
+        <div class="urgent-banner-text">
+          <span style="font-size: 24px;">⚠️</span>
+          <div>
+            <strong>API Key Inactive (Action Required):</strong>
+            <span>Your API Key is currently inactive. You MUST enter and permanently lock your website domain before the API can generate payments.</span>
+          </div>
+        </div>
+        <button type="button" class="urgent-banner-btn" onclick="switchSidebarView('api')">
+          <span>🔒 Lock Website Domain Now ➔</span>
+        </button>
+      </div>
+
+      <!-- MAIN CONTENT BODY (DYNAMIC VIEWS) -->
+      <main class="content-body">
+
+        <!-- ======================================================== -->
+        <!-- VIEW 1: DASHBOARD                                        -->
+        <!-- ======================================================== -->
+        <section id="view_dashboard" class="dashboard-view-section active">
+          
+          <!-- Stat Cards Grid -->
+          <div class="user-status-bar" style="display: grid; margin-bottom: 28px;">
+            
+            <div class="status-card">
+              <div class="status-icon plan">⭐</div>
+              <div>
+                <div class="status-label">Active Plan</div>
+                <div id="dashStatPlan" class="status-value" style="color: var(--accent-purple); font-size: 17px;">NONE</div>
+              </div>
+            </div>
+
+            <div class="status-card">
+              <div class="status-icon credits">💳</div>
+              <div>
+                <div class="status-label">QR Generation Quota</div>
+                <div class="status-value" style="color: var(--accent-emerald); font-size: 17px;">♾️ UNLIMITED</div>
+              </div>
+            </div>
+
+            <div class="status-card">
+              <div class="status-icon key">🌐</div>
+              <div>
+                <div class="status-label">Locked Website Status</div>
+                <div id="dashStatWebsite" class="status-value" style="color: var(--accent-amber); font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;">NOT LINKED</div>
+              </div>
+            </div>
+
+            <div class="status-card">
+              <div class="status-icon gmail">⚡</div>
+              <div>
+                <div class="status-label">Settlement Engine</div>
+                <div id="dashStatEngine" class="status-value" style="color: var(--accent-emerald); font-size: 17px;">READY (1-SEC)</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Quick Action Shortcuts -->
+          <div class="section-header" style="margin-bottom: 16px;">
+            <h2 class="section-title"><span>⚡ Quick Merchant Actions</span></h2>
+            <p class="section-desc">Manage your API credentials, monitor incoming payments, and integrate checkout flows.</p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; margin-bottom: 32px;">
+            
+            <div class="status-card" style="cursor: pointer; padding: 22px;" onclick="switchSidebarView('api')">
+              <div class="status-icon key">🔑</div>
+              <div>
+                <div style="font-weight: 800; font-size: 15px; color: #fff; margin-bottom: 4px;">API Key & Website Lock</div>
+                <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.4;">
+                  Register your authorized domain and copy your production secret credentials.
+                </div>
+              </div>
+            </div>
+
+            <div class="status-card" style="cursor: pointer; padding: 22px;" onclick="switchSidebarView('payments')">
+              <div class="status-icon credits">⚡</div>
+              <div>
+                <div style="font-weight: 800; font-size: 15px; color: #fff; margin-bottom: 4px;">Live Payment Tracking</div>
+                <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.4;">
+                  Watch orders, customer details, and bank UTRs settle in real time.
+                </div>
+              </div>
+            </div>
+
+            <div class="status-card" style="cursor: pointer; padding: 22px;" onclick="switchSidebarView('docs')">
+              <div class="status-icon" style="background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan);">📑</div>
+              <div>
+                <div style="font-weight: 800; font-size: 15px; color: #fff; margin-bottom: 4px;">Developer SDKs & Docs</div>
+                <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.4;">
+                  Drop-in code snippets for Node.js, Python, PHP, cURL, and Webhooks.
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Recent Payments Snapshot Table -->
+          <div class="section-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <h2 class="section-title"><span>🕒 Recent Payment Orders</span></h2>
+              <p class="section-desc">Latest transactions processed through your API credentials.</p>
+            </div>
+            <button type="button" class="btn-primary" style="padding: 7px 14px; font-size: 12px;" onclick="switchSidebarView('payments')">
+              <span>View All Payments ➔</span>
+            </button>
+          </div>
+
+          <div class="table-card">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Order Code</th>
+                  <th>Amount</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Bank UTR</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody id="dashOrdersTbody">
+                <tr>
+                  <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                    No payment orders created yet. Once customers pay via your API, orders will appear here.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </section>
+
+        <!-- ======================================================== -->
+        <!-- VIEW 2: SUBSCRIPTION & PLANS                             -->
+        <!-- ======================================================== -->
+        <section id="view_plans" class="dashboard-view-section">
+          
+          <div class="section-header">
+            <h2 class="section-title"><span>💳 Subscription Plans & Pricing</span></h2>
+            <p class="section-desc">
+              All plans include <strong>♾️ UNLIMITED Dynamic UPI QR Codes</strong> with zero transaction commissions (0% MDR). Payments settle directly into your own bank account.
+            </p>
+          </div>
+
+          <!-- Billing Period Switcher -->
+          <div class="billing-switcher-container">
+            <div class="billing-switcher-inner">
+              <button type="button" class="billing-tab-btn active" id="btnTabMonthly" onclick="switchBillingCycle('monthly')">
+                <span>Monthly Billing</span>
+              </button>
+              <button type="button" class="billing-tab-btn" id="btnTabAnnual" onclick="switchBillingCycle('annual')">
+                <span>1-Year Annual</span>
+                <span class="billing-save-pill">SAVE UP TO 45%</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- MONTHLY PLANS (1 to 5 WEBSITES) -->
+          <div class="pricing-grid" id="gridMonthlyPlans">
+            
+            <!-- PLAN 1: 1-WEBSITE MONTHLY -->
+            <div class="plan-card" data-plan-id="SINGLE_MONTHLY">
+              <div class="plan-name">1-Website Monthly</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">299</span>
+                <span class="plan-period">/ month</span>
+              </div>
+              <div class="plan-credits-pill">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (No Limits)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>1 Website Bound (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Instant 1-Second Auto-Verification</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Production API Key &amp; Webhooks</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan" data-plan-btn="SINGLE_MONTHLY" onclick="initiateBuyPlan('SINGLE_MONTHLY')">
+                <span>Buy 1-Website Monthly (₹299/mo)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <!-- PLAN 2: 2-WEBSITES MONTHLY -->
+            <div class="plan-card" data-plan-id="DUAL_MONTHLY">
+              <div class="plan-name">2-Websites Monthly</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">549</span>
+                <span class="plan-period">/ month</span>
+              </div>
+              <div class="plan-credits-pill">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (Both Sites)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>2 Websites Dual Store (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Instant 1-Second Auto-Verification</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Multi-Domain Webhook Delivery</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan" data-plan-btn="DUAL_MONTHLY" onclick="initiateBuyPlan('DUAL_MONTHLY')">
+                <span>Buy 2-Websites Monthly (₹549/mo)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <!-- PLAN 3: 3-WEBSITES MONTHLY -->
+            <div class="plan-card" data-plan-id="TRIPLE_MONTHLY">
+              <div class="plan-name">3-Websites Monthly</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">799</span>
+                <span class="plan-period">/ month</span>
+              </div>
+              <div class="plan-credits-pill">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (All 3 Sites)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>3 Websites Growth Bound (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Instant 1-Second Auto-Verification</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Multi-Domain Parallel Webhooks</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan" data-plan-btn="TRIPLE_MONTHLY" onclick="initiateBuyPlan('TRIPLE_MONTHLY')">
+                <span>Buy 3-Websites Monthly (₹799/mo)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <!-- PLAN 4: 4-WEBSITES MONTHLY -->
+            <div class="plan-card" data-plan-id="QUAD_MONTHLY">
+              <div class="plan-name">4-Websites Monthly</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">999</span>
+                <span class="plan-period">/ month</span>
+              </div>
+              <div class="plan-credits-pill">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (All 4 Sites)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>4 Websites Business Bound (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>High-Priority Verification Engine</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Full 30 Days Enterprise Uptime</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan" data-plan-btn="QUAD_MONTHLY" onclick="initiateBuyPlan('QUAD_MONTHLY')">
+                <span>Buy 4-Websites Monthly (₹999/mo)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <!-- PLAN 5: 5-WEBSITES MONTHLY -->
+            <div class="plan-card popular" data-plan-id="FLEET_MONTHLY">
+              <div class="plan-badge-top">👑 Top Agency • 5 Sites</div>
+              <div class="plan-name">5-Websites Monthly</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">1199</span>
+                <span class="plan-period">/ month</span>
+              </div>
+              <div class="plan-credits-pill" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (All 5 Sites)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>5 Websites Fleet Bound (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Instant 1-Second Auto-Verification</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Priority 24/7 Hotline Developer Support</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan purple" data-plan-btn="FLEET_MONTHLY" onclick="initiateBuyPlan('FLEET_MONTHLY')">
+                <span>Buy 5-Websites Monthly (₹1199/mo)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- ANNUAL PLANS (1 to 5 WEBSITES - HIDDEN BY DEFAULT) -->
+          <div class="pricing-grid" id="gridAnnualPlans" style="display: none;">
+            
+            <!-- PLAN 1 ANNUAL: 1-WEBSITE 1-YEAR -->
+            <div class="plan-card popular" data-plan-id="SINGLE_ANNUAL">
+              <div class="plan-badge-top">🔥 Best Value • Save ₹1,589</div>
+              <div class="plan-name">1-Website 1-Year</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">1999</span>
+                <span class="plan-period">/ year</span>
+              </div>
+              <div class="plan-credits-pill" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (365 Days)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>1 Website Bound (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Priority High-Speed Verification Engine</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>365 Days Guaranteed Zero Renewal Hassle</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan purple" data-plan-btn="SINGLE_ANNUAL" onclick="initiateBuyPlan('SINGLE_ANNUAL')">
+                <span>Buy 1-Website Annual (₹1999/yr)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <!-- PLAN 2 ANNUAL: 2-WEBSITES 1-YEAR -->
+            <div class="plan-card popular" data-plan-id="DUAL_ANNUAL">
+              <div class="plan-badge-top">🚀 Dual Store • Save ₹2,889</div>
+              <div class="plan-name">2-Websites 1-Year</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">3699</span>
+                <span class="plan-period">/ year</span>
+              </div>
+              <div class="plan-credits-pill" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (365 Days)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>2 Websites Dual Store (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Priority Ultra-Speed Auto-Verification</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Dedicated Developer Account Manager</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan purple" data-plan-btn="DUAL_ANNUAL" onclick="initiateBuyPlan('DUAL_ANNUAL')">
+                <span>Buy 2-Websites Annual (₹3699/yr)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <!-- PLAN 3 ANNUAL: 3-WEBSITES 1-YEAR -->
+            <div class="plan-card popular" data-plan-id="TRIPLE_ANNUAL">
+              <div class="plan-badge-top">⚡ 3-Store Annual • Save ₹4,189</div>
+              <div class="plan-name">3-Websites 1-Year</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">5399</span>
+                <span class="plan-period">/ year</span>
+              </div>
+              <div class="plan-credits-pill" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (365 Days)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>3 Websites Growth Bound (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Priority Ultra-Speed Auto-Verification</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Priority 24/7 Dedicated Support</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan purple" data-plan-btn="TRIPLE_ANNUAL" onclick="initiateBuyPlan('TRIPLE_ANNUAL')">
+                <span>Buy 3-Websites Annual (₹5399/yr)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <!-- PLAN 4 ANNUAL: 4-WEBSITES 1-YEAR -->
+            <div class="plan-card popular" data-plan-id="QUAD_ANNUAL">
+              <div class="plan-badge-top">💼 4-Store Business • Save ₹5,189</div>
+              <div class="plan-name">4-Websites 1-Year</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">6799</span>
+                <span class="plan-period">/ year</span>
+              </div>
+              <div class="plan-credits-pill" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (365 Days)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>4 Websites Business Bound (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Dedicated Verification Bandwidth</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Technical Account Executive</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan purple" data-plan-btn="QUAD_ANNUAL" onclick="initiateBuyPlan('QUAD_ANNUAL')">
+                <span>Buy 4-Websites Annual (₹6799/yr)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <!-- PLAN 5 ANNUAL: 5-WEBSITES 1-YEAR -->
+            <div class="plan-card popular" data-plan-id="FLEET_ANNUAL">
+              <div class="plan-badge-top">👑 5-Store Fleet • Save ₹6,389</div>
+              <div class="plan-name">5-Websites 1-Year</div>
+              <div class="plan-price-wrap">
+                <span class="plan-currency">₹</span>
+                <span class="plan-amount">7999</span>
+                <span class="plan-period">/ year</span>
+              </div>
+              <div class="plan-credits-pill" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">♾️ Unlimited Dynamic UPI QRs</div>
+
+              <ul class="plan-features-list">
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>♾️ Unlimited Dynamic QRs (All 5 Sites)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span><strong>5 Websites Fleet Bound (Permanent Lock)</strong></span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>365 Days Dedicated Fleet Infrastructure</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>Direct Bank Settlement (0% Commission)</span>
+                </li>
+                <li class="plan-feature-item">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span>24/7 Dedicated VIP Phone &amp; Chat Support</span>
+                </li>
+              </ul>
+
+              <button type="button" class="btn-buy-plan purple" data-plan-btn="FLEET_ANNUAL" onclick="initiateBuyPlan('FLEET_ANNUAL')">
+                <span>Buy 5-Websites Annual (₹7999/yr)</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- VIP / BIG DEALER TIER BANNER -->
+          <div style="margin-top: 32px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(168, 85, 247, 0.12)); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 16px; padding: 26px 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+            <div style="max-width: 650px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <span style="font-size: 22px;">👑</span>
+                <span style="font-size: 13px; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.5px;">VIP Dealer &amp; High-Volume Custom Tier</span>
+              </div>
+              <h3 style="font-size: 20px; font-weight: 800; color: #fff; margin: 0 0 8px;">Need More Than 5 Websites or Custom Enterprise Gateway?</h3>
+              <p style="font-size: 13.5px; color: var(--text-muted); margin: 0; line-height: 1.5;">
+                Running an agency or a multi-store merchant network? Talk directly with our founding team to get custom multi-website licenses, dedicated high-volume servers, and customized webhook pipelines.
+              </p>
+            </div>
+            <button type="button" class="btn-primary" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; font-weight: 800; padding: 12px 24px; font-size: 14px; border: none; box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);" onclick="openContactModal()">
+              <span>📞 Contact VIP Desk</span>
+              <span>➔</span>
+            </button>
+          </div>
+
+          <!-- Merchant's Own Subscription Billing History -->
+          <div style="margin-top: 36px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <h3 style="font-size: 17px; font-weight: 800; color: #fff; margin: 0;">📜 My Subscription Billing History & Receipts</h3>
+                <p style="font-size: 12.5px; color: var(--text-muted); margin-top: 3px;">
+                  Receipts and activation records for your gateway subscription plans.
+                </p>
+              </div>
+              <button type="button" class="btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="loadUserSubscriptionInvoices()">🔄 Refresh Receipts</button>
+            </div>
+
+            <div style="overflow-x: auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Billing Order</th>
+                    <th>Plan Tier</th>
+                    <th>Amount Paid</th>
+                    <th>Status</th>
+                    <th>Bank UTR Reference</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="userSubscriptionInvoicesTbody">
+                  <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 24px;">
+                      Loading subscription invoices...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ======================================================== -->
+        <!-- VIEW 3: API KEY & STRICT WEBSITE LOCK                   -->
+        <!-- ======================================================== -->
+        <section id="view_api" class="dashboard-view-section">
+          
+          <div class="section-header">
+            <h2 class="section-title"><span>🔑 API Key & Website Lock Security</span></h2>
+            <p class="section-desc">
+              Strict Policy: Each API Key must be bound and locked to your authorized website domain. The API key remains <strong>INACTIVE</strong> and cannot create payments until you register and lock your domain.
+            </p>
+          </div>
+
+          <!-- API Key Status Card -->
+          <div class="gmail-card" style="margin-bottom: 24px;">
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+              <h3 style="font-size: 18px; font-weight: 800; color: #fff; margin: 0;">Production API Key</h3>
+              <span id="apiKeyStatusBadge" class="sidebar-item-badge warning">🔴 INACTIVE (WEBSITE LOCK REQUIRED)</span>
+            </div>
+
+            <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px;">
+              Pass this key in your server requests in the <code>x-api-key</code> HTTP header or as <code>Authorization: Bearer &lt;key&gt;</code>.
+            </p>
+
+            <div style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); padding: 12px 16px; border-radius: 10px; margin-bottom: 14px;">
+              <span id="displayApiKey" style="font-family: 'JetBrains Mono', monospace; font-size: 14.5px; color: var(--accent-cyan); font-weight: 700; flex: 1; word-break: break-all;">pg_live_...</span>
+              <button type="button" class="btn-primary" style="padding: 7px 12px; font-size: 12px;" onclick="copyToClipboard(currentUser?.apiKey || '')">📋 Copy</button>
+              <button type="button" class="nav-btn" style="padding: 7px 12px; font-size: 12px;" onclick="handleRegenerateKey()">🔄 Regenerate</button>
+            </div>
+
+            <div id="apiKeyLockNotice" style="font-size: 12.5px; color: #fbbf24; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 10px 14px;">
+              ⚠️ <strong>Action Required:</strong> Enter your website URL below to activate this API Key. Until locked, any payment creation request will be rejected automatically.
+            </div>
+
+          </div>
+
+          <!-- Website Domain Binding & Permanent Lock Card -->
+          <div class="gmail-card" style="margin-bottom: 24px; border-color: rgba(56, 189, 248, 0.3);">
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <h3 style="font-size: 18px; font-weight: 800; color: #fff; margin: 0;">🌐 Authorized Website Domain Lock</h3>
+              <span id="websiteSlotsBadge" class="sidebar-item-badge success">Slots: 1 of 1</span>
+            </div>
+
+            <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;">
+              To prevent fraudulent API usage and payment hijacking, your API Key only accepts payment requests originating from your locked website domain.
+            </p>
+
+            <!-- Permanent 1-Time Lock Warning -->
+            <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+              <div style="font-weight: 700; color: #fbbf24; font-size: 13.5px; margin-bottom: 4px;">⚠️ Permanent 1-Time Binding Notice:</div>
+              <div style="font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+                You can only enter and lock your website <strong>ONCE</strong>. Once submitted, your API Key will be permanently locked to this domain and <strong>cannot be modified or transferred</strong>.
+              </div>
+            </div>
+
+            <!-- UNLOCKED FORM: ENTER WEBSITE DOMAIN -->
+            <div id="websiteUnlockedBox">
+              <form onsubmit="handleBindWebsite(event)">
+                <div class="form-group">
+                  <label class="form-label">Authorized Website URL / Domain Name</label>
+                  <input type="text" id="inputWebsiteUrl" class="form-input" placeholder="e.g. https://yourstore.com or myshop.web.app" required>
+                  <div style="font-size: 12px; color: var(--text-dim); margin-top: 6px;">
+                    Enter full URL or naked domain. Protocol (https://) will be normalized automatically.
+                  </div>
+                </div>
+
+                <div id="websiteLockFeedback" style="display: none; font-size: 13.5px; margin-bottom: 16px;"></div>
+
+                <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #0284c7, #0369a1); border: none;">
+                  <span>🔒 Permanently Lock Website Domain</span>
+                  <span>➔</span>
+                </button>
+              </form>
+            </div>
+
+            <!-- LOCKED STATE: DISPLAY LOCKED WEBSITES LIST -->
+            <div id="websiteLockedBox" style="display: none;">
+              <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 18px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <span style="font-size: 20px;">🛡️</span>
+                  <span style="font-size: 15.5px; font-weight: 800; color: #34d399;">Domain Verified & Permanently Locked</span>
+                </div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+                  Your API Key is actively protected. Only orders originating from this domain will be processed.
+                </div>
+
+                <div id="lockedWebsitesContainer">
+                  <!-- Injected via user.js -->
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- INTERACTIVE LIVE TEST: PROVE API KEY BEHAVIOR -->
+          <div class="gmail-card" style="border-color: rgba(168, 85, 247, 0.3);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+              <span style="font-size: 22px;">🧪</span>
+              <h3 style="font-size: 18px; font-weight: 800; color: #fff; margin: 0;">Interactive Payment API Simulator</h3>
+            </div>
+            <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 18px;">
+              Test order creation with your API key. If your website is unlocked, it will demonstrate that payment creation is blocked. Once locked, it will create real test orders!
+            </p>
+
+            <form onsubmit="handleTestApiCall(event)" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: flex-end;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Test Amount (₹)</label>
+                <input type="number" id="testApiAmount" class="form-input" value="10.00" min="1" step="0.01" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Customer Name</label>
+                <input type="text" id="testApiCustomer" class="form-input" value="Demo Customer" required>
+              </div>
+              <button type="submit" class="btn-primary" style="height: 46px; white-space: nowrap;">
+                <span>⚡ Test API Request</span>
+              </button>
+            </form>
+
+            <div id="testApiResult" style="display: none; margin-top: 18px; padding: 14px; border-radius: 10px; font-size: 13px; font-family: 'JetBrains Mono', monospace; line-height: 1.5;"></div>
+          </div>
+
+        </section>
+
+        <!-- ======================================================== -->
+        <!-- VIEW 4: LIVE PAYMENT TRACKING                            -->
+        <!-- ======================================================== -->
+        <section id="view_payments" class="dashboard-view-section">
+          
+          <div class="section-header">
+            <h2 class="section-title"><span>⚡ Live Customer Payment Orders & UTR Tracking</span></h2>
+            <p class="section-desc">
+              All payment orders processed for your customers via your API Key & checkout sessions. Confirms in 1-second with 0% gateway commission.
+            </p>
+          </div>
+
+          <div class="table-card">
+            
+            <!-- Toolbar -->
+            <div class="table-toolbar">
+              <input type="text" id="paymentsSearchInput" class="table-search-input" placeholder="🔍 Search Order Code, Customer, or UTR..." oninput="filterOrdersTable()">
+
+              <div class="table-filter-pills">
+                <button type="button" class="filter-btn active" onclick="setOrderStatusFilter('ALL', this)">All</button>
+                <button type="button" class="filter-btn" onclick="setOrderStatusFilter('PAID', this)">Paid</button>
+                <button type="button" class="filter-btn" onclick="setOrderStatusFilter('PENDING', this)">Pending</button>
+                <button type="button" class="filter-btn" onclick="setOrderStatusFilter('EXPIRED', this)">Expired</button>
+                <button type="button" class="btn-primary" style="padding: 6px 12px; font-size: 12px; margin-left: 8px;" onclick="loadUserOrders()">🔄 Refresh</button>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Order Code</th>
+                  <th>Amount</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Bank UTR Number</th>
+                  <th>Created At</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="paymentsTableBody">
+                <tr>
+                  <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 40px;">
+                    Loading payment records...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+
+        </section>
+
+        <!-- ======================================================== -->
+        <!-- VIEW 5: DOCUMENTATION & SDKS                             -->
+        <!-- ======================================================== -->
+        <section id="view_docs" class="dashboard-view-section">
+          
+          <div class="section-header">
+            <h2 class="section-title"><span>📑 Developer API Docs & SDK Integration</span></h2>
+            <p class="section-desc">Integrate dynamic UPI QR payments into your website, mobile app, or e-commerce storefront in under 2 minutes.</p>
+          </div>
+
+          <!-- ENDPOINT 1: CREATE ORDER -->
+          <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 24px; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+              <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 6px;">POST</span>
+              <span style="font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: #fff;">/api/v1/orders</span>
+              <span style="font-size: 12px; color: var(--text-muted);">(Generate Dynamic QR Code)</span>
+            </div>
+
+            <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 16px;">
+              Creates a new payment order with unique paise offset, dynamic UPI URI, high-res Base64 QR code image, and mobile intent links.
+            </p>
+
+            <div class="code-box">
+              <div class="code-header">
+                <span>cURL Request</span>
+                <button type="button" class="btn-icon-copy" onclick="copyToClipboard(document.getElementById('snippetCurl').innerText)">Copy</button>
+              </div>
+              <pre class="code-content" id="snippetCurl">curl -X POST http://localhost:3000/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <span class="inject-api-key">pg_live_...</span>" \
+  -d '{
+    "amount": 250.00,
+    "customerName": "Rahul Verma",
+    "customerPhone": "9876543210",
+    "webhookUrl": "https://yourwebsite.com/api/payment-webhook"
+  }'</pre>
+            </div>
+
+            <div class="code-box">
+              <div class="code-header">
+                <span>Node.js / Express</span>
+                <button type="button" class="btn-icon-copy" onclick="copyToClipboard(document.getElementById('snippetNode').innerText)">Copy</button>
+              </div>
+              <pre class="code-content" id="snippetNode">const response = await fetch('http://localhost:3000/api/v1/orders', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '<span class="inject-api-key">pg_live_...</span>'
+  },
+  body: JSON.stringify({
+    amount: 250.00,
+    customerName: 'Rahul Verma',
+    customerPhone: '9876543210',
+    webhookUrl: 'https://yourwebsite.com/api/payment-webhook'
+  })
+});
+
+const data = await response.json();
+console.log('Order Code:', data.order.orderCode);
+console.log('QR Image (Base64):', data.order.qrDataUrl);
+console.log('Checkout URL:', data.order.checkoutUrl);</pre>
+            </div>
+
+            <div class="code-box">
+              <div class="code-header">
+                <span>Python (Requests)</span>
+                <button type="button" class="btn-icon-copy" onclick="copyToClipboard(document.getElementById('snippetPython').innerText)">Copy</button>
+              </div>
+              <pre class="code-content" id="snippetPython">import requests
+
+url = "http://localhost:3000/api/v1/orders"
+headers = {
+    "Content-Type": "application/json",
+    "x-api-key": "<span class="inject-api-key">pg_live_...</span>"
+}
+payload = {
+    "amount": 250.00,
+    "customerName": "Rahul Verma",
+    "webhookUrl": "https://yourwebsite.com/api/payment-webhook"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+order = response.json().get("order")
+print("Order Code:", order.get("orderCode"))
+print("Payable Amount:", order.get("amount"))</pre>
+            </div>
+
+            <div class="code-box">
+              <div class="code-header">
+                <span>PHP (cURL)</span>
+                <button type="button" class="btn-icon-copy" onclick="copyToClipboard(document.getElementById('snippetPhp').innerText)">Copy</button>
+              </div>
+              <pre class="code-content" id="snippetPhp">&lt;?php
+$ch = curl_init('http://localhost:3000/api/v1/orders');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    'x-api-key: <span class="inject-api-key">pg_live_...</span>'
+]);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'amount' => 250.00,
+    'customerName' => 'Rahul Verma'
+]));
+
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);
+echo "Order: " . $data['order']['orderCode'];
+?&gt;</pre>
+            </div>
+
+          </div>
+
+          <!-- ENDPOINT 2: STATUS CHECK -->
+          <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 24px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+              <span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 6px;">GET</span>
+              <span style="font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: #fff;">/api/v1/orders/:orderCode</span>
+              <span style="font-size: 12px; color: var(--text-muted);">(Poll Order Status & UTR)</span>
+            </div>
+
+            <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 16px;">
+              Returns current order state: <code>PENDING</code>, <code>PAID</code>, or <code>EXPIRED</code> along with bank UTR number and timestamp.
+            </p>
+
+            <div class="code-box">
+              <div class="code-header">
+                <span>cURL Status Check</span>
+              </div>
+              <pre class="code-content">curl -X GET http://localhost:3000/api/v1/orders/ORD-ABC123 \
+  -H "x-api-key: <span class="inject-api-key">pg_live_...</span>"</pre>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ======================================================== -->
+        <!-- VIEW 6: SETTLEMENT ENGINE (MERCHANT UPI & BANK SYNC)     -->
+        <!-- ======================================================== -->
+        <section id="view_settlement" class="dashboard-view-section">
+          
+          <div class="section-header">
+            <h2 class="section-title"><span>⚙️ Automated Settlement &amp; UPI Routing Engine</span></h2>
+            <p class="section-desc">
+              Direct Bank Settlement: Configure your personal UPI ID where customer funds deposit, and connect your bank alert channel for 1-second auto-verification.
+            </p>
+          </div>
+
+          <!-- Current Routing Live Summary -->
+          <div class="settlement-status-grid">
+            <div class="settlement-status-pill">
+              <div class="settlement-label">💳 Direct Deposit UPI ID (VPA)</div>
+              <div class="settlement-val" id="settlementCurrentUpi" style="color: #38bdf8;">Loading...</div>
+            </div>
+            <div class="settlement-status-pill">
+              <div class="settlement-label">🏬 Store / Business Name</div>
+              <div class="settlement-val" id="settlementCurrentBusiness" style="color: #34d399;">Loading...</div>
+            </div>
+            <div class="settlement-status-pill">
+              <div class="settlement-label">📧 Bank Alert Gmail Channel</div>
+              <div class="settlement-val" id="settlementCurrentGmail" style="color: #c084fc;">Loading...</div>
+            </div>
+            <div class="settlement-status-pill">
+              <div class="settlement-label">⚡ Verification Engine</div>
+              <div class="settlement-val" style="color: #34d399; font-size: 13.5px;">🟢 1-Sec Auto-Sync (0% MDR)</div>
+            </div>
+          </div>
+
+          <!-- Settlement Configuration Form -->
+          <div class="gmail-card" style="border-color: rgba(56, 189, 248, 0.35);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+              <span style="font-size: 24px;">⚡</span>
+              <h3 style="font-size: 18px; font-weight: 800; color: #fff; margin: 0;">UPI Destination &amp; Automated Bank Reader Setup</h3>
+            </div>
+            <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5;">
+              Customer money goes directly into your bank account via your registered UPI ID. Our engine listens to your bank's read-only payment credit alerts to verify orders instantly with 0% gateway commission.
+            </p>
+
+            <form onsubmit="saveSettlementConfig(event)">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">
+                    <span>1. Your Merchant UPI ID (VPA)</span>
+                    <span style="color: #38bdf8; font-weight: 700;">*Required for QR</span>
+                  </label>
+                  <input type="text" id="inputMerchantUpi" class="form-input" placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm" required>
+                  <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 5px;">
+                    💡 All dynamic QR codes generated for your website will send payments directly to this UPI address.
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">
+                    <span>2. Store / Business Display Name</span>
+                    <span style="color: #34d399; font-weight: 700;">*Displayed to Buyer</span>
+                  </label>
+                  <input type="text" id="inputMerchantBusiness" class="form-input" placeholder="e.g. Apex Store or Harsh Enterprises" required>
+                  <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 5px;">
+                    💡 Displayed to customers on PhonePe, Google Pay, and Paytm payment review screens.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Google Read-Only Setup Step -->
+              <div class="google-step-card" style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+                  <span style="font-size: 14.5px; font-weight: 800; color: #fff;">Easy Google Read-Only Setup (Bank Alert Email)</span>
+                  <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">100% SECURE &amp; READ-ONLY</span>
+                </div>
+                <p style="font-size: 12.5px; color: var(--text-muted); margin: 0 0 10px; line-height: 1.5;">
+                  Connect the <strong>exact same Gmail ID</strong> where your bank sends UPI payment credit notification emails (HDFC, SBI, ICICI, Axis, Paytm Bank, etc.).
+                </p>
+                <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #cbd5e1; line-height: 1.6;">
+                  <strong>Quick 3-Step Setup Guide:</strong><br>
+                  1. Make sure 2-Step Verification is active on your Google account: <a href="https://myaccount.google.com/security" target="_blank" style="color: #38bdf8; text-decoration: underline;">myaccount.google.com/security ↗</a><br>
+                  2. Open Google App Passwords: <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: #38bdf8; text-decoration: underline;">myaccount.google.com/apppasswords ↗</a><br>
+                  3. Type <em>"UPI Payment Gateway"</em> as app name, generate the 16-letter code (e.g. <code>abcd efgh ijkl mnop</code>), and paste it below.
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">3. Bank Alert Gmail Address</label>
+                  <input type="email" id="inputGmailEmail" class="form-input" placeholder="e.g. yourbankemail@gmail.com" required>
+                  <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 5px;">
+                    Must be the email receiving incoming bank credit alerts.
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">4. Google 16-Character App Password</label>
+                  <input type="password" id="inputGmailAppPass" class="form-input" placeholder="e.g. abcd efgh ijkl mnop" required>
+                  <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 5px;">
+                    Read-only token used strictly to listen for incoming bank credit alert emails.
+                  </div>
+                </div>
+              </div>
+
+              <div id="settlementConfigFeedback" style="display: none; font-size: 13.5px; margin-bottom: 16px; padding: 12px; border-radius: 8px;"></div>
+
+              <button type="submit" class="btn-primary" style="height: 48px; font-size: 14px; font-weight: 800;">
+                <span>Save UPI Routing &amp; Activate 1-Sec Auto Verification</span>
+                <span>⚡</span>
+              </button>
+            </form>
+          </div>
+
+        </section>
+
+      </main>
+
+    </div>
+
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- DYNAMIC UPI QR PAYMENT MODAL (FOR BUYING PLANS)          -->
+  <!-- ======================================================== -->
+  <div id="paymentModal" class="modal-backdrop">
+    <div class="modal-box">
+      <button type="button" class="modal-close-btn" onclick="closePaymentModal()">✕</button>
+
+      <!-- Step 1: Active Payment Details -->
+      <div id="modalPaymentDetails">
+        <div style="font-size: 12px; font-weight: 800; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.5px;" id="modalCheckoutType">UPI Checkout</div>
+        <h2 id="modalPlanName" style="font-size: 22px; font-weight: 800; color: #fff; margin: 4px 0 2px;">Plan Name</h2>
+        <div id="modalCheckoutSubtitle" style="font-size: 12px; color: var(--text-dim); margin-bottom: 4px; display: none;"></div>
+        <div id="modalPlanAmount" style="font-size: 32px; font-weight: 800; color: #34d399; margin-bottom: 6px;">₹0.00</div>
+        <div id="modalUniqueNotice" style="font-size: 11.5px; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; padding: 4px 10px; margin: 0 auto 12px; display: inline-flex; align-items: center; gap: 4px;">
+          ⚡ <span>Pay exact amount for instant auto-verification</span>
+        </div>
+
+        <!-- Coupon Code Box -->
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 10px 14px; margin: 8px auto 14px; max-width: 320px;">
+          <div id="modalCouponAppliedBox" style="display: none; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 12px; color: #34d399; font-weight: 700;">
+            <span id="modalCouponAppliedText">🏷️ COUPON APPLIED</span>
+            <button type="button" onclick="removeModalCoupon()" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 11px; font-weight: 600;">✕ Remove</button>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <input type="text" id="modalCouponInput" placeholder="🏷️ Have a Coupon Code?" style="flex: 1; padding: 7px 10px; font-size: 12px; text-transform: uppercase; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.06); color: #fff; font-weight: 700; letter-spacing: 0.5px; text-align: center;" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+            <button type="button" id="btnApplyCouponModal" onclick="applyModalCoupon()" class="nav-btn" style="padding: 7px 14px; font-size: 12px; background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; font-weight: 700;">Apply</button>
+          </div>
+          <div id="modalCouponFeedback" style="display: none; font-size: 11.5px; margin-top: 6px;"></div>
+        </div>
+
+        <div class="timer-pill">
+          <span>⏳ Expires in:</span>
+          <span id="modalTimerText">10:00</span>
+        </div>
+
+        <div>
+          <div class="qr-image-container">
+            <img id="modalQrImage" src="" alt="UPI QR Code">
+          </div>
+        </div>
+
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+          Scan with Any UPI App (GPay, PhonePe, Paytm, BHIM)
+        </div>
+
+        <!-- Mobile Intent Buttons -->
+        <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 18px;">
+          <a id="btnIntentGpay" href="#" class="nav-btn" style="background: rgba(255,255,255,0.06); border-color: var(--border-subtle); color: #fff;">Google Pay</a>
+          <a id="btnIntentPhonepe" href="#" class="nav-btn" style="background: rgba(255,255,255,0.06); border-color: var(--border-subtle); color: #fff;">PhonePe</a>
+          <a id="btnIntentPaytm" href="#" class="nav-btn" style="background: rgba(255,255,255,0.06); border-color: var(--border-subtle); color: #fff;">Paytm</a>
+        </div>
+
+        <div style="font-size: 11.5px; color: var(--text-dim); margin-bottom: 8px;">
+          Order Code: <span id="modalOrderCode" style="color: #cbd5e1; font-family: 'JetBrains Mono', monospace;">ORD-...</span>
+        </div>
+
+        <div id="modalStatusText" class="verification-status-step">
+          <div class="spinner"></div>
+          <span>Awaiting UPI payment...</span>
+        </div>
+      </div>
+
+      <!-- Step 2: Payment Celebration Success -->
+      <div id="modalCelebration" class="success-celebration" style="display: none;">
+        <div class="celebrate-icon">🎉</div>
+        <h2 style="font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 6px;">Payment Successfully Verified!</h2>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 20px;">
+          Your plan has been activated and <strong>♾️ Unlimited QR Generation</strong> is now live!
+        </p>
+
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+          <div id="celebrationPlanText" style="font-size: 18px; font-weight: 800; color: #34d399; margin-bottom: 4px;">Plan Name</div>
+          <div id="celebrationCreditsText" style="font-size: 14px; color: #cbd5e1; font-weight: 600;">♾️ Unlimited Dynamic UPI QRs Ready</div>
+        </div>
+
+        <button type="button" class="btn-primary" style="width: 100%; justify-content: center;" onclick="closePaymentModal()">
+          <span>Enter Dashboard & Start Building</span>
+          <span>➔</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- VIP / ENTERPRISE CUSTOM CONTACT MODAL                    -->
+  <!-- ======================================================== -->
+  <div id="contactEnterpriseModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box" style="max-width: 480px; text-align: left;">
+      <button type="button" class="modal-close-btn" onclick="closeContactModal()">✕</button>
+
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+        <span style="font-size: 26px;">👑</span>
+        <h2 style="font-size: 20px; font-weight: 800; color: #fff; margin: 0;">VIP Dealer &amp; Custom Tier</h2>
+      </div>
+      <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px;">
+        Need more than 5 websites, custom volume licensing, or a dedicated enterprise settlement server? Contact our founding desk directly via your preferred channel:
+      </p>
+
+      <div class="vip-contact-grid">
+        
+        <!-- OPTION 1: DIRECT CALL -->
+        <div class="vip-contact-card">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="vip-icon-box" style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.3); color: #38bdf8;">📞</div>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; color: #fff;">Direct Phone Call</div>
+              <div style="font-size: 12px; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">+91 93347 88461</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <a href="tel:+919334788461" class="vip-btn-action" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8;">
+              Call Now
+            </a>
+            <button type="button" class="vip-btn-action" style="background: rgba(255,255,255,0.06); color: var(--text-dim);" onclick="copyToClipboard('+919334788461')">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <!-- OPTION 2: WHATSAPP CHAT -->
+        <div class="vip-contact-card">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="vip-icon-box" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399;">💬</div>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; color: #fff;">Instant WhatsApp Chat</div>
+              <div style="font-size: 12px; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">+91 93347 88461</div>
+            </div>
+          </div>
+          <a href="https://wa.me/919334788461?text=Hello%2C%20I%20need%20a%20custom%20UPI%20Gateway%20setup%20for%20more%20than%205%20websites" target="_blank" class="vip-btn-action" style="background: #10B981; color: #fff;">
+            Chat on WhatsApp ↗
+          </a>
+        </div>
+
+        <!-- OPTION 3: FOUNDER EMAIL -->
+        <div class="vip-contact-card">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="vip-icon-box" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); color: #c084fc;">✉️</div>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; color: #fff;">Official Founder Email</div>
+              <div style="font-size: 12px; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">hapa1929@gmail.com</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <a href="mailto:hapa1929@gmail.com?subject=Enterprise%20UPI%20Gateway%20Inquiry" class="vip-btn-action" style="background: rgba(168, 85, 247, 0.2); color: #c084fc;">
+              Send Email
+            </a>
+            <button type="button" class="vip-btn-action" style="background: rgba(255,255,255,0.06); color: var(--text-dim);" onclick="copyToClipboard('hapa1929@gmail.com')">
+              Copy
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="margin-top: 18px; text-align: center;">
+        <button type="button" class="btn-primary" style="width: 100%; justify-content: center; background: rgba(255,255,255,0.06); border-color: var(--border-subtle); color: #fff;" onclick="closeContactModal()">
+          Close Window
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- SIGN IN OVERLAY (IF NOT LOGGED IN)                       -->
+  <!-- ======================================================== -->
+  <div id="loginOverlay" class="modal-backdrop" style="display: none;">
+    <div class="modal-box" style="max-width: 420px;">
+      <div style="font-size: 44px; margin-bottom: 12px;">🛡️</div>
+      <h2 style="font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 8px;">Merchant Sign In</h2>
+      <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 24px;">
+        Sign in with Google to access your personal UPI gateway merchant dashboard and developer credentials.
+      </p>
+
+      <button type="button" class="btn-primary" style="width: 100%; justify-content: center; background: #fff; color: #000;" onclick="handleGoogleSignIn()">
+        <svg width="20" height="20" viewBox="0 0 24 24" style="margin-right: 6px;">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span>Sign in with Google</span>
+      </button>
+    </div>
+  </div>
+
+  <script src="/js/user.js"></script>
+</body>
+</html>

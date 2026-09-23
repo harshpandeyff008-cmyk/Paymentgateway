@@ -1,11 +1,19 @@
 
+import { ImapFlow } from 'imapflow';
+import { simpleParser } from 'mailparser';
+import { config } from '../config.js';
+import { query, logActivity } from '../db/database.js';
+import { parsePaymentEmail } from './emailParser.js';
+import { processIncomingPayment, reconcileUnmatchedPayments } from './matchingEngine.js';
+
 /**
  * Active Background Auto-Poller:
- * Checks latest 5 emails in Gmail every 5 seconds.
- * Guaranteed to catch payments even if IMAP IDLE drops or connection reconnected.
+ * Checks latest 5 emails in Admin Gmail every 5 seconds for subscription payments.
+ * Checks connected merchants' Gmails every 10 seconds for customer store orders.
  */
 let pollerInterval = null;
 let isPolling = false;
+let isMerchantPolling = false;
 
 export async function scanAndProcessRecentEmails() {
   if (isPolling) return;
@@ -52,14 +60,14 @@ export async function scanAndProcessRecentEmails() {
             if (paymentData.success && paymentData.amount && paymentData.utr) {
               const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
               if (!paymentRow || paymentRow.is_matched === 0) {
-                console.log(`[IMAP Fast-Poller] Processing payment: ₹${paymentData.amount}, UTR: ${paymentData.utr}, Sender: ${paymentData.sender}`);
+                console.log(`[Admin IMAP Poller] Processing payment: ₹${paymentData.amount}, UTR: ${paymentData.utr}, Sender: ${paymentData.sender}`);
                 await processIncomingPayment({
                   amount: paymentData.amount,
                   utr: paymentData.utr,
                   sender: paymentData.sender || fromAddress,
                   receivedAt: paymentData.receivedAt,
                   source: 'IMAP',
-                  rawSnippet: `[IMAP] ${subject} - ${paymentData.sender || fromAddress}`
+                  rawSnippet: `[Admin IMAP] ${subject} - ${paymentData.sender || fromAddress}`
                 });
               }
             }
@@ -77,12 +85,93 @@ export async function scanAndProcessRecentEmails() {
   }
 }
 
-import { ImapFlow } from 'imapflow';
-import { simpleParser } from 'mailparser';
-import { config } from '../config.js';
-import { query, logActivity } from '../db/database.js';
-import { parsePaymentEmail } from './emailParser.js';
-import { processIncomingPayment, reconcileUnmatchedPayments } from './matchingEngine.js';
+/**
+ * Connected Merchants IMAP Poller:
+ * Checks registered merchants who activated their Bank Gmail in Settlement Engine.
+ * Automatically verifies customer payments for their store API orders.
+ */
+export async function scanAndProcessMerchantEmails() {
+  if (isMerchantPolling) return;
+  isMerchantPolling = true;
+
+  try {
+    const merchants = await query.all(
+      `SELECT email, upi_vpa, business_name, gmail_email, gmail_app_pass 
+       FROM users 
+       WHERE gmail_connected = 1 
+         AND gmail_email IS NOT NULL 
+         AND gmail_email != '' 
+         AND gmail_app_pass IS NOT NULL 
+         AND gmail_app_pass != ''`
+    );
+
+    if (!merchants || merchants.length === 0) return;
+
+    for (const merchant of merchants) {
+      const user = (merchant.gmail_email || '').trim();
+      const pass = (merchant.gmail_app_pass || '').trim().replace(/\s+/g, '');
+
+      if (!user || !pass) continue;
+
+      const merchantClient = new ImapFlow({
+        host: config.imap.host || 'imap.gmail.com',
+        port: config.imap.port || 993,
+        secure: true,
+        auth: { user, pass },
+        logger: false
+      });
+
+      merchantClient.on('error', () => {}); // Silently suppress transient socket errors
+
+      try {
+        await merchantClient.connect();
+        const lock = await merchantClient.getMailboxLock(config.imap.mailbox || 'INBOX');
+
+        try {
+          const status = await merchantClient.status(config.imap.mailbox || 'INBOX', { messages: true });
+          const total = status.messages || 0;
+
+          if (total > 0) {
+            const startSeq = Math.max(1, total - 4);
+            for await (const message of merchantClient.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
+              const parsed = await simpleParser(message.source);
+              const subject = parsed.subject || '';
+              const fromAddress = parsed.from?.text || '';
+              const bodyText = parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, ' ') : '');
+              const emailDate = parsed.date || new Date();
+
+              const paymentData = parsePaymentEmail(subject, bodyText, emailDate);
+              if (paymentData.success && paymentData.amount && paymentData.utr) {
+                const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
+                if (!paymentRow || paymentRow.is_matched === 0) {
+                  console.log(`[Merchant IMAP] Payment detected for merchant ${merchant.email}: ₹${paymentData.amount}, UTR: ${paymentData.utr}`);
+                  await processIncomingPayment({
+                    amount: paymentData.amount,
+                    utr: paymentData.utr,
+                    sender: paymentData.sender || fromAddress,
+                    receivedAt: paymentData.receivedAt,
+                    source: 'MERCHANT_IMAP',
+                    rawSnippet: `[Merchant: ${merchant.email}] ${subject} - ${paymentData.sender || fromAddress}`,
+                    merchantEmail: merchant.email
+                  });
+                }
+              }
+            }
+          }
+        } finally {
+          lock.release();
+          await merchantClient.logout();
+        }
+      } catch (_) {
+        // Individual merchant auth/network failures are ignored to keep the poller healthy
+      }
+    }
+  } catch (err) {
+    // Suppress general errors
+  } finally {
+    isMerchantPolling = false;
+  }
+}
 
 let client = null;
 let isRunning = false;
@@ -440,8 +529,13 @@ export async function startImapListener(io = null) {
     console.log(`[IMAP IDLE] Listening for new payment emails in ${config.imap.mailbox}...`);
     // Run immediate scan on startup
     scanAndProcessRecentEmails().catch(() => {});
+    scanAndProcessMerchantEmails().catch(() => {});
     if (pollerInterval) clearInterval(pollerInterval);
-    pollerInterval = setInterval(() => { scanAndProcessRecentEmails().catch(() => {}); reconcileUnmatchedPayments().catch(() => {}); }, 5000);
+    pollerInterval = setInterval(() => {
+      scanAndProcessRecentEmails().catch(() => {});
+      scanAndProcessMerchantEmails().catch(() => {});
+      reconcileUnmatchedPayments().catch(() => {});
+    }, 5000);
 
     client.on('exists', async (data) => {
       console.log(`[IMAP] New email detected! Total inbox count: ${data.count}`);

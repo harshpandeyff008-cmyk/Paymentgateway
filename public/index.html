@@ -3,812 +3,450 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard - Personal UPI Gateway</title>
-  <link rel="stylesheet" href="/css/admin.css">
-  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-  <!-- Firebase SDK for Google Admin Authentication -->
+  <title>PayPerpendicular - Next-Gen Personal UPI Gateway & Dynamic QR Engine</title>
+  <link rel="stylesheet" href="/css/user.css">
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <style>
+    /* Landing Page Specific Enhancements */
+    .hero-section {
+      text-align: center;
+      padding: 60px 20px 40px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--accent-cyan);
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      letter-spacing: 0.5px;
+    }
+    .hero-h1 {
+      font-size: 52px;
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+    .hero-h1 span.gradient {
+      background: linear-gradient(135deg, #38bdf8 0%, #a855f7 50%, #10b981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-p {
+      font-size: 18px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 720px;
+      margin: 0 auto 36px;
+    }
+    .cta-row {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+    .btn-google-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 28px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      background: #fff;
+      color: #000;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(255, 255, 255, 0.2);
+      transition: all 0.25s ease;
+    }
+    .btn-google-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(255, 255, 255, 0.3);
+    }
+    .workflow-flowchart {
+      background: rgba(13, 18, 29, 0.7);
+      border: 1px solid var(--border-glow);
+      border-radius: 24px;
+      padding: 36px 24px;
+      margin: 40px 0 60px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    }
+    .flow-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .flow-step-card {
+      background: rgba(18, 24, 39, 0.8);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 20px 16px;
+      text-align: center;
+      position: relative;
+    }
+    .flow-step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      margin: 0 auto 12px;
+    }
+    @media (max-width: 768px) {
+      .hero-h1 { font-size: 34px; }
+      .hero-p { font-size: 15px; }
+    }
+  </style>
 </head>
 <body>
 
-  <!-- Master Key Lock Screen Overlay -->
-  <div id="masterKeyLockScreen" style="display: flex; position: fixed; inset: 0; background: radial-gradient(circle at 50% 20%, rgba(30, 41, 59, 0.98), rgba(11, 15, 25, 0.99)); backdrop-filter: blur(30px); z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
-    <div style="background: rgba(18, 24, 39, 0.90); border: 1px solid rgba(56, 189, 248, 0.3); box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85), 0 0 50px rgba(56, 189, 248, 0.2); border-radius: 24px; max-width: 440px; width: 100%; padding: 42px 32px; text-align: center; position: relative; overflow: hidden;">
-      
-      <!-- Top Cyber Neon Glow Line -->
-      <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #38bdf8, #a855f7, #10b981);"></div>
-
-      <!-- Glowing Shield Icon -->
-      <div style="width: 76px; height: 76px; background: linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%); border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 34px; box-shadow: 0 0 30px rgba(56, 189, 248, 0.4);">
-        🛡️
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <div class="brand-title">PayPerpendicular</div>
+        <div style="font-size: 11px; color: var(--text-dim);">Personal UPI Gateway Platform</div>
       </div>
+    </a>
 
-      <h2 style="font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 6px; letter-spacing: -0.5px;">PayPerpendicular Terminal</h2>
-      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5;">
-        Protected Access. Sirf authorized superadmin <span style="color: #38bdf8; font-weight: 600;">hapa1929@gmail.com</span> ke liye permitted hai.
-      </p>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <a href="/admin" class="nav-btn">🛡️ Admin Terminal</a>
+      <button type="button" class="btn-primary" onclick="handleGoogleSignIn()">
+        <svg width="18" height="18" viewBox="0 0 24 24" style="margin-right: 4px;">
+          <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span>Sign In with Google</span>
+      </button>
+    </div>
+  </nav>
 
-      <!-- Google Sign In Button -->
-      <button type="button" id="btnGoogleSignIn" onclick="handleGoogleSignIn()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 20px; font-size: 15px; font-weight: 600; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 12px; cursor: pointer; transition: all 0.25s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.4);" onmouseover="this.style.background='rgba(255,255,255,0.15)'; this.style.borderColor='#38bdf8'; this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(255,255,255,0.08)'; this.style.borderColor='rgba(255,255,255,0.25)'; this.style.transform='none';">
-        <svg width="20" height="20" viewBox="0 0 24 24">
+  <!-- HERO SECTION -->
+  <header class="hero-section">
+    <div class="hero-badge">🔥 Automated Instant UPI Payment Infrastructure</div>
+    <h1 class="hero-h1">The Modern <span class="gradient">Personal UPI Gateway</span> For Developers & Merchants</h1>
+    <p class="hero-p">
+      Accept direct UPI payments into your own bank account. No third-party settlement delays, 0% gateway fees, and automated 1-second payment verification with instant webhooks.
+    </p>
+
+    <div class="cta-row">
+      <button type="button" class="btn-google-cta" onclick="handleGoogleSignIn()">
+        <svg width="22" height="22" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
         </svg>
-        <span>Sign in with Google</span>
+        <span>Get Started with Google</span>
       </button>
+      <a href="#plans" class="nav-btn" style="padding: 16px 24px; font-size: 15px; border-color: var(--border-subtle);">Explore Pricing ➔</a>
+    </div>
+  </header>
 
-      <!-- Feedback / Error Area -->
-      <div id="googleAuthFeedback" style="display: none; font-size: 12.5px; padding: 12px 14px; border-radius: 8px; margin-top: 14px; text-align: left; line-height: 1.4;"></div>
+  <!-- MAIN CONTAINER -->
+  <main class="main-container">
 
-      <!-- Divider -->
-      <div style="display: flex; align-items: center; margin: 24px 0 18px; color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
-        <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></div>
-        <span style="padding: 0 10px;">or master key</span>
-        <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></div>
+    <!-- PLATFORM ARCHITECTURE FLOWCHART VISUAL (MATCHING USER DIAGRAM) -->
+    <div class="workflow-flowchart">
+      <div style="text-align: center; max-width: 650px; margin: 0 auto;">
+        <span class="promo-tag">Instant Automation Flow</span>
+        <h2 style="font-size: 26px; font-weight: 800; color: #fff; margin-bottom: 8px;">How It Works in 5 Easy Steps</h2>
+        <p style="font-size: 14px; color: var(--text-muted);">From Google Signup to 1-second auto-verification and real-time merchant webhooks</p>
       </div>
 
-      <!-- Master Key Fallback Form -->
-      <form id="masterKeyForm" onsubmit="submitMasterKey(event)">
-        <div class="form-group" style="margin-bottom: 14px;">
-          <div style="position: relative;">
-            <input type="password" id="inputMasterKey" class="form-control" placeholder="Enter Master Key" style="font-size: 13px; padding-right: 44px; text-align: center; letter-spacing: 0.5px;">
-            <button type="button" onclick="toggleMasterKeyInputVisibility()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 15px;">
-              👁️
-            </button>
-          </div>
-          <div id="masterKeyError" style="display: none; font-size: 11.5px; color: var(--accent-red); margin-top: 6px; font-weight: 500;">
-            ❌ Invalid Master Key. Access Denied.
-          </div>
+      <div class="flow-steps-grid">
+        <div class="flow-step-card">
+          <div class="flow-step-num">1</div>
+          <div style="font-size: 24px; margin-bottom: 8px;">🔥</div>
+          <div style="font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 4px;">1-Click Signup</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Sign up with Google in 5 seconds. Zero KYC delays.</div>
         </div>
 
-        <button type="submit" class="btn btn-secondary" id="btnUnlockDashboard" style="width: 100%; justify-content: center; padding: 9px; font-size: 12.5px;">
-          🔓 Unlock with Master Key
-        </button>
-      </form>
+        <div class="flow-step-card">
+          <div class="flow-step-num">2</div>
+          <div style="font-size: 24px; margin-bottom: 8px;">💎</div>
+          <div style="font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 4px;">Choose a Plan</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Starter (300 QR), Growth (1000 QR), or Pro (2000 QR).</div>
+        </div>
 
-      <div style="margin-top: 24px; font-size: 11px; color: var(--text-dim);">
-        Live Hosting: <code style="color: #38bdf8;">paypendicular.web.app</code>
+        <div class="flow-step-card">
+          <div class="flow-step-num">3</div>
+          <div style="font-size: 24px; margin-bottom: 8px;">📱</div>
+          <div style="font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 4px;">UPI QR Payment</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Pay securely via any UPI app (GPay, PhonePe, Paytm).</div>
+        </div>
+
+        <div class="flow-step-card">
+          <div class="flow-step-num">4</div>
+          <div style="font-size: 24px; margin-bottom: 8px;">⚡</div>
+          <div style="font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 4px;">Auto-Verification</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Instant 1-second automated confirmation & matching.</div>
+        </div>
+
+        <div class="flow-step-card">
+          <div class="flow-step-num">5</div>
+          <div style="font-size: 24px; margin-bottom: 8px;">🔑</div>
+          <div style="font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 4px;">Instant Activation</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Production API keys, live webhooks & checkout unlocked!</div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Top Navbar -->
-  <nav class="navbar">
-    <div class="brand-box">
-      <div class="brand-icon">⚡</div>
-      <div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="brand-title">Personal UPI Gateway</span>
-          <span class="brand-tag">P2P Realtime</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="nav-actions">
-      <!-- IMAP Live Status Pill -->
-      <div class="status-pill" id="imapStatusPill" title="Status of FamPay/Gmail Email Listener">
-        <div class="status-dot disconnected" id="imapDot"></div>
-        <span id="imapText">IMAP: Checking...</span>
+    <!-- PRICING SECTION -->
+    <div id="plans" style="padding-top: 20px;">
+      <div class="section-header" style="text-align: center; max-width: 600px; margin: 0 auto 36px;">
+        <span class="promo-tag">Simple & Transparent Pricing</span>
+        <h2 class="section-title" style="justify-content: center;">Choose The Right Plan For Your Store</h2>
+        <p class="section-desc">Unlock instant automated payments with direct bank settlements. 1 API Key is permanently locked to 1 website.</p>
       </div>
 
-      <button class="btn btn-primary" id="btnOpenCreateOrder">+ Create Order</button>
-      <button class="btn btn-secondary" id="btnAdminLock" onclick="lockAdminDashboard()" title="Lock Dashboard & Logout" style="padding: 6px 12px; font-size: 12px;">🔒 Lock</button>
-    </div>
-  </nav>
-
-  <!-- Dashboard Main Content -->
-  <main class="dashboard-container">
-    
-    <!-- Top Navigation Tabs (Zero .env hassle!) -->
-    <div class="tabs-nav">
-      <button class="tab-btn active" id="tabBtnDashboard" onclick="switchTab('dashboard')">
-        📊 Live Dashboard & Orders
-      </button>
-      <button class="tab-btn" id="tabBtnLedger" onclick="switchTab('ledger')">
-        💰 Email Payments Ledger (पुराना हिसाब-किताब)
-      </button>
-      <button class="tab-btn" id="tabBtnConfig" onclick="switchTab('config')">
-        ⚡ Gateway Controls (Zero .env)
-      </button>
-      <button class="tab-btn" id="tabBtnApiKey" onclick="switchTab('apiKey')">
-        🔑 API Keys & Integration
-      </button>
-      <button class="tab-btn" id="tabBtnLogs" onclick="switchTab('logs')">
-        📝 Request Notes & Live Activity
-      </button>
-    </div>
-
-    <!-- ==================== TAB 1: LIVE DASHBOARD ==================== -->
-    <div class="tab-content active" id="tabContentDashboard">
-      
-      <!-- 4 Key Metrics -->
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-header">
-            <span>Total Collected Volume</span>
-            <span>💰</span>
-          </div>
-          <div class="metric-val" id="metricRevenue">₹ 0.00</div>
-          <div class="metric-sub">Across all completed UPI orders</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-header">
-            <span>Total Orders</span>
-            <span>📦</span>
-          </div>
-          <div class="metric-val" id="metricTotalOrders">0</div>
-          <div class="metric-sub">Generated checkout sessions</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-header">
-            <span>Paid Orders</span>
-            <span>✅</span>
-          </div>
-          <div class="metric-val" id="metricPaidOrders">0</div>
-          <div class="metric-sub" id="metricConversion">0% Success Rate</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-header">
-            <span>Active Pending Sessions</span>
-            <span>⏳</span>
-          </div>
-          <div class="metric-val" id="metricPendingOrders" style="color: var(--accent-amber);">0</div>
-          <div class="metric-sub">Currently waiting for payment</div>
-        </div>
-      </div>
-
-      <!-- Split Section: Orders Table & Interactive Simulator -->
-      <div class="dashboard-split">
+      <div class="pricing-grid" style="max-width: 1100px; margin: 0 auto; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
         
-        <!-- Left: Orders Table -->
-        <div class="panel-card">
-          <div class="panel-title">
-            <span>Recent Orders & Checkout Sessions</span>
-            <div style="display: flex; gap: 8px;">
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('ALL')">All</button>
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('PENDING')">Pending</button>
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('PAID')">Paid</button>
-            </div>
+        <!-- PLAN 1: 1-SITE MONTHLY -->
+        <div class="plan-card">
+          <div class="plan-name">1-Website Monthly</div>
+          <div class="plan-price-wrap">
+            <span class="plan-currency">₹</span>
+            <span class="plan-amount">299</span>
+            <span class="plan-period">/ month</span>
           </div>
+          <div class="plan-credits-pill" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3);">♾️ Unlimited Dynamic QRs</div>
 
-          <div class="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Order Code</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Customer</th>
-                  <th>Time / UTR</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="ordersTableBody">
-                <tr>
-                  <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">
-                    Loading orders...
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+          <ul class="plan-features-list">
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span><strong>♾️ Unlimited Dynamic UPI QRs</strong></span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span><strong>1 Website Bound (Locked)</strong></span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>1-Second Auto-Verification</span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Direct Bank Settlement (0% Fee)</span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Full 30 Days Unlimited Access</span>
+            </li>
+          </ul>
 
-        <!-- Right Column: Payment Simulator & Live Payment Feed -->
-        <div>
-          
-          <!-- Interactive Simulator Card -->
-          <div class="panel-card" style="border-left: 3px solid #a855f7;">
-            <div class="panel-title">
-              <span>⚡ Payment Simulator</span>
-              <span style="font-size: 11px; color: #c084fc;">Zero-Risk Test</span>
-            </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
-              Simulate an incoming UPI/FamPay payment to test the Time-Window Matching Engine without sending real money!
-            </p>
-
-            <!-- Quick 1-Click Test & Auto-Match -->
-            <div style="margin-bottom: 16px; padding: 12px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(56, 189, 248, 0.1) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm);">
-              <div style="font-size: 12px; font-weight: 600; color: #34d399; margin-bottom: 4px;">⚡ 1-Click Instant End-to-End Test</div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
-                Creates an order and immediately sends a matching simulated payment to see the real-time match in action!
-              </div>
-              <button type="button" class="btn btn-primary" id="btnQuickSimulate" onclick="quickCreateAndSimulate()" style="width: 100%; justify-content: center; font-size: 13px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                ⚡ 1-Click: Create Order & Auto-Match ₹100
-              </button>
-            </div>
-
-            <!-- Manual Custom Simulator Form -->
-            <form id="simulatorForm">
-              <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <label class="form-label" style="margin-bottom: 0;">Amount (₹)</label>
-                  <span style="font-size: 11px; color: var(--text-dim);" id="simActiveOrdersHint">Active Pending Orders:</span>
-                </div>
-                <div id="simPendingChips" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0;">
-                  <span style="font-size: 11px; color: var(--text-dim);">Checking pending orders...</span>
-                </div>
-                <input type="number" id="simAmount" class="form-control" placeholder="e.g. 100" step="0.01" required>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">UTR / Reference No. (Optional)</label>
-                <input type="text" id="simUtr" class="form-control" placeholder="Leave empty for auto-generated UTR">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Sender Name / UPI ID</label>
-                <input type="text" id="simSender" class="form-control" value="Harsh (Simulated Buyer)">
-              </div>
-
-              <button type="submit" class="btn btn-sim" style="width: 100%; justify-content: center;" id="btnSimulate">
-                🚀 Simulate Incoming Payment
-              </button>
-            </form>
-
-            <div id="simResult" style="margin-top: 12px; font-size: 12.5px; display: none; padding: 12px; border-radius: var(--radius-sm); line-height: 1.5;"></div>
-          </div>
-
-          <!-- Live Payment Feed -->
-          <div class="panel-card">
-            <div class="panel-title">
-              <span>📥 Incoming Payments Log</span>
-              <span style="font-size: 11px; color: var(--text-dim);" id="paymentsCount">0 items</span>
-            </div>
-
-            <div id="paymentsFeed" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
-              <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">
-                No payments recorded yet.
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <!-- Live Request Activity Notes Card -->
-      <div class="panel-card" style="margin-top: 24px; border-top: 2px solid #38bdf8;">
-        <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="display: flex; align-items: center; gap: 8px;">
-            <span>⚡ Live Request Notes (DealsByShiv Integration)</span>
-            <span class="badge PAID" style="font-size: 10px;">Allowed: https://dealsbyshiv.web.app</span>
-          </span>
-          <button class="btn btn-secondary" onclick="switchTab('logs')" style="padding: 3px 10px; font-size: 11px;">
-            View All Notes ↗
-          </button>
-        </div>
-        <div id="dashboardMiniLogsFeed" style="display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto;">
-          <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 15px;">
-            Waiting for requests from https://dealsbyshiv.web.app...
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ==================== TAB 2: EMAIL PAYMENTS LEDGER & HISAB ==================== -->
-    <div class="tab-content" id="tabContentLedger">
-      
-      <!-- Top Actions Bar -->
-      <div class="panel-card" style="border-top: 3px solid #10b981; margin-bottom: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-          <div>
-            <div style="font-size: 17px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-              <span>💰 Email Payments Ledger & Hisab (पुराना खाता)</span>
-            </div>
-            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-              Automatically reads all past FamPay / UPI payment emails from your Gmail inbox and builds an accurate financial ledger!
-            </div>
-          </div>
-
-          <div style="display: flex; gap: 10px;">
-            <button class="btn btn-primary" id="btnSyncAllEmails" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-              🔄 1-Click Sync Past Payments from Gmail
-            </button>
-          </div>
-        </div>
-
-        <div id="syncFeedback" style="display: none; margin-top: 14px; padding: 12px; border-radius: 8px; font-size: 13px;"></div>
-      </div>
-
-      <!-- Financial Summary Metrics -->
-      <div class="metrics-grid">
-        <div class="metric-card" style="border-left: 3px solid #10b981;">
-          <div class="metric-header">
-            <span>Total Money in Ledger</span>
-            <span>💵</span>
-          </div>
-          <div class="metric-val" id="ledgerTotalMoney" style="color: #34d399;">₹ 0.00</div>
-          <div class="metric-sub">Sum of all parsed email payments</div>
-        </div>
-
-        <div class="metric-card" style="border-left: 3px solid #38bdf8;">
-          <div class="metric-header">
-            <span>Total Transactions Recorded</span>
-            <span>📑</span>
-          </div>
-          <div class="metric-val" id="ledgerTotalCount">0</div>
-          <div class="metric-sub">Verified payments in ledger</div>
-        </div>
-
-        <div class="metric-card" style="border-left: 3px solid #a855f7;">
-          <div class="metric-header">
-            <span>Top Paying Customer</span>
-            <span>👑</span>
-          </div>
-          <div class="metric-val" id="ledgerTopCustomer" style="font-size: 22px; margin-top: 6px;">-</div>
-          <div class="metric-sub" id="ledgerTopCustomerAmount">No data yet</div>
-        </div>
-      </div>
-
-      <!-- Split: Top Senders Breakdown + Quick Paste Tool -->
-      <div class="dashboard-split" style="margin-bottom: 24px;">
-        
-        <!-- Top Senders Breakdown -->
-        <div class="panel-card">
-          <div class="panel-title">
-            <span>👥 Customer / Sender Breakdown (किसने कितना दिया)</span>
-          </div>
-          <div id="ledgerTopSendersList" style="display: flex; flex-direction: column; gap: 10px;">
-            <div style="text-align: center; color: var(--text-dim); padding: 20px; font-size: 13px;">
-              No payment history loaded yet. Sync with Gmail or paste an email below.
-            </div>
-          </div>
-        </div>
-
-        <!-- Quick Paste Email Box -->
-        <div class="panel-card" style="border-left: 3px solid #f59e0b;">
-          <div class="panel-title">
-            <span>📋 Paste Any Past Email (तुरंत हिसाब जोड़ें)</span>
-          </div>
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-            You can paste any FamPay receipt text directly here, and the engine will immediately parse the Amount, UTR, and Sender into the ledger!
-          </p>
-
-          <form id="pasteEmailForm">
-            <textarea id="pasteEmailInput" class="form-control" rows="4" placeholder="Paste FamPay / Bank alert email text here... e.g. You have successfully received ₹500.0 from MEENA KUMARI..." style="font-family: inherit; font-size: 12px; margin-bottom: 10px;" required></textarea>
-            <button type="submit" class="btn btn-secondary" style="width: 100%; justify-content: center;" id="btnParsePaste">
-              ⚡ Parse & Add to Ledger
-            </button>
-          </form>
-
-          <div id="pasteFeedback" style="display: none; margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 12px;"></div>
-        </div>
-
-      </div>
-
-      <!-- Full Historical Payments Ledger Table -->
-      <div class="panel-card">
-        <div class="panel-title">
-          <span>📑 Full Historical Payments Ledger</span>
-          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadLedger()">
-            Refresh Ledger
+          <button type="button" class="btn-buy-plan" onclick="handleGoogleSignIn()">
+            <span>Get Started (₹299/mo)</span>
+            <span>➔</span>
           </button>
         </div>
 
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Date & Time</th>
-                <th>Amount (₹)</th>
-                <th>Sender / Customer</th>
-                <th>12-Digit Banking UTR</th>
-                <th>Source / App</th>
-                <th>Ledger Status</th>
-              </tr>
-            </thead>
-            <tbody id="ledgerTableBody">
-              <tr>
-                <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">
-                  Loading ledger...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ==================== TAB 3: FULL FRONTEND CONFIGURATOR ==================== -->
-    <div class="tab-content" id="tabContentConfig">
-      
-      <div class="dashboard-split">
-        
-        <!-- Left: FamPay / Gmail Auto-Detector Setup -->
-        <div class="panel-card" style="border-top: 3px solid #38bdf8;">
-          <div class="panel-title">
-            <span>📬 FamPay / Gmail Auto-Detection (IMAP Push)</span>
-            <span id="uiImapBadge" class="badge PENDING" style="font-size: 11px;">Disabled</span>
+        <!-- PLAN 2: 2-SITES MONTHLY -->
+        <div class="plan-card">
+          <div class="plan-name">2-Websites Monthly</div>
+          <div class="plan-price-wrap">
+            <span class="plan-currency">₹</span>
+            <span class="plan-amount">549</span>
+            <span class="plan-period">/ month</span>
           </div>
+          <div class="plan-credits-pill" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">♾️ Unlimited QRs (2 Sites)</div>
 
-          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
-            Enter your Gmail credentials below to automatically detect FamPay/Bank alert emails in real-time. 
-            Everything is saved directly to your database — <b>no terminal commands or .env editing needed!</b>
-          </p>
+          <ul class="plan-features-list">
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span><strong>♾️ Unlimited Dynamic UPI QRs</strong></span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span><strong>2 Websites Bound (Locked)</strong></span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>1-Second Auto-Verification</span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Direct Bank Settlement (0% Fee)</span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Multi-Domain Webhook Delivery</span>
+            </li>
+          </ul>
 
-          <form id="frontendImapForm">
-            <!-- Big Live Toggle Switch -->
-            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-              <div>
-                <div style="font-weight: 700; color: #fff; font-size: 14px;">Enable Real-Time Email Listener</div>
-                <div style="font-size: 12px; color: var(--text-muted);">Listens to incoming payment emails via IMAP IDLE without polling</div>
-              </div>
-              <label class="switch-label">
-                <input type="checkbox" id="uiImapEnabled" class="switch-input">
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Gmail Address *</label>
-              <input type="email" id="uiImapUser" class="form-control" placeholder="your_email@gmail.com" required>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Google 16-Character App Password *</label>
-              <div style="display: flex; gap: 8px;">
-                <input type="password" id="uiImapPass" class="form-control" placeholder="abcd efgh ijkl mnop">
-                <button type="button" class="btn btn-secondary" id="btnToggleShowPass" style="padding: 0 14px;" title="Show/Hide Password">👁️</button>
-              </div>
-              <div style="font-size: 11px; color: var(--text-dim); margin-top: 6px;">
-                Requires 2-Step Verification ON. Generate here: 
-                <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: #38bdf8; text-decoration: underline;">
-                  Google Account &rarr; Security &rarr; App Passwords ↗
-                </a>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Sender / Subject Filter Keywords</label>
-              <input type="text" id="uiImapFilter" class="form-control" value="fampay, famapp, alerts">
-              <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
-                Filters out non-payment emails.
-              </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div style="display: flex; gap: 12px; margin-top: 20px;">
-              <button type="button" class="btn btn-secondary" style="flex: 1; justify-content: center;" id="uiBtnTestImap">
-                🔍 Test Connection (1-Click)
-              </button>
-              <button type="submit" class="btn btn-primary" style="flex: 1.2; justify-content: center;" id="uiBtnSaveImap">
-                💾 Save & Start Live Listener
-              </button>
-            </div>
-          </form>
-
-          <!-- Test / Save Feedback Alert -->
-          <div id="uiImapFeedback" style="display: none; margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 13px;"></div>
+          <button type="button" class="btn-buy-plan" onclick="handleGoogleSignIn()">
+            <span>Get Started (₹549/mo)</span>
+            <span>➔</span>
+          </button>
         </div>
 
-        <!-- Right: Store & UPI Settings + Live Mailbox Inspector -->
-        <div>
-          
-          <!-- Card: UPI & Merchant Profile -->
-          <div class="panel-card">
-            <div class="panel-title">
-              <span>💳 UPI ID & Store Profile</span>
-              <span style="font-size: 11px; color: var(--text-dim);">Live Payments</span>
-            </div>
-
-            <form id="frontendSettingsForm">
-              <div class="form-group">
-                <label class="form-label">Merchant UPI ID (VPA) *</label>
-                <input type="text" id="uiUpiVpa" class="form-control" placeholder="yourname@fam" required>
-                <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
-                  This is the UPI ID embedded in the dynamic QR code for customers.
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Merchant / Business Name *</label>
-                <input type="text" id="uiMerchantName" class="form-control" placeholder="Personal Gateway" required>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Order Expiry Timeout (Minutes)</label>
-                <input type="number" id="uiExpiryMinutes" class="form-control" value="5" min="1" max="60">
-              </div>
-
-              <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="uiBtnSaveSettings">
-                💾 Save UPI Settings
-              </button>
-            </form>
-
-            <div id="uiSettingsFeedback" style="display: none; margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 12px;"></div>
+        <!-- PLAN 3: 1-SITE 1-YEAR -->
+        <div class="plan-card popular">
+          <div class="plan-badge-top">Save ₹1,589</div>
+          <div class="plan-name">1-Website 1-Year</div>
+          <div class="plan-price-wrap">
+            <span class="plan-currency">₹</span>
+            <span class="plan-amount">1999</span>
+            <span class="plan-period">/ year</span>
           </div>
+          <div class="plan-credits-pill" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">♾️ Unlimited QRs (365 Days)</div>
 
-          <!-- Card: Diagnostic Inbox Scanner -->
-          <div class="panel-card">
-            <div class="panel-title">
-              <span>🔎 Diagnostic Inbox Scanner</span>
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="uiBtnScanInbox">
-                📥 Scan Inbox Now
-              </button>
-            </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-              Directly fetches your latest 5 emails from Gmail and runs the FamPay parser on them to test live detection.
-            </p>
+          <ul class="plan-features-list">
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span><strong>♾️ Unlimited Dynamic UPI QRs</strong></span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span><strong>1 Website Bound (Locked)</strong></span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Priority High-Speed Verification</span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>365 Days Guaranteed Access</span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Priority 24/7 Developer VIP Support</span>
+            </li>
+          </ul>
 
-            <div id="inboxScanResults" style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto;">
-              <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 16px;">
-                Click "Scan Inbox Now" to test email parsing with your live mailbox.
-              </div>
-            </div>
-          </div>
-
+          <button type="button" class="btn-buy-plan purple" onclick="handleGoogleSignIn()">
+            <span>Get Started (₹1999/yr)</span>
+            <span>➔</span>
+          </button>
         </div>
 
-      </div>
-
-    </div>
-
-    <!-- ==================== TAB 4: API KEYS & INTEGRATION ==================== -->
-    <div class="tab-content" id="tabContentApiKey">
-      
-      <!-- Top Banner -->
-      <div class="panel-card" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(14, 20, 36, 0.95) 0%, rgba(30, 41, 59, 0.6) 100%); border-left: 4px solid var(--primary);">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
-          <div>
-            <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 6px;">🔑 Developer API Keys & Webhook Integration</h2>
-            <p style="font-size: 13px; color: var(--text-muted); max-width: 780px; line-height: 1.5;">
-              Use your secure Gateway API Key to create checkout sessions, initiate payments, and receive instant callbacks from your website, e-commerce store, Telegram bot, or custom backend.
-            </p>
+        <!-- PLAN 4: 2-SITES 1-YEAR -->
+        <div class="plan-card popular" style="border-color: rgba(245, 158, 11, 0.4);">
+          <div class="plan-badge-top" style="background: linear-gradient(135deg, #f59e0b, #d97706);">🔥 Save ₹2,889</div>
+          <div class="plan-name">2-Websites 1-Year</div>
+          <div class="plan-price-wrap">
+            <span class="plan-currency">₹</span>
+            <span class="plan-amount">3699</span>
+            <span class="plan-period">/ year</span>
           </div>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn btn-secondary" onclick="loadApiKeyDetails()">🔄 Refresh Status</button>
-          </div>
-        </div>
-      </div>
+          <div class="plan-credits-pill" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3);">♾️ Unlimited QRs (2 Sites / 365 Days)</div>
 
-      <div class="config-grid">
-        
-        <!-- Left Column: Multi-Domain API Key Manager -->
-        <div class="panel-card" style="grid-column: span 1;">
-          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span>🌐 Domain-Specific API Keys</span>
-              <span class="badge badge-success" id="apiKeyStatusBadge">🟢 Strictly Enforced</span>
-            </div>
-            <button class="btn btn-secondary" onclick="loadDomainKeysList()" style="padding: 4px 10px; font-size: 11px;">🔄 Refresh</button>
-          </div>
-          
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
-            Apne alag-alag websites/domains (jaise <code style="color: var(--primary);">dealsbyshiv.web.app</code>) ke liye alag API Key banayein. Har request par domain verify hota hai taaki koi doosra aapki key copy karke use na kar sake.
-          </p>
+          <ul class="plan-features-list">
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span><strong>♾️ Unlimited Dynamic UPI QRs</strong></span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span><strong>2 Websites Bound (Locked)</strong></span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Priority High-Speed Verification</span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>365 Days Access on 2 Domains</span>
+            </li>
+            <li class="plan-feature-item">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Dedicated VIP Account Manager</span>
+            </li>
+          </ul>
 
-          <!-- Strict Enforcement Toggle -->
-          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <div style="font-weight: 600; font-size: 13px;">Strict Domain & Key Enforcement</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-                  Block order creation if <code style="color: var(--primary);">x-api-key</code> is missing, invalid, or domain mismatch.
-                </div>
-              </div>
-              <label class="switch-label">
-                <input type="checkbox" id="uiToggleRequireApiKey" class="switch-input" onchange="toggleRequireApiKey(this.checked)">
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Add New Domain Key Form -->
-          <div style="background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 24px;">
-            <div style="font-weight: 600; font-size: 13px; color: var(--primary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-              <span>➕ Nayi Domain API Key Banayein</span>
-            </div>
-
-            <form id="formAddDomainKey" onsubmit="handleCreateDomainKey(event)">
-              <div class="form-group" style="margin-bottom: 10px;">
-                <label class="form-label" style="font-size: 11px;">Target Website / Domain <span style="color: var(--accent-red);">*</span></label>
-                <input type="text" id="inputNewKeyDomain" class="form-control" placeholder="e.g. dealsbyshiv.web.app, store2.com, or * (all)" required style="font-size: 12.5px;">
-                <div style="font-size: 10.5px; color: var(--text-dim); margin-top: 3px;">
-                  Tip: Agar sabhi domains pe allow karna hai toh <code style="color: var(--primary);">*</code> likhein.
-                </div>
-              </div>
-
-              <div class="form-group" style="margin-bottom: 10px;">
-                <label class="form-label" style="font-size: 11px;">Store / Key Label (Pehchan ke liye)</label>
-                <input type="text" id="inputNewKeyLabel" class="form-control" placeholder="e.g. Main DealsByShiv Store, Backup Site" style="font-size: 12.5px;">
-              </div>
-
-              <div class="form-group" style="margin-bottom: 14px;">
-                <label class="form-label" style="display: flex; justify-content: space-between; font-size: 11px;">
-                  <span>API Key (Custom ya Auto-generate)</span>
-                  <a href="javascript:void(0)" onclick="generateRandomKeyToInput()" style="color: var(--primary); text-decoration: none; font-size: 11px;">🎲 Generate Random</a>
-                </label>
-                <div style="display: flex; gap: 8px;">
-                  <input type="text" id="inputNewKeyValue" class="form-control" placeholder="pg_live_... (khali chhodne par auto generate hoga)" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">
-                  <button type="button" class="btn btn-secondary" onclick="generateRandomKeyToInput()" style="padding: 0 10px; font-size: 11px;">
-                    🎲 Auto
-                  </button>
-                </div>
-              </div>
-
-              <div id="addKeyFeedback" style="display: none; font-size: 12px; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px;"></div>
-
-              <button type="submit" class="btn btn-primary" id="btnSubmitNewKey" style="width: 100%; justify-content: center; padding: 9px; font-size: 13px;">
-                💾 Register & Activate Domain Key
-              </button>
-            </form>
-          </div>
-
-          <!-- Domain Keys List -->
-          <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-weight: 600; font-size: 13px;">Active Domain API Keys (<span id="domainKeysCount">0</span>)</div>
-          </div>
-
-          <div id="domainKeysListContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
-            <div style="text-align: center; color: var(--text-dim); padding: 20px; font-size: 12px;">Loading keys...</div>
-          </div>
-
-          <!-- Quick Test Console -->
-          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-card);">
-            <div class="panel-title" style="margin-bottom: 8px;">
-              <span>⚡ Live API Authenticator Test</span>
-            </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-              Kisi bhi domain key ke saath instant test request fire karein:
-            </p>
-            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-              <select id="testDomainKeySelect" class="form-control" style="flex: 2; font-size: 12px;">
-                <option value="">Select Domain Key</option>
-              </select>
-              <input type="number" id="testOrderAmount" class="form-control" value="10.00" style="flex: 1; max-width: 100px;" placeholder="₹">
-            </div>
-            <button class="btn btn-primary" onclick="testApiKeyOrderCreation()" style="width: 100%; justify-content: center;">
-              🚀 Test Create Order (₹)
-            </button>
-            <div id="apiTestConsoleResult" style="margin-top: 12px; display: none;" class="code-box"></div>
-          </div>
-
+          <button type="button" class="btn-buy-plan" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; font-weight: 800;" onclick="handleGoogleSignIn()">
+            <span>Get Started (₹3699/yr)</span>
+            <span>➔</span>
+          </button>
         </div>
 
-        <!-- Right Column: Interactive Integration Snippets -->
-        <div class="panel-card">
-          <div class="panel-title">
-            <span>💻 Integration Code Examples</span>
-          </div>
-
-          <!-- Language Subnav Tabs -->
-          <div class="code-subnav">
-            <button class="code-subtab active" id="codeTabCurl" onclick="switchCodeSnippet('curl')">cURL</button>
-            <button class="code-subtab" id="codeTabNodejs" onclick="switchCodeSnippet('nodejs')">Node.js</button>
-            <button class="code-subtab" id="codeTabPython" onclick="switchCodeSnippet('python')">Python</button>
-            <button class="code-subtab" id="codeTabPhp" onclick="switchCodeSnippet('php')">PHP</button>
-          </div>
-
-          <!-- Snippet Container -->
-          <div style="position: relative;">
-            <button class="copy-snippet-btn" onclick="copyCurrentSnippet()">
-              📋 Copy Code
-            </button>
-            <pre class="code-box" id="codeSnippetBox">// Loading snippet...</pre>
-          </div>
-
-          <!-- Webhook Callback Structure -->
-          <div style="margin-top: 20px;">
-            <div class="panel-title" style="margin-bottom: 6px;">
-              <span>📡 Webhook Payload Format</span>
-            </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
-              When customer pays, the gateway fires an asynchronous POST request to your <code style="color: var(--primary);">webhookUrl</code>:
-            </p>
-            <pre class="code-box" style="color: #a78bfa;">{
-  "event": "payment.success",
-  "data": {
-    "orderCode": "ORD-ABC123",
-    "amount": 500.00,
-    "utr": "214771578746",
-    "sender": "MEENA KUMARI",
-    "paidAt": 1788475800000
-  }
-}</pre>
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-    <!-- ==================== TAB 5: REQUEST NOTES & API ACTIVITY ==================== -->
-    <div class="tab-content" id="tabContentLogs">
-      <div class="panel-card" style="border-top: 3px solid #38bdf8; margin-bottom: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-          <div>
-            <div style="font-size: 17px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-              <span>📝 External Website Request Notes & Activity Logs</span>
-              <span class="badge PAID" style="font-size: 11px;">Allowed: https://dealsbyshiv.web.app</span>
-            </div>
-            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-              Live tracking of all order creations, webhook dispatches, payment auto-matches, and security events from your external store.
-            </div>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button class="btn btn-secondary" onclick="loadApiLogs()" style="font-size: 12px; padding: 6px 14px;">
-              🔄 Refresh Notes
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Logs Table Card -->
-      <div class="panel-card">
-        <div class="panel-title">
-          <span>📜 Incoming Requests & Event Notes</span>
-          <span style="font-size: 11px; color: var(--text-dim);" id="apiLogsCount">0 entries</span>
-        </div>
-
-        <div style="overflow-x: auto;">
-          <table class="table" style="width: 100%;">
-            <thead>
-              <tr>
-                <th style="width: 140px;">Time</th>
-                <th style="width: 110px;">Status</th>
-                <th style="width: 160px;">Event</th>
-                <th>Title & Note Details</th>
-                <th style="width: 200px;">Origin / IP</th>
-              </tr>
-            </thead>
-            <tbody id="apiLogsTableBody">
-              <tr>
-                <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 30px;">
-                  Loading activity logs...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
 
-  <!-- Modal: Create Order -->
-  <div class="modal-overlay" id="modalCreateOrder">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 class="modal-title">Create New Order</h3>
-        <button class="modal-close" onclick="closeModal('modalCreateOrder')">&times;</button>
-      </div>
+  </main>
 
-      <form id="createOrderForm">
-        <div class="form-group">
-          <label class="form-label">Amount (₹) *</label>
-          <input type="number" id="orderAmount" class="form-control" placeholder="100.00" step="0.01" required>
-        </div>
+  <footer style="text-align: center; padding: 40px 20px; border-top: 1px solid var(--border-subtle); color: var(--text-dim); font-size: 13px;">
+    <div>© 2026 PayPerpendicular Platform. Self-Hosted Personal UPI Gateway & Dynamic QR Engine.</div>
+  </footer>
 
-        <div class="form-group">
-          <label class="form-label">Customer Name</label>
-          <input type="text" id="orderCustomerName" class="form-control" placeholder="Rahul Sharma">
-        </div>
+  <script>
+    const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';
+    const firebaseConfig = {
+      apiKey: "AIzaSyCdeUo_GtvqTlgq-gXG71wtPPehC2mCOpw",
+      authDomain: "upigateway-ccaa4.firebaseapp.com",
+      databaseURL: "https://upigateway-ccaa4-default-rtdb.firebaseio.com",
+      projectId: "upigateway-ccaa4",
+      storageBucket: "upigateway-ccaa4.firebasestorage.app",
+      messagingSenderId: "493744816437",
+      appId: "1:493744816437:web:6316a146951e7f0b8d0c7c",
+      measurementId: "G-096R1MKTV2"
+    };
 
-        <div class="form-group">
-          <label class="form-label">Customer Phone / Email</label>
-          <input type="text" id="orderCustomerPhone" class="form-control" placeholder="9876543210">
-        </div>
+    let fbAuth = null;
+    try {
+      if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        fbAuth = firebase.auth();
+      }
+    } catch (e) {
+      console.warn('Firebase init:', e.message);
+    }
 
-        <div class="form-group">
-          <label class="form-label">Webhook URL (Optional)</label>
-          <input type="url" id="orderWebhook" class="form-control" placeholder="https://your-site.com/api/payment-webhook">
-        </div>
+    async function handleGoogleSignIn() {
+      if (!fbAuth) {
+        alert('Authentication library is loading. Please check your connection.');
+        return;
+      }
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        const result = await fbAuth.signInWithPopup(provider);
+        const user = result.user;
+        const email = (user.email || '').toLowerCase().trim();
 
-        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="btnSubmitOrder">
-          Generate Checkout Session
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <script src="/js/admin.js"></script>
+        if (email === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
+          sessionStorage.setItem('gateway_admin_auth', 'google');
+          sessionStorage.setItem('gateway_admin_email', email);
+          window.location.href = '/admin';
+        } else {
+          // Sync with backend
+          await fetch('/api/v1/user/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email,
+              name: user.displayName || 'User',
+              photoUrl: user.photoURL || ''
+            })
+          });
+          window.location.href = '/user';
+        }
+      } catch (err) {
+        console.error('Sign-In Error:', err);
+        alert('Sign-In error: ' + err.message);
+      }
+    }
+  </script>
 </body>
 </html>

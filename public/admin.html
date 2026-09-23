@@ -75,124 +75,290 @@
     </div>
   </div>
 
-  <!-- Top Navbar -->
-  <nav class="navbar">
-    <div class="brand-box">
-      <div class="brand-icon">⚡</div>
-      <div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="brand-title">Personal UPI Gateway</span>
-          <span class="brand-tag">P2P Realtime</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="nav-actions">
-      <!-- IMAP Live Status Pill -->
-      <div class="status-pill" id="imapStatusPill" title="Status of FamPay/Gmail Email Listener">
-        <div class="status-dot disconnected" id="imapDot"></div>
-        <span id="imapText">IMAP: Checking...</span>
-      </div>
-
-      <button class="btn btn-primary" id="btnOpenCreateOrder">+ Create Order</button>
-      <button class="btn btn-secondary" id="btnAdminLock" onclick="lockAdminDashboard()" title="Lock Dashboard & Logout" style="padding: 6px 12px; font-size: 12px;">🔒 Lock</button>
-    </div>
-  </nav>
-
-  <!-- Dashboard Main Content -->
-  <main class="dashboard-container">
+  <!-- ======================================================== -->
+  <!-- MODERN 2-LINE / 3-LINE SIDEBAR LAYOUT                    -->
+  <!-- ======================================================== -->
+  <div class="admin-layout-wrapper">
     
-    <!-- Top Navigation Tabs (Zero .env hassle!) -->
-    <div class="tabs-nav">
-      <button class="tab-btn active" id="tabBtnDashboard" onclick="switchTab('dashboard')">
-        📊 Live Dashboard & Orders
-      </button>
-      <button class="tab-btn" id="tabBtnLedger" onclick="switchTab('ledger')">
-        💰 Email Payments Ledger (पुराना हिसाब-किताब)
-      </button>
-      <button class="tab-btn" id="tabBtnConfig" onclick="switchTab('config')">
-        ⚡ Gateway Controls (Zero .env)
-      </button>
-      <button class="tab-btn" id="tabBtnApiKey" onclick="switchTab('apiKey')">
-        🔑 API Keys & Integration
-      </button>
-      <button class="tab-btn" id="tabBtnLogs" onclick="switchTab('logs')">
-        📝 Request Notes & Live Activity
-      </button>
-    </div>
-
-    <!-- ==================== TAB 1: LIVE DASHBOARD ==================== -->
-    <div class="tab-content active" id="tabContentDashboard">
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar-2line" id="adminSidebar">
       
-      <!-- 4 Key Metrics -->
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-header">
-            <span>Total Collected Volume</span>
-            <span>💰</span>
-          </div>
-          <div class="metric-val" id="metricRevenue">₹ 0.00</div>
-          <div class="metric-sub">Across all completed UPI orders</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-header">
-            <span>Total Orders</span>
-            <span>📦</span>
-          </div>
-          <div class="metric-val" id="metricTotalOrders">0</div>
-          <div class="metric-sub">Generated checkout sessions</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-header">
-            <span>Paid Orders</span>
-            <span>✅</span>
-          </div>
-          <div class="metric-val" id="metricPaidOrders">0</div>
-          <div class="metric-sub" id="metricConversion">0% Success Rate</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-header">
-            <span>Active Pending Sessions</span>
-            <span>⏳</span>
-          </div>
-          <div class="metric-val" id="metricPendingOrders" style="color: var(--accent-amber);">0</div>
-          <div class="metric-sub">Currently waiting for payment</div>
+      <!-- Brand Box -->
+      <div class="sidebar-brand-box">
+        <div class="brand-icon">⚡</div>
+        <div>
+          <div style="font-size: 15px; font-weight: 800; color: #fff; letter-spacing: -0.3px;">PayPerpendicular</div>
+          <div style="font-size: 11px; color: #38bdf8; font-weight: 700; text-transform: uppercase;">ADMIN CONTROL ROOM</div>
         </div>
       </div>
 
-      <!-- Split Section: Orders Table & Interactive Simulator -->
-      <div class="dashboard-split">
+      <!-- Admin Profile Card -->
+      <div class="sidebar-user-card">
+        <img id="adminSidebarAvatar" src="https://ui-avatars.com/api/?name=Super+Admin&background=a855f7&color=fff" class="sidebar-user-avatar" alt="Admin Avatar">
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="adminSidebarName">Super Admin</div>
+          <div class="sidebar-user-email" id="adminSidebarEmail">hapa1929@gmail.com</div>
+          <span class="sidebar-plan-pill" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border-color: rgba(168, 85, 247, 0.4);">
+            🛡️ SUPERADMIN
+          </span>
+        </div>
+      </div>
+
+      <!-- 2-Line Navigation Items -->
+      <nav class="sidebar-nav">
         
-        <!-- Left: Orders Table -->
+        <!-- 1. USERS & MERCHANTS (PRIMARY TRACKING) -->
+        <button type="button" class="sidebar-item-2line active" id="nav_admin_users" onclick="switchAdminSidebar('users')">
+          <div class="sidebar-item-icon" style="background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">👥</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Users &amp; Merchants</div>
+            <div class="sidebar-item-line2">Track All Registered Accounts</div>
+          </div>
+          <span class="sidebar-item-badge success" id="badgeTotalUsersCount">0</span>
+        </button>
+
+        <!-- 2. SUBSCRIPTION PURCHASES & REVENUE -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_subscriptions" onclick="switchAdminSidebar('subscriptions')">
+          <div class="sidebar-item-icon" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.3); color: #c084fc;">💳</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Subscriptions &amp; Sales</div>
+            <div class="sidebar-item-line2">Who Bought Plans &amp; UTRs</div>
+          </div>
+          <span class="sidebar-item-badge admin">SALES</span>
+        </button>
+
+        <!-- 3. LIVE STORE ORDERS -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_orders" onclick="switchAdminSidebar('orders')">
+          <div class="sidebar-item-icon" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); color: #34d399;">📦</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Live Store Orders</div>
+            <div class="sidebar-item-line2">Customer QRs &amp; Sessions</div>
+          </div>
+          <span class="sidebar-item-badge" style="background: rgba(255,255,255,0.06); color: var(--text-dim);">ORDERS</span>
+        </button>
+
+        <!-- 4. BANK PAYMENTS LEDGER -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_ledger" onclick="switchAdminSidebar('ledger')">
+          <div class="sidebar-item-icon" style="background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24;">💰</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Bank Alerts Ledger</div>
+            <div class="sidebar-item-line2">IMAP &amp; Raw UPI Credits</div>
+          </div>
+          <span class="sidebar-item-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">IMAP</span>
+        </button>
+
+        <!-- 5. GATEWAY CONTROLS -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_config" onclick="switchAdminSidebar('config')">
+          <div class="sidebar-item-icon">⚡</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Gateway Controls</div>
+            <div class="sidebar-item-line2">UPI Settings & Zero .env Config</div>
+          </div>
+        </button>
+
+        <!-- 6. IMAP & SETTLEMENT SETUP -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_imap" onclick="switchAdminSidebar('imap')">
+          <div class="sidebar-item-icon" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); color: #34d399;">📧</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">IMAP & Settlement</div>
+            <div class="sidebar-item-line2">Gmail · FamPay · Auto-Verify</div>
+          </div>
+          <span class="sidebar-item-badge" style="background: rgba(16,185,129,0.15); color: #34d399;">IMAP</span>
+        </button>
+
+        <!-- 7. COUPONS & PRICING -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_coupons" onclick="switchAdminSidebar('coupons')">
+          <div class="sidebar-item-icon" style="background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24;">🏷️</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Coupons & Pricing</div>
+            <div class="sidebar-item-line2">Discount Codes & Plan Prices</div>
+          </div>
+          <span class="sidebar-item-badge" id="badgeCouponsCount" style="background: rgba(245,158,11,0.15); color: #fbbf24;">0</span>
+        </button>
+
+        <!-- 8. API KEYS & DOMAINS -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_apiKey" onclick="switchAdminSidebar('apiKey')">
+          <div class="sidebar-item-icon">🔑</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">API Keys &amp; Domains</div>
+            <div class="sidebar-item-line2">Website Bindings &amp; Auth</div>
+          </div>
+        </button>
+
+
+        <!-- 9. LIVE ACTIVITY LOGS -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_logs" onclick="switchAdminSidebar('logs')">
+          <div class="sidebar-item-icon">📝</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Live Activity Logs</div>
+            <div class="sidebar-item-line2">Audit Events &amp; Requests</div>
+          </div>
+        </button>
+
+        <!-- 10. SWITCH TO MERCHANT PORTAL -->
+        <a href="/user" target="_blank" class="sidebar-item-2line" style="margin-top: 12px; background: rgba(56, 189, 248, 0.04); border-color: rgba(56, 189, 248, 0.2);">
+          <div class="sidebar-item-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">🌐</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1" style="color: #38bdf8;">Merchant Portal ↗</div>
+            <div class="sidebar-item-line2">Open User Merchant Panel</div>
+          </div>
+        </a>
+
+      </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <div class="sidebar-engine-status">
+          <span>🟢</span>
+          <span>Core Engine: 100% Operational</span>
+        </div>
+        <button type="button" class="sidebar-btn-lock" onclick="lockAdminDashboard()">
+          <span>🔒</span>
+          <span>Lock Terminal</span>
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- RIGHT MAIN CONTENT AREA -->
+    <div class="main-content-area">
+      
+      <!-- Content Topbar -->
+      <header class="content-topbar">
+        <h1 class="topbar-page-title" id="adminViewTitle">👥 Registered Users &amp; Subscription Tracking</h1>
+
+        <div class="topbar-quick-stats">
+          <div class="topbar-stat-pill">
+            <span>👥 Users:</span>
+            <strong id="topbarStatTotalUsers" style="color: #fff;">0</strong>
+          </div>
+          <div class="topbar-stat-pill">
+            <span>👑 Subscribed:</span>
+            <strong id="topbarStatPaidUsers" style="color: #34d399;">0</strong>
+          </div>
+          <div class="topbar-stat-pill">
+            <span>🆓 Unsubscribed:</span>
+            <strong id="topbarStatFreeUsers" style="color: #f87171;">0</strong>
+          </div>
+          <div class="topbar-stat-pill">
+            <span>💰 Sub Revenue:</span>
+            <strong id="topbarStatSubRevenue" style="color: #c084fc;">₹0.00</strong>
+          </div>
+
+          <!-- IMAP Live Status Pill -->
+          <div class="status-pill" id="imapStatusPill" title="Status of FamPay/Gmail Email Listener" style="margin: 0;">
+            <div class="status-dot disconnected" id="imapDot"></div>
+            <span id="imapText">IMAP: Checking...</span>
+          </div>
+
+          <button type="button" class="btn btn-primary" id="btnOpenCreateOrder" style="padding: 6px 12px; font-size: 12px;">+ Create Order</button>
+          <button type="button" class="btn btn-secondary" onclick="refreshAdminAll()" style="padding: 6px 12px; font-size: 12px;">🔄 Refresh All</button>
+        </div>
+      </header>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 1: USERS & MERCHANTS TRACKING (PRIMARY)             -->
+      <!-- ======================================================== -->
+      <section id="view_admin_users" class="admin-view-section active">
+        
+        <!-- 6 Metrics for User Tracking -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Total Registered Users</span>
+              <span>👥</span>
+            </div>
+            <div class="metric-val" id="metricAdminUsersTotal">0</div>
+            <div class="metric-sub">Across all registered merchant accounts</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Active Subscribed Users</span>
+              <span>👑</span>
+            </div>
+            <div class="metric-val" id="metricAdminUsersPaid" style="color: #34d399;">0</div>
+            <div class="metric-sub" id="metricAdminSubRate">0% of total users</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Unsubscribed / Free Users</span>
+              <span>🆓</span>
+            </div>
+            <div class="metric-val" id="metricAdminUsersFree" style="color: #f87171;">0</div>
+            <div class="metric-sub">Plan = NONE (no plan purchased)</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Subscription Conversion Rate</span>
+              <span>📈</span>
+            </div>
+            <div class="metric-val" id="metricAdminConversion" style="color: #38bdf8;">0.0%</div>
+            <div class="metric-sub">Plan purchase conversion ratio</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Total Subscription Revenue</span>
+              <span>💰</span>
+            </div>
+            <div class="metric-val" id="metricAdminSubRevenue" style="color: #c084fc;">₹ 0.00</div>
+            <div class="metric-sub">Collected from all plan purchases</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Active Bound Websites</span>
+              <span>🌐</span>
+            </div>
+            <div class="metric-val" id="metricAdminLockedWebsites" style="color: #38bdf8;">0</div>
+            <div class="metric-sub">Merchant domains locked to API keys</div>
+          </div>
+        </div>
+
+        <!-- Users Directory Table Panel -->
         <div class="panel-card">
-          <div class="panel-title">
-            <span>Recent Orders & Checkout Sessions</span>
-            <div style="display: flex; gap: 8px;">
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('ALL')">All</button>
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('PENDING')">Pending</button>
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('PAID')">Paid</button>
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>📋 All Users Directory &amp; Subscription Tracking</span>
+              <span style="font-size: 11px; color: var(--text-dim);" id="adminUsersCount">0 users</span>
+            </div>
+
+            <!-- Search and Filter Toolbar -->
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <input type="text" id="adminUsersSearchInput" placeholder="🔍 Search name, email, UPI ID..." class="form-control" style="width: 240px; padding: 6px 12px; font-size: 12px;" oninput="filterAdminUsersTable()">
+              
+              <div style="display: inline-flex; background: rgba(255,255,255,0.04); border: 1px solid var(--border-card); border-radius: 8px; padding: 2px;">
+                <button type="button" class="btn btn-secondary active" id="filterUserBtnAll" onclick="setUserFilter('ALL', this)" style="padding: 4px 10px; font-size: 11px; border: none;">All</button>
+                <button type="button" class="btn btn-secondary" id="filterUserBtnPaid" onclick="setUserFilter('PAID', this)" style="padding: 4px 10px; font-size: 11px; border: none; color: #34d399;">Subscribed</button>
+                <button type="button" class="btn btn-secondary" id="filterUserBtnFree" onclick="setUserFilter('FREE', this)" style="padding: 4px 10px; font-size: 11px; border: none; color: #f87171;">Unsubscribed</button>
+              </div>
+
+              <button type="button" class="btn btn-secondary" onclick="loadAdminUsers()" style="padding: 6px 12px; font-size: 11px;">🔄 Refresh</button>
             </div>
           </div>
 
-          <div class="table-wrapper">
-            <table>
+          <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%;">
               <thead>
                 <tr>
-                  <th>Order Code</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Customer</th>
-                  <th>Time / UTR</th>
-                  <th>Action</th>
+                  <th style="width: 50px;">ID</th>
+                  <th>User &amp; Email</th>
+                  <th style="width: 130px;">Plan Tier</th>
+                  <th style="width: 130px;">Subscription Status</th>
+                  <th style="width: 160px;">Merchant UPI VPA</th>
+                  <th style="width: 170px;">Bound Website(s)</th>
+                  <th style="width: 120px;">Bank Gmail</th>
+                  <th style="width: 150px;">API Key</th>
+                  <th style="width: 110px;">Actions</th>
                 </tr>
               </thead>
-              <tbody id="ordersTableBody">
+              <tbody id="adminUsersTableBody">
                 <tr>
-                  <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">
-                    Loading orders...
+                  <td colspan="9" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                    Loading user records...
                   </td>
                 </tr>
               </tbody>
@@ -200,580 +366,500 @@
           </div>
         </div>
 
-        <!-- Right Column: Payment Simulator & Live Payment Feed -->
-        <div>
-          
-          <!-- Interactive Simulator Card -->
-          <div class="panel-card" style="border-left: 3px solid #a855f7;">
-            <div class="panel-title">
-              <span>⚡ Payment Simulator</span>
-              <span style="font-size: 11px; color: #c084fc;">Zero-Risk Test</span>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 2: SUBSCRIPTION PURCHASES & INVOICES TRACKING       -->
+      <!-- ======================================================== -->
+      <section id="view_admin_subscriptions" class="admin-view-section">
+        
+        <div class="panel-card" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(56, 189, 248, 0.08)); border-left: 4px solid var(--accent-purple);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <h2 style="font-size: 18px; font-weight: 800; color: #fff; margin: 0 0 4px;">💳 All Subscription Plan Purchases &amp; Invoices</h2>
+              <p style="font-size: 13px; color: var(--text-muted); margin: 0;">
+                Detailed tracking of which user bought which plan (1 to 5 websites, Monthly &amp; Annual), amount, UTR number, and payment status.
+              </p>
             </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
-              Simulate an incoming UPI/FamPay payment to test the Time-Window Matching Engine without sending real money!
-            </p>
+            <button type="button" class="btn btn-secondary" onclick="loadAdminSubscriptions()" style="padding: 6px 14px; font-size: 12px;">🔄 Refresh Subscriptions</button>
+          </div>
+        </div>
 
-            <!-- Quick 1-Click Test & Auto-Match -->
-            <div style="margin-bottom: 16px; padding: 12px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(56, 189, 248, 0.1) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm);">
-              <div style="font-size: 12px; font-weight: 600; color: #34d399; margin-bottom: 4px;">⚡ 1-Click Instant End-to-End Test</div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
-                Creates an order and immediately sends a matching simulated payment to see the real-time match in action!
-              </div>
-              <button type="button" class="btn btn-primary" id="btnQuickSimulate" onclick="quickCreateAndSimulate()" style="width: 100%; justify-content: center; font-size: 13px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                ⚡ 1-Click: Create Order & Auto-Match ₹100
-              </button>
-            </div>
-
-            <!-- Manual Custom Simulator Form -->
-            <form id="simulatorForm">
-              <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <label class="form-label" style="margin-bottom: 0;">Amount (₹)</label>
-                  <span style="font-size: 11px; color: var(--text-dim);" id="simActiveOrdersHint">Active Pending Orders:</span>
-                </div>
-                <div id="simPendingChips" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0;">
-                  <span style="font-size: 11px; color: var(--text-dim);">Checking pending orders...</span>
-                </div>
-                <input type="number" id="simAmount" class="form-control" placeholder="e.g. 100" step="0.01" required>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">UTR / Reference No. (Optional)</label>
-                <input type="text" id="simUtr" class="form-control" placeholder="Leave empty for auto-generated UTR">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Sender Name / UPI ID</label>
-                <input type="text" id="simSender" class="form-control" value="Harsh (Simulated Buyer)">
-              </div>
-
-              <button type="submit" class="btn btn-sim" style="width: 100%; justify-content: center;" id="btnSimulate">
-                🚀 Simulate Incoming Payment
-              </button>
-            </form>
-
-            <div id="simResult" style="margin-top: 12px; font-size: 12.5px; display: none; padding: 12px; border-radius: var(--radius-sm); line-height: 1.5;"></div>
+        <div class="panel-card">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <span>🧾 Subscription Orders List</span>
+            <span style="font-size: 11.5px; color: var(--text-dim);" id="adminSubscriptionsCount">0 orders</span>
           </div>
 
-          <!-- Live Payment Feed -->
+          <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th style="width: 160px;">Order Code</th>
+                  <th>Merchant / Buyer</th>
+                  <th style="width: 170px;">Plan Purchased</th>
+                  <th style="width: 110px;">Amount</th>
+                  <th style="width: 110px;">Status</th>
+                  <th>Bank UTR Ref</th>
+                  <th style="width: 170px;">Purchase Date</th>
+                  <th style="width: 110px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminSubscriptionsTableBody">
+                <tr>
+                  <td colspan="8" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                    Loading subscription orders...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 3: LIVE STORE ORDERS & CHECKOUT SESSIONS            -->
+      <!-- ======================================================== -->
+      <section id="view_admin_orders" class="admin-view-section">
+        
+        <!-- 4 Key Metrics -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Customer Store Volume</span>
+              <span>💰</span>
+            </div>
+            <div class="metric-val" id="metricRevenue">₹ 0.00</div>
+            <div class="metric-sub">Across all completed customer orders</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Total Store Orders</span>
+              <span>📦</span>
+            </div>
+            <div class="metric-val" id="metricTotalOrders">0</div>
+            <div class="metric-sub">Generated checkout sessions</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Paid Store Orders</span>
+              <span>✅</span>
+            </div>
+            <div class="metric-val" id="metricPaidOrders">0</div>
+            <div class="metric-sub" id="metricConversion">0% Success Rate</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Active Pending Sessions</span>
+              <span>⏳</span>
+            </div>
+            <div class="metric-val" id="metricPendingOrders" style="color: var(--accent-amber);">0</div>
+            <div class="metric-sub">Currently waiting for payment</div>
+          </div>
+        </div>
+
+        <div class="dashboard-split">
+          
+          <!-- Orders Table -->
           <div class="panel-card">
+            <div class="panel-title">
+              <span>Recent Store Orders &amp; Checkout Sessions</span>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('ALL')">All</button>
+                <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('PENDING')">Pending</button>
+                <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadOrders('PAID')">Paid</button>
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Order Code</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Customer</th>
+                    <th>Time / UTR</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="ordersTableBody">
+                  <tr>
+                    <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                      Loading orders...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Incoming Payments Live Feed -->
+          <div class="panel-card" style="min-width: 320px;">
             <div class="panel-title">
               <span>📥 Incoming Payments Log</span>
               <span style="font-size: 11px; color: var(--text-dim);" id="paymentsCount">0 items</span>
             </div>
-
-            <div id="paymentsFeed" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+            <div id="paymentsFeed" style="display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow-y: auto;">
               <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">
-                No payments recorded yet.
+                Listening for payments...
               </div>
             </div>
           </div>
 
         </div>
 
-      </div>
+      </section>
 
-      <!-- Live Request Activity Notes Card -->
-      <div class="panel-card" style="margin-top: 24px; border-top: 2px solid #38bdf8;">
-        <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="display: flex; align-items: center; gap: 8px;">
-            <span>⚡ Live Request Notes (DealsByShiv Integration)</span>
-            <span class="badge PAID" style="font-size: 10px;">Allowed: https://dealsbyshiv.web.app</span>
-          </span>
-          <button class="btn btn-secondary" onclick="switchTab('logs')" style="padding: 3px 10px; font-size: 11px;">
-            View All Notes ↗
-          </button>
-        </div>
-        <div id="dashboardMiniLogsFeed" style="display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto;">
-          <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 15px;">
-            Waiting for requests from https://dealsbyshiv.web.app...
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ==================== TAB 2: EMAIL PAYMENTS LEDGER & HISAB ==================== -->
-    <div class="tab-content" id="tabContentLedger">
-      
-      <!-- Top Actions Bar -->
-      <div class="panel-card" style="border-top: 3px solid #10b981; margin-bottom: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-          <div>
-            <div style="font-size: 17px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-              <span>💰 Email Payments Ledger & Hisab (पुराना खाता)</span>
-            </div>
-            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-              Automatically reads all past FamPay / UPI payment emails from your Gmail inbox and builds an accurate financial ledger!
-            </div>
-          </div>
-
-          <div style="display: flex; gap: 10px;">
-            <button class="btn btn-primary" id="btnSyncAllEmails" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-              🔄 1-Click Sync Past Payments from Gmail
-            </button>
-          </div>
-        </div>
-
-        <div id="syncFeedback" style="display: none; margin-top: 14px; padding: 12px; border-radius: 8px; font-size: 13px;"></div>
-      </div>
-
-      <!-- Financial Summary Metrics -->
-      <div class="metrics-grid">
-        <div class="metric-card" style="border-left: 3px solid #10b981;">
-          <div class="metric-header">
-            <span>Total Money in Ledger</span>
-            <span>💵</span>
-          </div>
-          <div class="metric-val" id="ledgerTotalMoney" style="color: #34d399;">₹ 0.00</div>
-          <div class="metric-sub">Sum of all parsed email payments</div>
-        </div>
-
-        <div class="metric-card" style="border-left: 3px solid #38bdf8;">
-          <div class="metric-header">
-            <span>Total Transactions Recorded</span>
-            <span>📑</span>
-          </div>
-          <div class="metric-val" id="ledgerTotalCount">0</div>
-          <div class="metric-sub">Verified payments in ledger</div>
-        </div>
-
-        <div class="metric-card" style="border-left: 3px solid #a855f7;">
-          <div class="metric-header">
-            <span>Top Paying Customer</span>
-            <span>👑</span>
-          </div>
-          <div class="metric-val" id="ledgerTopCustomer" style="font-size: 22px; margin-top: 6px;">-</div>
-          <div class="metric-sub" id="ledgerTopCustomerAmount">No data yet</div>
-        </div>
-      </div>
-
-      <!-- Split: Top Senders Breakdown + Quick Paste Tool -->
-      <div class="dashboard-split" style="margin-bottom: 24px;">
+      <!-- ======================================================== -->
+      <!-- VIEW 4: BANK PAYMENTS LEDGER                             -->
+      <!-- ======================================================== -->
+      <section id="view_admin_ledger" class="admin-view-section">
         
-        <!-- Top Senders Breakdown -->
+        <div class="panel-card" style="margin-bottom: 24px; border-left: 4px solid var(--accent-amber);">
+          <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">💰 Email Payments Ledger</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin: 0;">
+            All UPI transaction credit alerts received via automated bank notification emails or IMAP sync.
+          </p>
+        </div>
+
         <div class="panel-card">
           <div class="panel-title">
-            <span>👥 Customer / Sender Breakdown (किसने कितना दिया)</span>
+            <span>📜 Transaction Ledger Records</span>
+            <button class="btn btn-secondary" onclick="loadLedger()" style="padding: 4px 10px; font-size: 11px;">🔄 Refresh</button>
           </div>
-          <div id="ledgerTopSendersList" style="display: flex; flex-direction: column; gap: 10px;">
-            <div style="text-align: center; color: var(--text-dim); padding: 20px; font-size: 13px;">
-              No payment history loaded yet. Sync with Gmail or paste an email below.
-            </div>
+
+          <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Amount</th>
+                  <th>UTR / Reference</th>
+                  <th>Sender</th>
+                  <th>Status</th>
+                  <th>Matched Order</th>
+                </tr>
+              </thead>
+              <tbody id="ledgerTableBody">
+                <tr>
+                  <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">Loading ledger...</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <!-- Quick Paste Email Box -->
-        <div class="panel-card" style="border-left: 3px solid #f59e0b;">
-          <div class="panel-title">
-            <span>📋 Paste Any Past Email (तुरंत हिसाब जोड़ें)</span>
-          </div>
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-            You can paste any FamPay receipt text directly here, and the engine will immediately parse the Amount, UTR, and Sender into the ledger!
-          </p>
+      </section>
 
-          <form id="pasteEmailForm">
-            <textarea id="pasteEmailInput" class="form-control" rows="4" placeholder="Paste FamPay / Bank alert email text here... e.g. You have successfully received ₹500.0 from MEENA KUMARI..." style="font-family: inherit; font-size: 12px; margin-bottom: 10px;" required></textarea>
-            <button type="submit" class="btn btn-secondary" style="width: 100%; justify-content: center;" id="btnParsePaste">
-              ⚡ Parse & Add to Ledger
+      <!-- ======================================================== -->
+      <!-- VIEW 5: GATEWAY CONTROLS                                 -->
+      <!-- ======================================================== -->
+      <section id="view_admin_config" class="admin-view-section">
+        
+        <div class="panel-card" style="margin-bottom: 24px; border-left: 4px solid var(--primary);">
+          <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">⚡ Gateway Global Controls (Zero .env)</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin: 0;">
+            Configure platform defaults, merchant UPI address, session expiration, and notification bridges.
+          </p>
+        </div>
+
+        <div class="panel-card" style="max-width: 680px;">
+          <form id="settingsForm" onsubmit="handleSaveSettings(event)">
+            <div class="form-group">
+              <label class="form-label">Platform Default Merchant UPI ID</label>
+              <input type="text" id="configMerchantVpa" class="form-control" placeholder="e.g. yourshop@okhdfcbank" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Default Platform Business Name</label>
+              <input type="text" id="configMerchantName" class="form-control" placeholder="e.g. Personal Gateway" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Order Expiry (Minutes)</label>
+              <input type="number" id="configExpiryMinutes" class="form-control" placeholder="5" min="1" max="60" required>
+            </div>
+
+            <div id="settingsFeedback" style="display: none; font-size: 12.5px; padding: 10px; border-radius: 6px; margin-bottom: 14px;"></div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">
+              💾 Save Platform Settings
             </button>
           </form>
-
-          <div id="pasteFeedback" style="display: none; margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 12px;"></div>
         </div>
 
-      </div>
+      </section>
 
-      <!-- Full Historical Payments Ledger Table -->
-      <div class="panel-card">
-        <div class="panel-title">
-          <span>📑 Full Historical Payments Ledger</span>
-          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadLedger()">
-            Refresh Ledger
-          </button>
-        </div>
-
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Date & Time</th>
-                <th>Amount (₹)</th>
-                <th>Sender / Customer</th>
-                <th>12-Digit Banking UTR</th>
-                <th>Source / App</th>
-                <th>Ledger Status</th>
-              </tr>
-            </thead>
-            <tbody id="ledgerTableBody">
-              <tr>
-                <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">
-                  Loading ledger...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ==================== TAB 3: FULL FRONTEND CONFIGURATOR ==================== -->
-    <div class="tab-content" id="tabContentConfig">
-      
-      <div class="dashboard-split">
+      <!-- ======================================================== -->
+      <!-- VIEW 6: API KEYS & DOMAIN SECURITY                       -->
+      <!-- ======================================================== -->
+      <section id="view_admin_apiKey" class="admin-view-section">
         
-        <!-- Left: FamPay / Gmail Auto-Detector Setup -->
-        <div class="panel-card" style="border-top: 3px solid #38bdf8;">
-          <div class="panel-title">
-            <span>📬 FamPay / Gmail Auto-Detection (IMAP Push)</span>
-            <span id="uiImapBadge" class="badge PENDING" style="font-size: 11px;">Disabled</span>
-          </div>
-
-          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
-            Enter your Gmail credentials below to automatically detect FamPay/Bank alert emails in real-time. 
-            Everything is saved directly to your database — <b>no terminal commands or .env editing needed!</b>
+        <div class="panel-card" style="margin-bottom: 24px; border-left: 4px solid #38bdf8;">
+          <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">🔑 Developer API Keys &amp; Domain Locks</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin: 0;">
+            Manage developer API keys, website domain whitelist locks, and verify authentication tokens.
           </p>
-
-          <form id="frontendImapForm">
-            <!-- Big Live Toggle Switch -->
-            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-              <div>
-                <div style="font-weight: 700; color: #fff; font-size: 14px;">Enable Real-Time Email Listener</div>
-                <div style="font-size: 12px; color: var(--text-muted);">Listens to incoming payment emails via IMAP IDLE without polling</div>
-              </div>
-              <label class="switch-label">
-                <input type="checkbox" id="uiImapEnabled" class="switch-input">
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Gmail Address *</label>
-              <input type="email" id="uiImapUser" class="form-control" placeholder="your_email@gmail.com" required>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Google 16-Character App Password *</label>
-              <div style="display: flex; gap: 8px;">
-                <input type="password" id="uiImapPass" class="form-control" placeholder="abcd efgh ijkl mnop">
-                <button type="button" class="btn btn-secondary" id="btnToggleShowPass" style="padding: 0 14px;" title="Show/Hide Password">👁️</button>
-              </div>
-              <div style="font-size: 11px; color: var(--text-dim); margin-top: 6px;">
-                Requires 2-Step Verification ON. Generate here: 
-                <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: #38bdf8; text-decoration: underline;">
-                  Google Account &rarr; Security &rarr; App Passwords ↗
-                </a>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Sender / Subject Filter Keywords</label>
-              <input type="text" id="uiImapFilter" class="form-control" value="fampay, famapp, alerts">
-              <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
-                Filters out non-payment emails.
-              </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div style="display: flex; gap: 12px; margin-top: 20px;">
-              <button type="button" class="btn btn-secondary" style="flex: 1; justify-content: center;" id="uiBtnTestImap">
-                🔍 Test Connection (1-Click)
-              </button>
-              <button type="submit" class="btn btn-primary" style="flex: 1.2; justify-content: center;" id="uiBtnSaveImap">
-                💾 Save & Start Live Listener
-              </button>
-            </div>
-          </form>
-
-          <!-- Test / Save Feedback Alert -->
-          <div id="uiImapFeedback" style="display: none; margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 13px;"></div>
         </div>
 
-        <!-- Right: Store & UPI Settings + Live Mailbox Inspector -->
-        <div>
-          
-          <!-- Card: UPI & Merchant Profile -->
-          <div class="panel-card">
-            <div class="panel-title">
-              <span>💳 UPI ID & Store Profile</span>
-              <span style="font-size: 11px; color: var(--text-dim);">Live Payments</span>
-            </div>
-
-            <form id="frontendSettingsForm">
-              <div class="form-group">
-                <label class="form-label">Merchant UPI ID (VPA) *</label>
-                <input type="text" id="uiUpiVpa" class="form-control" placeholder="yourname@fam" required>
-                <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
-                  This is the UPI ID embedded in the dynamic QR code for customers.
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Merchant / Business Name *</label>
-                <input type="text" id="uiMerchantName" class="form-control" placeholder="Personal Gateway" required>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Order Expiry Timeout (Minutes)</label>
-                <input type="number" id="uiExpiryMinutes" class="form-control" value="5" min="1" max="60">
-              </div>
-
-              <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="uiBtnSaveSettings">
-                💾 Save UPI Settings
-              </button>
-            </form>
-
-            <div id="uiSettingsFeedback" style="display: none; margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 12px;"></div>
-          </div>
-
-          <!-- Card: Diagnostic Inbox Scanner -->
-          <div class="panel-card">
-            <div class="panel-title">
-              <span>🔎 Diagnostic Inbox Scanner</span>
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="uiBtnScanInbox">
-                📥 Scan Inbox Now
-              </button>
-            </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-              Directly fetches your latest 5 emails from Gmail and runs the FamPay parser on them to test live detection.
-            </p>
-
-            <div id="inboxScanResults" style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto;">
-              <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 16px;">
-                Click "Scan Inbox Now" to test email parsing with your live mailbox.
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-    <!-- ==================== TAB 4: API KEYS & INTEGRATION ==================== -->
-    <div class="tab-content" id="tabContentApiKey">
-      
-      <!-- Top Banner -->
-      <div class="panel-card" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(14, 20, 36, 0.95) 0%, rgba(30, 41, 59, 0.6) 100%); border-left: 4px solid var(--primary);">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
-          <div>
-            <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 6px;">🔑 Developer API Keys & Webhook Integration</h2>
-            <p style="font-size: 13px; color: var(--text-muted); max-width: 780px; line-height: 1.5;">
-              Use your secure Gateway API Key to create checkout sessions, initiate payments, and receive instant callbacks from your website, e-commerce store, Telegram bot, or custom backend.
-            </p>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn btn-secondary" onclick="loadApiKeyDetails()">🔄 Refresh Status</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="config-grid">
-        
-        <!-- Left Column: Multi-Domain API Key Manager -->
-        <div class="panel-card" style="grid-column: span 1;">
-          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span>🌐 Domain-Specific API Keys</span>
-              <span class="badge badge-success" id="apiKeyStatusBadge">🟢 Strictly Enforced</span>
-            </div>
+        <div class="panel-card">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>🌐 Registered API Keys &amp; Domain Bindings</span>
             <button class="btn btn-secondary" onclick="loadDomainKeysList()" style="padding: 4px 10px; font-size: 11px;">🔄 Refresh</button>
           </div>
-          
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
-            Apne alag-alag websites/domains (jaise <code style="color: var(--primary);">dealsbyshiv.web.app</code>) ke liye alag API Key banayein. Har request par domain verify hota hai taaki koi doosra aapki key copy karke use na kar sake.
-          </p>
 
-          <!-- Strict Enforcement Toggle -->
-          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <div style="font-weight: 600; font-size: 13px;">Strict Domain & Key Enforcement</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-                  Block order creation if <code style="color: var(--primary);">x-api-key</code> is missing, invalid, or domain mismatch.
-                </div>
-              </div>
-              <label class="switch-label">
-                <input type="checkbox" id="uiToggleRequireApiKey" class="switch-input" onchange="toggleRequireApiKey(this.checked)">
-                <span class="switch-slider"></span>
-              </label>
+          <div id="domainKeysListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">
+              Loading domain API keys...
             </div>
           </div>
-
-          <!-- Add New Domain Key Form -->
-          <div style="background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 24px;">
-            <div style="font-weight: 600; font-size: 13px; color: var(--primary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-              <span>➕ Nayi Domain API Key Banayein</span>
-            </div>
-
-            <form id="formAddDomainKey" onsubmit="handleCreateDomainKey(event)">
-              <div class="form-group" style="margin-bottom: 10px;">
-                <label class="form-label" style="font-size: 11px;">Target Website / Domain <span style="color: var(--accent-red);">*</span></label>
-                <input type="text" id="inputNewKeyDomain" class="form-control" placeholder="e.g. dealsbyshiv.web.app, store2.com, or * (all)" required style="font-size: 12.5px;">
-                <div style="font-size: 10.5px; color: var(--text-dim); margin-top: 3px;">
-                  Tip: Agar sabhi domains pe allow karna hai toh <code style="color: var(--primary);">*</code> likhein.
-                </div>
-              </div>
-
-              <div class="form-group" style="margin-bottom: 10px;">
-                <label class="form-label" style="font-size: 11px;">Store / Key Label (Pehchan ke liye)</label>
-                <input type="text" id="inputNewKeyLabel" class="form-control" placeholder="e.g. Main DealsByShiv Store, Backup Site" style="font-size: 12.5px;">
-              </div>
-
-              <div class="form-group" style="margin-bottom: 14px;">
-                <label class="form-label" style="display: flex; justify-content: space-between; font-size: 11px;">
-                  <span>API Key (Custom ya Auto-generate)</span>
-                  <a href="javascript:void(0)" onclick="generateRandomKeyToInput()" style="color: var(--primary); text-decoration: none; font-size: 11px;">🎲 Generate Random</a>
-                </label>
-                <div style="display: flex; gap: 8px;">
-                  <input type="text" id="inputNewKeyValue" class="form-control" placeholder="pg_live_... (khali chhodne par auto generate hoga)" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">
-                  <button type="button" class="btn btn-secondary" onclick="generateRandomKeyToInput()" style="padding: 0 10px; font-size: 11px;">
-                    🎲 Auto
-                  </button>
-                </div>
-              </div>
-
-              <div id="addKeyFeedback" style="display: none; font-size: 12px; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px;"></div>
-
-              <button type="submit" class="btn btn-primary" id="btnSubmitNewKey" style="width: 100%; justify-content: center; padding: 9px; font-size: 13px;">
-                💾 Register & Activate Domain Key
-              </button>
-            </form>
-          </div>
-
-          <!-- Domain Keys List -->
-          <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-weight: 600; font-size: 13px;">Active Domain API Keys (<span id="domainKeysCount">0</span>)</div>
-          </div>
-
-          <div id="domainKeysListContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
-            <div style="text-align: center; color: var(--text-dim); padding: 20px; font-size: 12px;">Loading keys...</div>
-          </div>
-
-          <!-- Quick Test Console -->
-          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-card);">
-            <div class="panel-title" style="margin-bottom: 8px;">
-              <span>⚡ Live API Authenticator Test</span>
-            </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-              Kisi bhi domain key ke saath instant test request fire karein:
-            </p>
-            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-              <select id="testDomainKeySelect" class="form-control" style="flex: 2; font-size: 12px;">
-                <option value="">Select Domain Key</option>
-              </select>
-              <input type="number" id="testOrderAmount" class="form-control" value="10.00" style="flex: 1; max-width: 100px;" placeholder="₹">
-            </div>
-            <button class="btn btn-primary" onclick="testApiKeyOrderCreation()" style="width: 100%; justify-content: center;">
-              🚀 Test Create Order (₹)
-            </button>
-            <div id="apiTestConsoleResult" style="margin-top: 12px; display: none;" class="code-box"></div>
-          </div>
-
         </div>
 
-        <!-- Right Column: Interactive Integration Snippets -->
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 7: LIVE ACTIVITY LOGS                               -->
+      <!-- ======================================================== -->
+      <section id="view_admin_logs" class="admin-view-section">
+        
+        <div class="panel-card" style="margin-bottom: 24px; border-left: 4px solid #a855f7;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h2 style="font-size: 18px; font-weight: 700; margin: 0 0 4px;">📝 System Activity Logs &amp; Audit Trail</h2>
+              <p style="font-size: 13px; color: var(--text-muted); margin: 0;">
+                Live event stream: order creations, plan activations, website locks, and webhook deliveries.
+              </p>
+            </div>
+            <button class="btn btn-secondary" onclick="loadApiLogs()" style="padding: 6px 14px; font-size: 12px;">🔄 Refresh Logs</button>
+          </div>
+        </div>
+
         <div class="panel-card">
           <div class="panel-title">
-            <span>💻 Integration Code Examples</span>
+            <span>📜 Recent Activity Events</span>
+            <span style="font-size: 11px; color: var(--text-dim);" id="apiLogsCount">0 entries</span>
           </div>
 
-          <!-- Language Subnav Tabs -->
-          <div class="code-subnav">
-            <button class="code-subtab active" id="codeTabCurl" onclick="switchCodeSnippet('curl')">cURL</button>
-            <button class="code-subtab" id="codeTabNodejs" onclick="switchCodeSnippet('nodejs')">Node.js</button>
-            <button class="code-subtab" id="codeTabPython" onclick="switchCodeSnippet('python')">Python</button>
-            <button class="code-subtab" id="codeTabPhp" onclick="switchCodeSnippet('php')">PHP</button>
+          <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th style="width: 140px;">Time</th>
+                  <th style="width: 110px;">Status</th>
+                  <th style="width: 160px;">Event</th>
+                  <th>Title &amp; Note Details</th>
+                  <th style="width: 200px;">Origin / IP</th>
+                </tr>
+              </thead>
+              <tbody id="apiLogsTableBody">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 30px;">Loading logs...</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-
-          <!-- Snippet Container -->
-          <div style="position: relative;">
-            <button class="copy-snippet-btn" onclick="copyCurrentSnippet()">
-              📋 Copy Code
-            </button>
-            <pre class="code-box" id="codeSnippetBox">// Loading snippet...</pre>
-          </div>
-
-          <!-- Webhook Callback Structure -->
-          <div style="margin-top: 20px;">
-            <div class="panel-title" style="margin-bottom: 6px;">
-              <span>📡 Webhook Payload Format</span>
-            </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
-              When customer pays, the gateway fires an asynchronous POST request to your <code style="color: var(--primary);">webhookUrl</code>:
-            </p>
-            <pre class="code-box" style="color: #a78bfa;">{
-  "event": "payment.success",
-  "data": {
-    "orderCode": "ORD-ABC123",
-    "amount": 500.00,
-    "utr": "214771578746",
-    "sender": "MEENA KUMARI",
-    "paidAt": 1788475800000
-  }
-}</pre>
-          </div>
-
         </div>
 
-      </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 8: IMAP & SETTLEMENT SETUP                          -->
+      <!-- ======================================================== -->
+      <section id="view_admin_imap" class="admin-view-section">
+
+        <div class="panel-card" style="margin-bottom: 24px; border-left: 4px solid #34d399; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(11, 15, 25, 0.3));">
+          <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">📧 IMAP & Payment Verification Setup</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin: 0;">
+            Connect your bank alert Gmail account so the gateway can auto-verify UPI payments. Works with <strong>FamPay</strong>, <strong>GPay</strong>, <strong>PhonePe</strong>, <strong>Paytm</strong>, HDFC, SBI, ICICI credit alerts and any bank that sends email notifications.
+          </p>
+        </div>
+
+        <!-- Supported Banks Info -->
+        <div class="panel-card" style="margin-bottom: 24px; padding: 16px 20px;">
+          <div style="font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 10px;">✅ Supported Payment Sources</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <span style="padding: 4px 12px; background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3); border-radius: 20px; font-size: 12px; color: #c084fc; font-weight: 600;">💜 FamPay / FamApp</span>
+            <span style="padding: 4px 12px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; font-size: 12px; color: #38bdf8;">🔵 GPay (Google Pay)</span>
+            <span style="padding: 4px 12px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); border-radius: 20px; font-size: 12px; color: #34d399;">🟢 PhonePe</span>
+            <span style="padding: 4px 12px; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); border-radius: 20px; font-size: 12px; color: #fbbf24;">🟡 Paytm</span>
+            <span style="padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; font-size: 12px; color: #94a3b8;">🏦 HDFC / SBI / ICICI</span>
+            <span style="padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; font-size: 12px; color: #94a3b8;">📱 Any UPI App</span>
+          </div>
+        </div>
+
+        <!-- Admin Collection UPI ID Box -->
+        <div class="panel-card" style="max-width: 680px; margin-bottom: 24px; border-left: 4px solid #38bdf8;">
+          <div class="panel-title" style="margin-bottom: 12px;">💳 Admin Subscription Collection UPI Address</div>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 14px;">
+            This is <strong>your UPI ID</strong> where merchants pay when they buy subscription plans. The Gmail IMAP listener below will watch for credit alerts sent to this account to auto-verify!
+          </p>
+          <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+            <div style="flex: 2; min-width: 220px;">
+              <label class="form-label" style="font-size: 11px;">Admin Receiving UPI VPA *</label>
+              <input type="text" id="adminImapUpiVpa" class="form-control" placeholder="yourbusiness@okhdfcbank" style="font-weight: 700; color: #38bdf8;">
+            </div>
+            <div style="flex: 2; min-width: 180px;">
+              <label class="form-label" style="font-size: 11px;">Admin Business Name *</label>
+              <input type="text" id="adminImapMerchantName" class="form-control" placeholder="Personal Gateway" style="font-weight: 600;">
+            </div>
+            <div>
+              <button type="button" onclick="saveAdminCollectionUpi()" class="btn btn-primary" style="padding: 9px 16px; font-size: 12px;">💾 Save UPI</button>
+            </div>
+          </div>
+          <div id="adminImapUpiFeedback" style="display: none; font-size: 12px; padding: 8px; border-radius: 6px; margin-top: 10px;"></div>
+        </div>
+
+        <!-- IMAP Configuration Form -->
+        <div class="panel-card" style="max-width: 680px;">
+          <div class="panel-title" style="margin-bottom: 20px;">⚙️ Gmail IMAP Configuration</div>
+
+          <form id="frontendImapForm" onsubmit="handleSaveImapSettings(event)">
+
+            <div class="form-group">
+              <label class="form-label">📧 Bank Alert Gmail Address</label>
+              <input type="email" id="uiImapUser" class="form-control" placeholder="yourbankalerts@gmail.com" autocomplete="email">
+              <div style="font-size: 11px; color: var(--text-dim); margin-top: 5px;">The Gmail account that receives UPI credit/debit alert emails from your bank or FamPay.</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">🔑 Gmail App Password (16-char)</label>
+              <div style="position: relative;">
+                <input type="password" id="uiImapPass" class="form-control" placeholder="xxxx xxxx xxxx xxxx" style="padding-right: 44px; font-family: monospace; letter-spacing: 1px;">
+                <button type="button" id="btnToggleShowPass" onclick="document.getElementById('uiImapPass').type = document.getElementById('uiImapPass').type === 'password' ? 'text' : 'password'; this.textContent = document.getElementById('uiImapPass').type === 'password' ? '👁️' : '🙈';" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 15px;">👁️</button>
+              </div>
+              <div style="font-size: 11px; color: var(--text-dim); margin-top: 5px;">Generate at <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: #38bdf8;">myaccount.google.com/apppasswords</a>. Enable 2FA first!</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">🎯 Sender Filter (Alert Senders)</label>
+              <input type="text" id="uiImapFilter" class="form-control" placeholder="fampay,famapp,fam,noreply,alerts" value="fampay,famapp,fam">
+              <div style="font-size: 11px; color: var(--text-dim); margin-top: 5px;">Comma-separated. Only emails from senders containing these keywords will be scanned. FamPay uses: <code style="color: #c084fc;">fampay,famapp,fam</code></div>
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-primary);">
+                <input type="checkbox" id="uiImapEnabled" checked style="width: 16px; height: 16px; cursor: pointer;">
+                Enable Auto-Verification (IMAP Listener)
+              </label>
+            </div>
+
+            <div id="uiImapFeedback" style="display: none; font-size: 12.5px; padding: 10px; border-radius: 6px; margin-bottom: 14px;"></div>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button type="button" id="uiBtnTestImap" onclick="handleTestImapConnection()" class="btn btn-secondary" style="flex: 1; justify-content: center; min-width: 140px;">
+                🔌 Test Connection
+              </button>
+              <button type="submit" id="uiBtnSaveImap" class="btn btn-primary" style="flex: 2; justify-content: center; min-width: 200px;">
+                💾 Save & Restart IMAP Listener
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- IMAP Status Card -->
+        <div class="panel-card" style="max-width: 680px; margin-top: 20px;">
+          <div class="panel-title">📊 IMAP Listener Status</div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 0;">
+            <div class="status-dot disconnected" id="imapDotImap"></div>
+            <div>
+              <div id="imapTextImap" style="font-size: 14px; font-weight: 600; color: #fff;">Checking...</div>
+              <div style="font-size: 11px; color: var(--text-dim);">Live connection status of the payment alert listener</div>
+            </div>
+          </div>
+          <button type="button" onclick="loadImapStatus()" class="btn btn-secondary" style="font-size: 11px; padding: 5px 12px;">🔄 Refresh Status</button>
+        </div>
+
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 9: COUPONS & PRICING                                -->
+      <!-- ======================================================== -->
+      <section id="view_admin_coupons" class="admin-view-section">
+
+        <div class="panel-card" style="margin-bottom: 24px; border-left: 4px solid #fbbf24; background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(11, 15, 25, 0.3));">
+          <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">🏷️ Coupons & Plan Pricing Control</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin: 0;">Create discount coupon codes and override plan prices. Changes take effect instantly — users see updated prices on the subscription page.</p>
+        </div>
+
+        <!-- Plan Prices Override Panel -->
+        <div class="panel-card" style="margin-bottom: 24px;">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>💰 Plan Prices (Override Defaults)</span>
+            <button class="btn btn-secondary" onclick="loadPlanPrices()" style="padding: 4px 10px; font-size: 11px;">🔄 Refresh</button>
+          </div>
+          <p style="font-size: 12px; color: var(--text-dim); margin-bottom: 16px;">Edit a price and click Save. Resetting to 0 restores the default price. Changes apply instantly to new checkout sessions.</p>
+          <div id="planPricesContainer" style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="text-align: center; color: var(--text-dim); padding: 20px;">Loading plan prices...</div>
+          </div>
+        </div>
+
+        <!-- Coupon Create Form -->
+        <div class="panel-card" style="margin-bottom: 24px; max-width: 680px;">
+          <div class="panel-title" style="margin-bottom: 16px;">➕ Create New Coupon Code</div>
+          <form id="createCouponForm" onsubmit="handleCreateCoupon(event)">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label class="form-label">Coupon Code</label>
+                <input type="text" id="couponCode" class="form-control" placeholder="e.g. SAVE20" maxlength="20" style="text-transform: uppercase; font-weight: 700; letter-spacing: 1px;" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Discount Percent (%)</label>
+                <input type="number" id="couponDiscount" class="form-control" placeholder="20" min="1" max="100" step="0.5" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Uses (-1 = Unlimited)</label>
+                <input type="number" id="couponMaxUses" class="form-control" value="-1" min="-1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Expiry Date (Optional)</label>
+                <input type="datetime-local" id="couponExpiry" class="form-control">
+              </div>
+            </div>
+            <div id="createCouponFeedback" style="display: none; font-size: 12px; padding: 8px; border-radius: 6px; margin-bottom: 12px;"></div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">🏷️ Create Coupon Code</button>
+          </form>
+        </div>
+
+        <!-- Coupons List Table -->
+        <div class="panel-card">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>📋 Active Coupons Directory</span>
+            <button class="btn btn-secondary" onclick="loadCoupons()" style="padding: 4px 10px; font-size: 11px;">🔄 Refresh</button>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th>Coupon Code</th>
+                  <th style="width: 120px;">Discount</th>
+                  <th style="width: 100px;">Max Uses</th>
+                  <th style="width: 100px;">Used</th>
+                  <th style="width: 160px;">Expires</th>
+                  <th style="width: 80px;">Status</th>
+                  <th style="width: 80px;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="couponsTableBody">
+                <tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">Loading coupons...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
 
     </div>
 
-    <!-- ==================== TAB 5: REQUEST NOTES & API ACTIVITY ==================== -->
-    <div class="tab-content" id="tabContentLogs">
-      <div class="panel-card" style="border-top: 3px solid #38bdf8; margin-bottom: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-          <div>
-            <div style="font-size: 17px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-              <span>📝 External Website Request Notes & Activity Logs</span>
-              <span class="badge PAID" style="font-size: 11px;">Allowed: https://dealsbyshiv.web.app</span>
-            </div>
-            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-              Live tracking of all order creations, webhook dispatches, payment auto-matches, and security events from your external store.
-            </div>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button class="btn btn-secondary" onclick="loadApiLogs()" style="font-size: 12px; padding: 6px 14px;">
-              🔄 Refresh Notes
-            </button>
-          </div>
-        </div>
-      </div>
+  </div>
 
-      <!-- Logs Table Card -->
-      <div class="panel-card">
-        <div class="panel-title">
-          <span>📜 Incoming Requests & Event Notes</span>
-          <span style="font-size: 11px; color: var(--text-dim);" id="apiLogsCount">0 entries</span>
-        </div>
-
-        <div style="overflow-x: auto;">
-          <table class="table" style="width: 100%;">
-            <thead>
-              <tr>
-                <th style="width: 140px;">Time</th>
-                <th style="width: 110px;">Status</th>
-                <th style="width: 160px;">Event</th>
-                <th>Title & Note Details</th>
-                <th style="width: 200px;">Origin / IP</th>
-              </tr>
-            </thead>
-            <tbody id="apiLogsTableBody">
-              <tr>
-                <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 30px;">
-                  Loading activity logs...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-  <!-- Modal: Create Order -->
+  <!-- ======================================================== -->
+  <!-- MODAL: CREATE ORDER                                      -->
+  <!-- ======================================================== -->
   <div class="modal-overlay" id="modalCreateOrder">
     <div class="modal-box">
       <div class="modal-header">
@@ -804,6 +890,55 @@
 
         <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="btnSubmitOrder">
           Generate Checkout Session
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: ADJUST USER PLAN & CREDITS                        -->
+  <!-- ======================================================== -->
+  <div class="modal-overlay" id="modalAdjustUser">
+    <div class="modal-box" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Manage User Plan</h3>
+        <button class="modal-close" onclick="closeModal('modalAdjustUser')">&times;</button>
+      </div>
+
+      <form onsubmit="handleAdminAdjustUser(event)">
+        <input type="hidden" id="adjustUserEmailHidden">
+        
+        <div class="form-group">
+          <label class="form-label">User Email</label>
+          <div id="adjustUserEmailDisplay" style="font-weight: 700; color: #38bdf8; font-size: 13.5px; padding: 6px 0;">user@example.com</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Assign Plan Tier</label>
+          <select id="adjustUserPlanSelect" class="form-control">
+            <option value="NONE">NONE (No Active Plan)</option>
+            <option value="SINGLE_MONTHLY">1-Website Monthly (₹299/mo)</option>
+            <option value="SINGLE_ANNUAL">1-Website 1-Year (₹1999/yr)</option>
+            <option value="DUAL_MONTHLY">2-Websites Monthly (₹549/mo)</option>
+            <option value="DUAL_ANNUAL">2-Websites 1-Year (₹3699/yr)</option>
+            <option value="TRIPLE_MONTHLY">3-Websites Monthly (₹799/mo)</option>
+            <option value="TRIPLE_ANNUAL">3-Websites 1-Year (₹5399/yr)</option>
+            <option value="QUAD_MONTHLY">4-Websites Monthly (₹999/mo)</option>
+            <option value="QUAD_ANNUAL">4-Websites 1-Year (₹6799/yr)</option>
+            <option value="FLEET_MONTHLY">5-Websites Monthly (₹1199/mo)</option>
+            <option value="FLEET_ANNUAL">5-Websites 1-Year (₹7999/yr)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Credits to Add / Reset</label>
+          <input type="number" id="adjustUserCreditsInput" class="form-control" value="999999">
+        </div>
+
+        <div id="adjustUserFeedback" style="display: none; font-size: 12px; padding: 8px; border-radius: 6px; margin-bottom: 12px;"></div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">
+          Save &amp; Update User Plan
         </button>
       </form>
     </div>
