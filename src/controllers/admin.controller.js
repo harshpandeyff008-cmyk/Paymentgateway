@@ -4,7 +4,8 @@ import { SettingModel } from '../models/setting.model.js';
 import { processIncomingPayment, claimOrderWithUtr, triggerWebhook, reconcileUnmatchedPayments } from '../services/matchingEngine.service.js';
 import { getImapStatus } from '../services/imapListener.service.js';
 import { config } from '../../config.js';
-import { query, getRecentApiLogs, getAllUsers, updateUserPlanAndCredits } from '../../db/database.js';
+import { query, getRecentApiLogs, getAllUsers, updateUserPlanAndCredits, getUniquePayableAmount } from '../../db/database.js';
+import { buildUpiUri, generateQrDataUrl } from '../utils/qr.util.js';
 
 export const AdminController = {
   async getStats(req, res, next) {
@@ -300,6 +301,69 @@ export const AdminController = {
         },
         merchantUpiVpa: config.merchant.upiVpa,
         merchantName: config.merchant.name
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async createPaymentLink(req, res, next) {
+    try {
+      const { amount, customerName = 'Customer', customerPhone = '', expiryMinutes = 60, note = '' } = req.body;
+      const parsedAmount = parseFloat(amount);
+      if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ success: false, error: 'Valid positive amount is required' });
+      }
+
+      let expiryMin = parseInt(expiryMinutes, 10);
+      if (isNaN(expiryMin) || expiryMin <= 0) expiryMin = 60;
+      if (expiryMin > 1440) expiryMin = 1440; // Max 24 hours
+
+      const baseAmount = parsedAmount;
+      const payableAmount = await getUniquePayableAmount(baseAmount, expiryMin);
+
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let orderCode = 'ADM-';
+      for (let i = 0; i < 6; i++) {
+        orderCode += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      const createdAt = Date.now();
+      const expiresAt = createdAt + expiryMin * 60 * 1000;
+
+      await query.run(
+        `INSERT INTO orders (order_code, amount, base_amount, customer_name, customer_phone, status, created_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?)`,
+        [orderCode, payableAmount, baseAmount, customerName, customerPhone, createdAt, expiresAt]
+      );
+
+      const upiUri = buildUpiUri({
+        vpa: config.merchant.upiVpa,
+        merchantName: config.merchant.name,
+        amount: payableAmount,
+        orderCode
+      });
+
+      const qrDataUrl = await generateQrDataUrl(upiUri);
+      const checkoutUrl = `https://upigateway.web.app/checkout/${orderCode}`;
+      const expiryText = expiryMin >= 60 ? `${(expiryMin / 60)} hour${expiryMin > 60 ? 's' : ''}` : `${expiryMin} minutes`;
+      const whatsappText = `Hello ${customerName && customerName !== 'Customer' ? customerName : ''}, here is your UPI payment link for ₹${payableAmount.toFixed(2)}${note ? ' (' + note + ')' : ''}: ${checkoutUrl}\n(Valid for ${expiryText})`;
+      const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappText.trim())}`;
+
+      return res.json({
+        success: true,
+        order: {
+          orderCode,
+          amount: payableAmount,
+          baseAmount,
+          customerName,
+          expiryMinutes: expiryMin,
+          expiresAt,
+          checkoutUrl,
+          whatsappUrl,
+          qrDataUrl,
+          upiUri
+        }
       });
     } catch (err) {
       next(err);

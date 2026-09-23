@@ -44,6 +44,7 @@ router.post('/simulate-payment', AdminController.simulatePayment);
 router.post('/orders/:orderCode/mark-paid', AdminController.markOrderPaidManually);
 router.post('/reconcile', AdminController.reconcileOrder);
 router.post('/settings', AdminController.updateSettings);
+router.post('/payment-links', AdminController.createPaymentLink);
 
 // Multi-Domain API Key Management endpoints
 router.get('/domain-keys', ApiKeyController.listDomainKeys);

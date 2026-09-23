@@ -1539,3 +1539,131 @@ function copyToClipboard(text) {
     prompt('Copy to clipboard:', text);
   });
 }
+
+// Payment Link Modal Handlers
+function openPaymentLinkModal() {
+  const modal = document.getElementById('paymentLinkModal');
+  if (modal) modal.style.display = 'flex';
+  const resultBox = document.getElementById('paymentLinkResultBox');
+  if (resultBox) resultBox.style.display = 'none';
+  document.getElementById('linkAmountInput')?.focus();
+}
+
+function closePaymentLinkModal() {
+  const modal = document.getElementById('paymentLinkModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function setPaymentLinkExpiry(mins, el) {
+  const input = document.getElementById('linkExpiryInput');
+  if (input) input.value = mins;
+
+  document.querySelectorAll('.expiry-pill').forEach(btn => btn.classList.remove('active'));
+  if (el) el.classList.add('active');
+
+  const lbl = document.getElementById('selectedExpiryLabel');
+  if (lbl) {
+    const textMap = {
+      15: '⚡ 15 Minutes',
+      30: '⏱️ 30 Minutes',
+      60: '🕒 1 Hour (Standard)',
+      360: '🌇 6 Hours',
+      720: '🌙 12 Hours',
+      1440: '⏳ 24 Hours (Full Day Max)'
+    };
+    lbl.innerText = textMap[mins] || `${mins} Mins`;
+  }
+}
+
+async function handleCreatePaymentLink(event) {
+  event.preventDefault();
+  if (!currentUser) {
+    alert('Please sign in first.');
+    return;
+  }
+
+  const amountInput = document.getElementById('linkAmountInput');
+  const customerInput = document.getElementById('linkCustomerInput');
+  const phoneInput = document.getElementById('linkPhoneInput');
+  const expiryInput = document.getElementById('linkExpiryInput');
+  const btn = document.getElementById('btnSubmitCreateLink');
+
+  const amount = parseFloat(amountInput?.value);
+  if (!amount || isNaN(amount) || amount <= 0) {
+    alert('Please enter a valid amount (e.g. 100)');
+    amountInput?.focus();
+    return;
+  }
+
+  const customerName = (customerInput?.value || 'Customer').trim();
+  const customerPhone = (phoneInput?.value || '').trim();
+  const expiryMinutes = parseInt(expiryInput?.value || '60', 10);
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>Reserving Unique Amount...</span> ⏳';
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/user/payment-links`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userEmail: currentUser.email,
+        amount,
+        customerName,
+        customerPhone,
+        expiryMinutes
+      })
+    });
+
+    const data = await res.json();
+    if (data.success && data.order) {
+      const ord = data.order;
+      const resultBox = document.getElementById('paymentLinkResultBox');
+      const resCode = document.getElementById('resultOrderCode');
+      const resAmount = document.getElementById('resultPayableAmount');
+      const resExpiry = document.getElementById('resultExpiryText');
+      const resUrl = document.getElementById('resultUrlInput');
+      const btnWa = document.getElementById('btnShareWhatsApp');
+      const btnOpen = document.getElementById('btnOpenCheckoutPage');
+
+      if (resCode) resCode.innerText = ord.orderCode;
+      if (resAmount) resAmount.innerText = `₹ ${Number(ord.amount).toFixed(2)}`;
+      
+      const expiryText = ord.expiryMinutes >= 60 
+        ? `${Math.round(ord.expiryMinutes / 60)} hour${ord.expiryMinutes > 60 ? 's' : ''}`
+        : `${ord.expiryMinutes} minutes`;
+      if (resExpiry) resExpiry.innerText = `⏱️ Reserved exclusively for ${expiryText} (Ends: ${new Date(ord.expiresAt).toLocaleTimeString()})`;
+
+      if (resUrl) resUrl.value = ord.checkoutUrl;
+      if (btnWa) btnWa.href = ord.whatsappUrl;
+      if (btnOpen) btnOpen.href = ord.checkoutUrl;
+
+      if (resultBox) {
+        resultBox.style.display = 'block';
+        resultBox.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      // Refresh recent orders
+      loadUserOrders();
+    } else {
+      alert('Failed to generate payment link: ' + (data.error || 'Server error'));
+    }
+  } catch (err) {
+    alert('Network error creating payment link: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🚀 Generate Secure Payment Link</span>';
+    }
+  }
+}
+
+function copyPaymentLinkUrl() {
+  const input = document.getElementById('resultUrlInput');
+  if (!input || !input.value) return;
+  navigator.clipboard.writeText(input.value);
+  alert('📋 Payment link copied to clipboard!\n\n' + input.value);
+}
+

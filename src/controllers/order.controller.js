@@ -18,7 +18,7 @@ export const OrderController = {
     try {
       const origin = req.headers.origin || req.headers.referer || '';
       const clientIp = req.ip || req.connection?.remoteAddress || '';
-      const { amount, customerName = 'Guest', customerPhone = '', webhookUrl = '' } = req.body;
+      const { amount, customerName = 'Guest', customerPhone = '', webhookUrl = '', expiryMinutes } = req.body;
       const parsedAmount = parseFloat(amount);
 
       if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -33,13 +33,22 @@ export const OrderController = {
         return res.status(400).json({ success: false, error: 'Valid positive amount is required' });
       }
 
-      // Unique Paise Offset Engine (Resolves multiple concurrent payments collision)
+      // Link Expiration: User/Admin specified or platform default (Max 24 hours = 1440 mins)
+      let expiryMin = parseInt(expiryMinutes, 10);
+      if (isNaN(expiryMin) || expiryMin <= 0) {
+        expiryMin = config.orderExpiryMinutes || 20;
+      }
+      if (expiryMin > 1440) {
+        expiryMin = 1440; // Max 24 hours
+      }
+
+      // Unique Paise Offset Engine (Safe against concurrent collisions for the full duration)
       const baseAmount = parsedAmount;
-      const payableAmount = await getUniquePayableAmount(baseAmount, 20);
+      const payableAmount = await getUniquePayableAmount(baseAmount, expiryMin);
 
       const orderCode = generateOrderCode();
       const createdAt = Date.now();
-      const expiresAt = createdAt + config.orderExpiryMinutes * 60 * 1000;
+      const expiresAt = createdAt + expiryMin * 60 * 1000;
 
       const userEmail = req.userRecord?.email || '';
       const order = await OrderModel.create({

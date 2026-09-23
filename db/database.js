@@ -676,33 +676,38 @@ export async function getUniquePayableAmount(baseAmount, windowMinutes = 20) {
       return parseFloat(numBase.toFixed(2));
     }
 
-    const settingWindow = parseInt(await getSetting('unique_amount_window_minutes', String(windowMinutes)), 10) || windowMinutes;
     const now = Date.now();
-    const windowStart = now - (settingWindow * 60 * 1000);
 
-    // Query active pending orders in current active window for this base amount range
+    // Query active pending orders that have not expired yet for this base amount range
+    // Ensures unique paise offset stays reserved for the entire duration (up to 24 hours)
     const activeOrders = await query.all(
       `SELECT amount FROM orders 
        WHERE status = 'PENDING' 
          AND expires_at > ? 
-         AND created_at >= ?
          AND amount >= ? 
          AND amount < ?`,
-      [now, windowStart, numBase, numBase + 1.0]
+      [now, numBase, numBase + 1.0]
     );
 
     const inUseAmounts = new Set(activeOrders.map(o => parseFloat(Number(o.amount).toFixed(2))));
 
-    // Assign lowest available unique paise offset (+0.00, +0.01, +0.02 ... +0.99)
-    for (let offset = 0; offset <= 99; offset++) {
+    // Assign lowest available unique paise offset (+0.01, +0.02 ... +0.99)
+    for (let offset = 1; offset <= 99; offset++) {
       const candidate = parseFloat((numBase + (offset * 0.01)).toFixed(2));
       if (!inUseAmounts.has(candidate)) {
         return candidate;
       }
     }
 
-    // Fallback if all 100 offsets are occupied
-    return parseFloat((numBase + (Math.random() * 0.99)).toFixed(2));
+    // Try +0.00 if free
+    const baseCandidate = parseFloat(numBase.toFixed(2));
+    if (!inUseAmounts.has(baseCandidate)) {
+      return baseCandidate;
+    }
+
+    // Fallback if all 100 offsets are occupied: pick random offset between 1 and 99
+    const randomOffset = Math.floor(Math.random() * 99) + 1;
+    return parseFloat((numBase + (randomOffset * 0.01)).toFixed(2));
   } catch (err) {
     console.error('[DB] Error calculating unique amount:', err.message);
     return parseFloat(numBase.toFixed(2));

@@ -249,6 +249,16 @@
               </div>
             </div>
 
+            <div class="status-card" style="cursor: pointer; padding: 22px; border-color: rgba(56, 189, 248, 0.4);" onclick="openPaymentLinkModal()">
+              <div class="status-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">🔗</div>
+              <div>
+                <div style="font-weight: 800; font-size: 15px; color: #fff; margin-bottom: 4px;">Create Payment Link</div>
+                <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.4;">
+                  Send custom UPI links with 24-hr expiry &amp; share on WhatsApp.
+                </div>
+              </div>
+            </div>
+
             <div class="status-card" style="cursor: pointer; padding: 22px;" onclick="switchSidebarView('docs')">
               <div class="status-icon" style="background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan);">📑</div>
               <div>
@@ -931,6 +941,7 @@
                 <button type="button" class="filter-btn" onclick="setOrderStatusFilter('PENDING', this)">Pending</button>
                 <button type="button" class="filter-btn" onclick="setOrderStatusFilter('EXPIRED', this)">Expired</button>
                 <button type="button" class="btn-primary" style="padding: 6px 12px; font-size: 12px; margin-left: 8px;" onclick="loadUserOrders()">🔄 Refresh</button>
+                <button type="button" class="btn-primary" style="padding: 6px 14px; font-size: 12px; margin-left: 8px; background: linear-gradient(135deg, #0ea5e9, #6366f1);" onclick="openPaymentLinkModal()">🔗 + Create Link</button>
               </div>
             </div>
 
@@ -1584,6 +1595,105 @@ echo "Order: " . $data['order']['orderCode'];
         <button type="button" class="btn-primary" style="width: 100%; justify-content: center; background: rgba(255,255,255,0.06); border-color: var(--border-subtle); color: #fff;" onclick="closeContactModal()">
           Close Window
         </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- PAYMENT LINK GENERATOR MODAL                             -->
+  <!-- ======================================================== -->
+  <div id="paymentLinkModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box" style="max-width: 520px; text-align: left;">
+      <button type="button" class="modal-close-btn" onclick="closePaymentLinkModal()">✕</button>
+
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+        <span style="font-size: 26px;">🔗</span>
+        <div>
+          <h2 style="font-size: 20px; font-weight: 800; color: #fff; margin: 0;">Create &amp; Send UPI Payment Link</h2>
+          <div style="font-size: 12px; color: #38bdf8; font-weight: 600;">Direct Bank UPI with Collision-Free Auto Verification</div>
+        </div>
+      </div>
+      <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
+        Generate a dynamic checkout link for customers. The engine assigns a unique paise offset (e.g. ₹100.09) and reserves it exclusively for your selected duration (up to 24 hours).
+      </p>
+
+      <!-- Input Form -->
+      <form id="paymentLinkForm" onsubmit="handleCreatePaymentLink(event)">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" style="font-weight: 700; color: #fff;">
+              <span>Amount (₹)</span>
+              <span style="color: #38bdf8;">*Required</span>
+            </label>
+            <input type="number" id="linkAmountInput" class="form-input" placeholder="e.g. 100" min="1" step="any" required style="font-size: 16px; font-weight: 700;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Customer Name / Note</label>
+            <input type="text" id="linkCustomerInput" class="form-input" placeholder="e.g. Rahul Sharma / Invoice #102">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label">Customer Phone / WhatsApp (Optional)</label>
+          <input type="text" id="linkPhoneInput" class="form-input" placeholder="e.g. 9876543210 (Auto-populates WhatsApp share)">
+        </div>
+
+        <!-- Expiry Duration Picker (User / Admin decides, up to 24 hours max) -->
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 700; color: #fff;">Link Expiration Time</span>
+            <span id="selectedExpiryLabel" style="font-size: 11px; padding: 2px 7px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 700;">⏱️ 1 Hour (Standard)</span>
+          </label>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+            <button type="button" class="expiry-pill" data-mins="15" onclick="setPaymentLinkExpiry(15, this)">⚡ 15 Mins</button>
+            <button type="button" class="expiry-pill" data-mins="30" onclick="setPaymentLinkExpiry(30, this)">⏱️ 30 Mins</button>
+            <button type="button" class="expiry-pill active" data-mins="60" onclick="setPaymentLinkExpiry(60, this)">🕒 1 Hour</button>
+            <button type="button" class="expiry-pill" data-mins="360" onclick="setPaymentLinkExpiry(360, this)">🌇 6 Hours</button>
+            <button type="button" class="expiry-pill" data-mins="720" onclick="setPaymentLinkExpiry(720, this)">🌙 12 Hours</button>
+            <button type="button" class="expiry-pill" data-mins="1440" onclick="setPaymentLinkExpiry(1440, this)">⏳ 24 Hours</button>
+          </div>
+          <input type="hidden" id="linkExpiryInput" value="60">
+        </div>
+
+        <!-- Collision Safety Guarantee Callout -->
+        <div style="background: rgba(14, 165, 233, 0.07); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 8px; padding: 10px 12px; font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin-bottom: 16px;">
+          🛡️ <strong>Zero-Collision Circle:</strong> If you enter ₹100, the system generates a unique payable amount like <strong>₹100.09</strong>. This amount remains exclusively locked for this customer until they pay or the link expires.
+        </div>
+
+        <button type="submit" id="btnSubmitCreateLink" class="btn-primary" style="width: 100%; justify-content: center; height: 46px; font-size: 14px; font-weight: 800; background: linear-gradient(135deg, #0ea5e9, #38bdf8);">
+          <span>🚀 Generate Secure Payment Link</span>
+        </button>
+      </form>
+
+      <!-- Success & Share Result Box (Initially Hidden) -->
+      <div id="paymentLinkResultBox" style="display: none; margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 12px; color: #34d399; font-weight: 700;">🟢 Payment Link Ready!</span>
+            <span id="resultOrderCode" style="font-family: monospace; font-size: 12px; color: #fff; background: rgba(0,0,0,0.3); padding: 2px 7px; border-radius: 4px;">LNK-XXXXXX</span>
+          </div>
+          <div style="font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 4px;" id="resultPayableAmount">₹100.09</div>
+          <div style="font-size: 11.5px; color: #94a3b8;" id="resultExpiryText">Expires in 24 hours</div>
+        </div>
+
+        <!-- URL Copy Field -->
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <input type="text" id="resultUrlInput" readonly class="form-input" style="font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.4);" value="">
+          <button type="button" class="btn-primary" style="padding: 0 16px; white-space: nowrap;" onclick="copyPaymentLinkUrl()">
+            📋 Copy
+          </button>
+        </div>
+
+        <!-- Action Buttons (WhatsApp & Checkout View) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <a id="btnShareWhatsApp" href="#" target="_blank" class="btn-primary" style="background: #25D366; justify-content: center; text-decoration: none; font-size: 13px; font-weight: 700;">
+            <span>💬 Share on WhatsApp</span>
+          </a>
+          <a id="btnOpenCheckoutPage" href="#" target="_blank" class="btn-secondary" style="justify-content: center; text-decoration: none; font-size: 13px; font-weight: 700;">
+            <span>👁️ Open Link</span>
+          </a>
+        </div>
       </div>
 
     </div>

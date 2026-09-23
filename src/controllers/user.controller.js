@@ -818,5 +818,93 @@ export const UserController = {
         }
       ]
     });
+  },
+
+  // 5.6 Create Custom Payment Link with Configurable Expiry (Up to 24 Hours)
+  async createPaymentLink(req, res) {
+    try {
+      const { userEmail, amount, customerName = 'Customer', customerPhone = '', expiryMinutes = 60, note = '' } = req.body;
+      const parsedAmount = parseFloat(amount);
+
+      if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ success: false, error: 'Valid positive amount is required' });
+      }
+
+      let user = null;
+      if (userEmail) {
+        user = await getUserByEmail(userEmail);
+      }
+
+      // Link Expiration: 1 min to max 24 hours (1440 mins)
+      let expiryMin = parseInt(expiryMinutes, 10);
+      if (isNaN(expiryMin) || expiryMin <= 0) expiryMin = 60;
+      if (expiryMin > 1440) expiryMin = 1440; // Max 24 hours
+
+      // Generate collision-safe unique payable amount (e.g. 100 -> 100.09)
+      const baseAmount = parsedAmount;
+      const payableAmount = await getUniquePayableAmount(baseAmount, expiryMin);
+
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let orderCode = 'LNK-';
+      for (let i = 0; i < 6; i++) {
+        orderCode += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      const createdAt = Date.now();
+      const expiresAt = createdAt + expiryMin * 60 * 1000;
+
+      // Merchant specific UPI or platform default
+      const merchantVpa = user?.upi_vpa || config.merchant.upiVpa;
+      const merchantName = user?.business_name || user?.name || config.merchant.name;
+
+      await query.run(
+        `INSERT INTO orders (order_code, amount, base_amount, customer_name, customer_phone, status, created_at, expires_at, user_email)
+         VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)`,
+        [orderCode, payableAmount, baseAmount, customerName, customerPhone, createdAt, expiresAt, user ? user.email : '']
+      );
+
+      const upiUri = buildUpiUri({
+        vpa: merchantVpa,
+        merchantName: merchantName,
+        amount: payableAmount,
+        orderCode
+      });
+
+      const qrDataUrl = await generateQrDataUrl(upiUri);
+
+      const checkoutUrl = `https://upigateway.web.app/checkout/${orderCode}`;
+      const expiryText = expiryMin >= 60 ? `${(expiryMin / 60)} hour${expiryMin > 60 ? 's' : ''}` : `${expiryMin} minutes`;
+      const whatsappText = `Hello ${customerName && customerName !== 'Customer' ? customerName : ''}, here is your secure UPI payment link for ₹${payableAmount.toFixed(2)}${note ? ' (' + note + ')' : ''}: ${checkoutUrl}\n(Valid for ${expiryText})`;
+      const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappText.trim())}`;
+
+      await logActivity({
+        eventType: 'PAYMENT_LINK_CREATED',
+        status: 'SUCCESS',
+        title: `Payment Link Created: ${orderCode}`,
+        details: `Amount: ₹${payableAmount} (Base: ₹${baseAmount}) | Expiry: ${expiryText} | User: ${userEmail || 'Guest'}`,
+        clientIp: req.ip || '',
+        origin: req.headers.origin || ''
+      });
+
+      return res.json({
+        success: true,
+        order: {
+          orderCode,
+          amount: payableAmount,
+          baseAmount,
+          customerName,
+          customerPhone,
+          expiryMinutes: expiryMin,
+          expiresAt,
+          checkoutUrl,
+          whatsappUrl,
+          qrDataUrl,
+          upiUri
+        }
+      });
+    } catch (err) {
+      console.error('[UserController] createPaymentLink error:', err.message);
+      return res.status(500).json({ success: false, error: 'Failed to create payment link: ' + err.message });
+    }
   }
 };

@@ -27,5 +27,6 @@ router.post('/banking/disconnect', UserController.disconnectBanking);
 router.get('/banking/payments', UserController.getMerchantPayments);
 router.post('/bind-website', UserController.bindWebsite);
 router.post('/regenerate-key', UserController.regenerateApiKey);
+router.post('/payment-links', UserController.createPaymentLink);
 
 export default router;
