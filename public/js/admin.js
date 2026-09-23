@@ -50,80 +50,22 @@ window.fetch = async function (url, options = {}) {
 };
 
 function showMasterKeyLockScreen() {
-  const overlay = document.getElementById('masterKeyLockScreen');
-  if (overlay) {
-    overlay.style.display = 'flex';
-    const input = document.getElementById('inputMasterKey');
-    if (input) {
-      input.value = '';
-      input.focus();
-    }
-  }
+  window.location.href = '/login';
 }
 window.showMasterKeyLockScreen = showMasterKeyLockScreen;
 
 function hideMasterKeyLockScreen() {
-  const overlay = document.getElementById('masterKeyLockScreen');
-  if (overlay) {
-    overlay.style.display = 'none';
-  }
+  // no-op, lock screen replaced with unified /login
 }
 window.hideMasterKeyLockScreen = hideMasterKeyLockScreen;
 
-function toggleMasterKeyInputVisibility() {
-  const input = document.getElementById('inputMasterKey');
-  if (!input) return;
-  input.type = input.type === 'password' ? 'text' : 'password';
-}
-window.toggleMasterKeyInputVisibility = toggleMasterKeyInputVisibility;
-
-async function submitMasterKey(e) {
-  if (e) e.preventDefault();
-  const input = document.getElementById('inputMasterKey');
-  const errorBox = document.getElementById('masterKeyError');
-  const btn = document.getElementById('btnUnlockDashboard');
-  const key = input ? input.value.trim() : '';
-
-  if (!key) return;
-
-  btn.disabled = true;
-  btn.innerText = 'Verifying...';
-  if (errorBox) errorBox.style.display = 'none';
-
-  try {
-    const res = await originalFetch((API_BASE || '') + '/api/admin/auth/verify-master-key', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ masterKey: key })
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      localStorage.setItem('admin_master_key', key);
-      sessionStorage.setItem('gateway_master_key', key);
-      hideMasterKeyLockScreen();
-      initDashboardData();
-    } else {
-      if (errorBox) {
-        errorBox.style.display = 'block';
-        errorBox.innerText = '❌ ' + (data.error || 'Invalid Master Key. Access Denied.');
-      }
-    }
-  } catch (err) {
-    if (errorBox) {
-      errorBox.style.display = 'block';
-      errorBox.innerText = 'Network error: ' + err.message;
-    }
-  } finally {
-    btn.disabled = false;
-    btn.innerText = '🔓 Unlock Dashboard';
-  }
-}
-window.submitMasterKey = submitMasterKey;
-
 function lockAdminDashboard() {
+  sessionStorage.removeItem('gateway_admin_auth');
+  sessionStorage.removeItem('gateway_admin_email');
+  sessionStorage.removeItem('gateway_master_key');
   localStorage.removeItem('admin_master_key');
-  showMasterKeyLockScreen();
+  if (fbAuth) fbAuth.signOut().catch(() => {});
+  window.location.href = '/login';
 }
 window.lockAdminDashboard = lockAdminDashboard;
 
@@ -1684,126 +1626,51 @@ try {
   console.warn('Firebase init:', e.message);
 }
 
-// Auto-check stored session
+// Auto-check stored session or Firebase Auth state
 (function checkStoredAuth() {
   const storedAuth = sessionStorage.getItem('gateway_admin_auth');
-  const storedEmail = sessionStorage.getItem('gateway_admin_email');
+  const storedEmail = (sessionStorage.getItem('gateway_admin_email') || '').toLowerCase().trim();
+
   if (storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
-    setTimeout(() => {
-      const lockScreen = document.getElementById('masterKeyLockScreen');
-      if (lockScreen) lockScreen.style.display = 'none';
-      const navPill = document.getElementById('navUserProfile');
-      if (navPill) navPill.style.display = 'flex';
-      const navEmail = document.getElementById('navUserEmail');
-      if (navEmail) navEmail.innerText = storedEmail;
-    }, 100);
-  }
-})();
-
-// Monitor Auth State
-if (fbAuth) {
-  fbAuth.onAuthStateChanged((user) => {
-    if (user) {
-      verifyAdminUser(user);
-    }
-  });
-}
-
-async function handleGoogleSignIn() {
-  if (!fbAuth) {
-    alert('Firebase Auth library is still loading. Please check your internet connection.');
+    updateAdminProfileUI(storedEmail);
     return;
   }
 
-  const feedback = document.getElementById('googleAuthFeedback');
-  const btn = document.getElementById('btnGoogleSignIn');
-
-  btn.disabled = true;
-  btn.style.opacity = '0.7';
-  if (feedback) {
-    feedback.style.display = 'block';
-    feedback.style.background = 'rgba(56, 189, 248, 0.1)';
-    feedback.style.border = '1px solid rgba(56, 189, 248, 0.2)';
-    feedback.style.color = '#38bdf8';
-    feedback.innerText = 'Google Login popup khul raha hai...';
-  }
-
-  try {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    const result = await fbAuth.signInWithPopup(provider);
-    const user = result.user;
-    await verifyAdminUser(user);
-  } catch (err) {
-    console.error('Google Sign In Error:', err);
-    if (feedback) {
-      feedback.style.display = 'block';
-      feedback.style.background = 'rgba(239, 68, 68, 0.15)';
-      feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-      feedback.style.color = '#f87171';
-      feedback.innerText = 'Login Failed: ' + (err.message || 'Popup closed');
-    }
-  } finally {
-    btn.disabled = false;
-    btn.style.opacity = '1';
-  }
-}
-window.handleGoogleSignIn = handleGoogleSignIn;
-
-async function verifyAdminUser(user) {
-  const feedback = document.getElementById('googleAuthFeedback');
-  const userEmail = (user.email || '').toLowerCase().trim();
-
-  if (userEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
-    // ACCESS GRANTED!
-    sessionStorage.setItem('gateway_admin_auth', 'google');
-    sessionStorage.setItem('gateway_admin_email', userEmail);
-    sessionStorage.setItem('gateway_master_key', 'shivambhatt@admin');
-    localStorage.setItem('admin_master_key', 'shivambhatt@admin');
-
-    if (feedback) {
-      feedback.style.display = 'block';
-      feedback.style.background = 'rgba(16, 185, 129, 0.15)';
-      feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-      feedback.style.color = '#34d399';
-      feedback.innerHTML = '✅ <b>Access Granted!</b> Welcome Harsh (' + userEmail + '). Loading PayPerpendicular...';
-    }
-
-    const navPill = document.getElementById('navUserProfile');
-    const navAvatar = document.getElementById('navUserAvatar');
-    const navEmail = document.getElementById('navUserEmail');
-    if (navPill) navPill.style.display = 'flex';
-    if (navAvatar && user.photoURL) navAvatar.src = user.photoURL;
-    if (navEmail) navEmail.innerText = userEmail;
-
-    setTimeout(() => {
-      document.getElementById('masterKeyLockScreen').style.display = 'none';
-      if (typeof loadStats === 'function') loadStats();
-      if (typeof loadOrders === 'function') loadOrders();
-      if (typeof loadDomainKeysList === 'function') loadDomainKeysList();
-    }, 600);
-
+  // If no valid session, check Firebase Auth
+  if (fbAuth) {
+    fbAuth.onAuthStateChanged((user) => {
+      if (!user) {
+        window.location.href = '/login';
+      } else {
+        const userEmail = (user.email || '').toLowerCase().trim();
+        if (userEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
+          sessionStorage.setItem('gateway_admin_auth', 'google');
+          sessionStorage.setItem('gateway_admin_email', userEmail);
+          sessionStorage.setItem('gateway_master_key', 'shivambhatt@admin');
+          localStorage.setItem('admin_master_key', 'shivambhatt@admin');
+          updateAdminProfileUI(userEmail, user.photoURL, user.displayName);
+        } else {
+          // Regular merchant entered /admin -> redirect to user panel
+          window.location.href = '/user';
+        }
+      }
+    });
   } else {
-    // ACCESS DENIED!
-    if (feedback) {
-      feedback.style.display = 'block';
-      feedback.style.background = 'rgba(239, 68, 68, 0.2)';
-      feedback.style.border = '1px solid rgba(239, 68, 68, 0.4)';
-      feedback.style.color = '#fca5a5';
-      feedback.innerHTML = '⛔ <b>ACCESS DENIED!</b><br>Yeh account (' + (user.email || 'unknown') + ') authorized nahi hai. Sirf <b>' + REQUIRED_ADMIN_EMAIL + '</b> ko is gateway ka access hai.';
-    }
-    await fbAuth.signOut();
+    window.location.href = '/login';
   }
+})();
+
+function updateAdminProfileUI(email, photo, name) {
+  const avatar = document.getElementById('adminSidebarAvatar');
+  const nameEl = document.getElementById('adminSidebarName');
+  const emailEl = document.getElementById('adminSidebarEmail');
+  if (avatar && photo) avatar.src = photo;
+  if (nameEl && name) nameEl.innerText = name;
+  if (emailEl) emailEl.innerText = email;
 }
 
 async function handleAdminLogout() {
-  if (fbAuth) {
-    await fbAuth.signOut();
-  }
-  sessionStorage.removeItem('gateway_admin_auth');
-  sessionStorage.removeItem('gateway_admin_email');
-  sessionStorage.removeItem('gateway_master_key');
-  window.location.reload();
+  lockAdminDashboard();
 }
 window.handleAdminLogout = handleAdminLogout;
 

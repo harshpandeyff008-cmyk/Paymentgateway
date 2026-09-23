@@ -128,12 +128,14 @@ async function handleGoogleSignIn() {
 async function onFirebaseUserAuthenticated(user) {
   const email = (user.email || '').toLowerCase().trim();
 
-  // Admin shortcut
+  // Single Login Rule: If Admin email logs in, immediately redirect to Admin Terminal!
   if (email === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
     sessionStorage.setItem('gateway_admin_auth', 'google');
     sessionStorage.setItem('gateway_admin_email', email);
-    const adminLink = document.getElementById('nav_admin');
-    if (adminLink) adminLink.style.display = 'flex';
+    sessionStorage.setItem('gateway_master_key', 'shivambhatt@admin');
+    localStorage.setItem('admin_master_key', 'shivambhatt@admin');
+    window.location.href = '/admin';
+    return;
   }
 
   // Sync user with backend
@@ -192,8 +194,7 @@ function handleSignOut() {
 }
 
 function showLoginOverlay() {
-  const overlay = document.getElementById('loginOverlay');
-  if (overlay) overlay.style.display = 'flex';
+  window.location.href = '/login';
 }
 
 function hideLoginOverlay() {

@@ -98,6 +98,10 @@ export function createApp(io = null) {
     res.sendFile(path.join(publicDir, 'checkout.html'));
   });
 
+  app.get('/login', (req, res) => {
+    res.sendFile(path.join(publicDir, 'login.html'));
+  });
+
   app.get('/admin', (req, res) => {
     res.sendFile(path.join(publicDir, 'admin.html'));
   });
