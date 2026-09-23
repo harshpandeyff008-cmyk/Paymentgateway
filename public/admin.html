@@ -520,6 +520,20 @@
             </div>
 
             <div class="form-group">
+              <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Default UPI Provider / App</span>
+                <span style="font-size: 11px; color: #38bdf8;">*Custom parser optimization</span>
+              </label>
+              <select id="configMerchantProvider" class="form-control">
+                <option value="AUTO">⚡ Auto-Detect (From UPI Handle)</option>
+                <option value="PAYTM">📱 Paytm (Paytm Business / Paytm UPI)</option>
+                <option value="PHONEPE">🟣 PhonePe (PhonePe Merchant / UPI)</option>
+                <option value="FAMPAY">🟡 FamPay (FamApp @fam)</option>
+                <option value="BANK">🏦 Google Pay / Bank UPI (HDFC, SBI, ICICI, Axis)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
               <label class="form-label">Order Expiry (Minutes)</label>
               <input type="number" id="configExpiryMinutes" class="form-control" placeholder="5" min="1" max="60" required>
             </div>

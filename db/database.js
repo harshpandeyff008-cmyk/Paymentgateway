@@ -208,6 +208,9 @@ export async function initDatabase() {
   try {
     await query.run('ALTER TABLE users ADD COLUMN imap_secure INTEGER DEFAULT 1');
   } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN upi_provider TEXT DEFAULT "AUTO"');
+  } catch (_) {}
 
   // 2. Payments table
   await query.run(`
@@ -486,31 +489,33 @@ export async function updateUserGmailConfig(email, { gmailEmail = '', gmailConne
   return await getUserByEmail(email);
 }
 
-export async function updateUserGoogleBankingLink(email, { upiVpa = '', businessName = '', googleEmail = '', accessToken = '' }) {
+export async function updateUserGoogleBankingLink(email, { upiVpa = '', businessName = '', upiProvider = 'AUTO', googleEmail = '', accessToken = '' }) {
   if (!email) return null;
   const now = Date.now();
   await query.run(
     `UPDATE users SET 
        upi_vpa = CASE WHEN ? != '' THEN ? ELSE upi_vpa END,
        business_name = CASE WHEN ? != '' THEN ? ELSE business_name END,
+       upi_provider = ?,
        gmail_email = ?,
        gmail_access_token = ?,
        settlement_type = 'GOOGLE_OAUTH',
        gmail_connected = 1,
        updated_at = ?
      WHERE email = ?`,
-    [upiVpa, upiVpa, businessName, businessName, googleEmail, accessToken, now, email.trim().toLowerCase()]
+    [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', googleEmail, accessToken, now, email.trim().toLowerCase()]
   );
   return await getUserByEmail(email);
 }
 
-export async function updateUserImapBankingLink(email, { upiVpa = '', businessName = '', imapEmail = '', imapAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993, imapSecure = 1 }) {
+export async function updateUserImapBankingLink(email, { upiVpa = '', businessName = '', upiProvider = 'AUTO', imapEmail = '', imapAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993, imapSecure = 1 }) {
   if (!email) return null;
   const now = Date.now();
   await query.run(
     `UPDATE users SET 
        upi_vpa = CASE WHEN ? != '' THEN ? ELSE upi_vpa END,
        business_name = CASE WHEN ? != '' THEN ? ELSE business_name END,
+       upi_provider = ?,
        gmail_email = ?,
        gmail_app_pass = ?,
        imap_host = ?,
@@ -520,7 +525,7 @@ export async function updateUserImapBankingLink(email, { upiVpa = '', businessNa
        gmail_connected = 1,
        updated_at = ?
      WHERE email = ?`,
-    [upiVpa, upiVpa, businessName, businessName, imapEmail, imapAppPass, imapHost, Number(imapPort) || 993, imapSecure ? 1 : 0, now, email.trim().toLowerCase()]
+    [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', imapEmail, imapAppPass, imapHost, Number(imapPort) || 993, imapSecure ? 1 : 0, now, email.trim().toLowerCase()]
   );
   return await getUserByEmail(email);
 }

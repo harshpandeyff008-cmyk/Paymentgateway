@@ -262,6 +262,8 @@ async function loadStats() {
     if (elExp) elExp.value = exp;
     if (elAdminVpa) elAdminVpa.value = vpa;
     if (elAdminName) elAdminName.value = name;
+    const elProvider = document.getElementById('configMerchantProvider');
+    if (elProvider && stats.merchantUpiProvider) elProvider.value = stats.merchantUpiProvider;
 
     if (stats.imapStatus) {
       uiImapEnabled.checked = Boolean(stats.imapStatus.enabled);
@@ -597,6 +599,7 @@ async function handleSaveSettings(e) {
   const vpa = document.getElementById('configMerchantVpa')?.value.trim();
   const name = document.getElementById('configMerchantName')?.value.trim();
   const expiry = document.getElementById('configExpiryMinutes')?.value;
+  const provider = document.getElementById('configMerchantProvider')?.value || 'AUTO';
   const fb = document.getElementById('settingsFeedback');
   const btn = e?.target?.querySelector('button[type="submit"]');
 
@@ -607,7 +610,7 @@ async function handleSaveSettings(e) {
     const res = await fetch(API_BASE + '/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ upiVpa: vpa, merchantName: name, expiryMinutes: expiry })
+      body: JSON.stringify({ upiVpa: vpa, merchantName: name, expiryMinutes: expiry, upiProvider: provider })
     });
     const data = await res.json();
     if (fb) {

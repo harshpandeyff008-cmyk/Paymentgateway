@@ -1,8 +1,45 @@
 import { parsePaymentEmail } from '../services/emailParser.js';
 
-console.log('--- Testing Email Parser with Real FamPay Samples ---');
+console.log('--- Testing Universal UPI Email Parser (Paytm, PhonePe, FamPay, Bank) ---');
 
 const testCases = [
+  {
+    name: 'Real User Sample: Paytm Business Email with Order ID',
+    subject: 'Payment Received',
+    body: `Payment Received
+₹ 900
+Rupees Nine Hundred only
+It will settle to your bank by 7 am tomorrow. Visit b.paytm.me for details.
+Transaction Count #1
+From
+BHIM UPI 5351XX@axl
+In Account of
+HARSH PANDEY
+Sep 14, 2026, 1:07 PM
+Order ID: T2609141307521577368395
+For any assistance, please call our 24x7
+Business Support at 0120- 4440440
+Track Payments & Settlements on the go!
+Download Paytm Business App`,
+    expectedAmount: 900,
+    expectedUtr: 'T2609141307521577368395',
+    expectedSender: 'HARSH PANDEY',
+    expectedApp: 'Paytm Business'
+  },
+  {
+    name: 'Real User Sample: PhonePe Payment Alert',
+    subject: 'Payment Received',
+    body: `Payment Received
+₹ 450.00
+Payment received of ₹ 450.00 from ROHIT VERMA via PhonePe.
+Transaction ID: T2609141307521577368395
+UTR: 423589012345
+Credited to Bank Account ending in 4321.`,
+    expectedAmount: 450,
+    expectedUtr: '423589012345',
+    expectedSender: 'ROHIT VERMA',
+    expectedApp: 'PhonePe'
+  },
   {
     name: 'Real User Sample: FamPay (FamApp) Payment Email',
     subject: 'Money Received on FamPay',
@@ -63,5 +100,5 @@ for (const tc of testCases) {
 
 console.log(`\nParser Results: ${passed}/${testCases.length} tests passed.`);
 if (passed === testCases.length) {
-  console.log('🎉 100% SUCCESS: Real FamPay email format parsed flawlessly!\n');
+  console.log('🎉 100% SUCCESS: All UPI email formats (Paytm, PhonePe, FamPay, Bank) parsed flawlessly!\n');
 }

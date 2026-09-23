@@ -23,6 +23,7 @@ export const AdminController = {
           imapStatus: getImapStatus(),
           merchantVpa: config.merchant.upiVpa,
           merchantName: config.merchant.name,
+          merchantUpiProvider: await SettingModel.get('merchant_upi_provider', 'AUTO'),
           expiryMinutes: config.orderExpiryMinutes,
           imapUser: config.imap.user || '',
           hasImapPass: Boolean(config.imap.pass),
@@ -184,7 +185,7 @@ export const AdminController = {
 
   async updateSettings(req, res, next) {
     try {
-      const { upiVpa, merchantName, expiryMinutes } = req.body;
+      const { upiVpa, merchantName, expiryMinutes, upiProvider } = req.body;
 
       if (upiVpa) {
         config.merchant.upiVpa = upiVpa.trim();
@@ -193,6 +194,9 @@ export const AdminController = {
       if (merchantName) {
         config.merchant.name = merchantName.trim();
         await SettingModel.set('merchant_name', config.merchant.name);
+      }
+      if (upiProvider) {
+        await SettingModel.set('merchant_upi_provider', upiProvider.trim().toUpperCase());
       }
       if (expiryMinutes) {
         config.orderExpiryMinutes = parseInt(expiryMinutes, 10);
@@ -203,6 +207,7 @@ export const AdminController = {
         req.io.to('admin_room').emit('settings_updated', {
           merchantVpa: config.merchant.upiVpa,
           merchantName: config.merchant.name,
+          merchantUpiProvider: upiProvider || 'AUTO',
           expiryMinutes: config.orderExpiryMinutes
         });
       }

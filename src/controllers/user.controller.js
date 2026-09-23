@@ -275,6 +275,7 @@ export const UserController = {
           remainingWebsiteSlots: remainingSlots,
           upiVpa: user.upi_vpa || '',
           businessName: user.business_name || '',
+          upiProvider: user.upi_provider || 'AUTO',
           settlementType: user.settlement_type || 'GOOGLE_OAUTH',
           hasActivePlan
         }
@@ -330,6 +331,7 @@ export const UserController = {
           remainingWebsiteSlots: remainingSlots,
           upiVpa: user.upi_vpa || '',
           businessName: user.business_name || '',
+          upiProvider: user.upi_provider || 'AUTO',
           settlementType: user.settlement_type || 'GOOGLE_OAUTH',
           hasActivePlan,
           createdAt: user.created_at
@@ -526,7 +528,7 @@ export const UserController = {
   // 5.1 Link Banking Gmail (1-Click Google OAuth with gmail.readonly)
   async connectGoogleBanking(req, res) {
     try {
-      const { userEmail, accessToken, googleEmail, upiVpa = '', businessName = '' } = req.body;
+      const { userEmail, accessToken, googleEmail, upiVpa = '', businessName = '', upiProvider = 'AUTO' } = req.body;
       if (!userEmail || !accessToken) {
         return res.status(400).json({ success: false, error: 'userEmail and Google accessToken are required' });
       }
@@ -547,10 +549,12 @@ export const UserController = {
       const cleanUpi = (upiVpa || user.upi_vpa || '').trim();
       const cleanBusiness = (businessName || user.business_name || '').trim();
       const cleanGoogleEmail = (googleEmail || userEmail).trim();
+      const cleanProvider = (upiProvider || user.upi_provider || 'AUTO').trim().toUpperCase();
 
       const updated = await updateUserGoogleBankingLink(userEmail, {
         upiVpa: cleanUpi,
         businessName: cleanBusiness,
+        upiProvider: cleanProvider,
         googleEmail: cleanGoogleEmail,
         accessToken: accessToken.trim()
       });
@@ -559,7 +563,7 @@ export const UserController = {
         eventType: 'BANKING_GOOGLE_LINKED',
         status: 'SUCCESS',
         title: `Google Banking Email Linked for ${userEmail}`,
-        details: `UPI VPA: ${cleanUpi || 'Unchanged'} | Business: ${cleanBusiness || 'Unchanged'} | Gmail: ${cleanGoogleEmail}`,
+        details: `UPI VPA: ${cleanUpi || 'Unchanged'} | Provider: ${cleanProvider} | Business: ${cleanBusiness || 'Unchanged'} | Gmail: ${cleanGoogleEmail}`,
         clientIp: req.ip || '',
         origin: req.headers.origin || ''
       });
@@ -571,6 +575,7 @@ export const UserController = {
           email: updated.email,
           upiVpa: updated.upi_vpa || '',
           businessName: updated.business_name || '',
+          upiProvider: updated.upi_provider || cleanProvider,
           settlementType: 'GOOGLE_OAUTH',
           gmailConnected: true,
           gmailEmail: updated.gmail_email || cleanGoogleEmail
@@ -585,7 +590,7 @@ export const UserController = {
   // 5.2 Link Banking IMAP (Manual Host/Port/App Password)
   async connectImapBanking(req, res) {
     try {
-      const { userEmail, upiVpa = '', businessName = '', gmailEmail = '', gmailAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993 } = req.body;
+      const { userEmail, upiVpa = '', businessName = '', upiProvider = 'AUTO', gmailEmail = '', gmailAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993 } = req.body;
       if (!userEmail) {
         return res.status(400).json({ success: false, error: 'userEmail is required' });
       }
@@ -607,10 +612,12 @@ export const UserController = {
       const cleanBusiness = (businessName || user.business_name || '').trim();
       const cleanEmail = (gmailEmail || userEmail).trim();
       const cleanPass = (gmailAppPass || '').trim();
+      const cleanProvider = (upiProvider || user.upi_provider || 'AUTO').trim().toUpperCase();
 
       const updated = await updateUserImapBankingLink(userEmail, {
         upiVpa: cleanUpi,
         businessName: cleanBusiness,
+        upiProvider: cleanProvider,
         imapEmail: cleanEmail,
         imapAppPass: cleanPass,
         imapHost: imapHost || 'imap.gmail.com',
@@ -622,7 +629,7 @@ export const UserController = {
         eventType: 'SETTLEMENT_CONFIG_UPDATED',
         status: 'SUCCESS',
         title: `IMAP Settlement Config Updated for ${userEmail}`,
-        details: `UPI VPA: ${cleanUpi || 'Unchanged'} | Business: ${cleanBusiness || 'Unchanged'} | Gmail/IMAP: ${cleanEmail}`,
+        details: `UPI VPA: ${cleanUpi || 'Unchanged'} | Provider: ${cleanProvider} | Business: ${cleanBusiness || 'Unchanged'} | Gmail/IMAP: ${cleanEmail}`,
         clientIp: req.ip || '',
         origin: req.headers.origin || ''
       });
@@ -634,6 +641,7 @@ export const UserController = {
           email: updated.email,
           upiVpa: updated.upi_vpa || '',
           businessName: updated.business_name || '',
+          upiProvider: updated.upi_provider || cleanProvider,
           settlementType: 'IMAP',
           gmailConnected: true,
           gmailEmail: updated.gmail_email || ''

@@ -448,6 +448,13 @@ function renderDashboard() {
   if (inBiz && !inBiz.value) inBiz.value = currentUser.businessName || '';
   if (inImapEmail && !inImapEmail.value) inImapEmail.value = currentUser.gmailEmail || currentUser.email || '';
 
+  // Restore saved UPI Provider choice
+  if (currentUser.upiProvider) {
+    setUpiProviderChoice(currentUser.upiProvider, true);
+  } else if (currentUser.upiVpa) {
+    autoDetectUpiProvider(currentUser.upiVpa);
+  }
+
   // Google Link UI state update
   const googleConnectedCard = document.getElementById('googleConnectedCard');
   const googleConnectActionBox = document.getElementById('googleConnectActionBox');
@@ -1228,6 +1235,48 @@ function closeContactModal() {
   if (modal) modal.style.display = 'none';
 }
 
+// UPI Provider Auto-Detection & Selection
+function autoDetectUpiProvider(vpa) {
+  if (!vpa) return;
+  const clean = vpa.trim().toLowerCase();
+  const badge = document.getElementById('detectedProviderBadge');
+
+  if (clean.includes('@paytm')) {
+    setUpiProviderChoice('PAYTM', true);
+    if (badge) badge.innerHTML = '📱 Auto-Detected: Paytm Business';
+  } else if (clean.includes('@ybl') || clean.includes('@ibl') || clean.includes('@axl')) {
+    setUpiProviderChoice('PHONEPE', true);
+    if (badge) badge.innerHTML = '🟣 Auto-Detected: PhonePe UPI';
+  } else if (clean.includes('@fam') || clean.includes('@fampay')) {
+    setUpiProviderChoice('FAMPAY', true);
+    if (badge) badge.innerHTML = '🟡 Auto-Detected: FamPay (@fam)';
+  } else if (clean.includes('@okhdfcbank') || clean.includes('@okaxis') || clean.includes('@oksbi') || clean.includes('@okicici') || clean.includes('@upi')) {
+    setUpiProviderChoice('BANK', true);
+    if (badge) badge.innerHTML = '🏦 Auto-Detected: Bank / GPay';
+  }
+}
+
+function setUpiProviderChoice(choice, isAuto = false) {
+  const input = document.getElementById('inputMerchantProvider');
+  if (input) input.value = choice;
+
+  document.querySelectorAll('.upi-provider-chip').forEach(c => c.classList.remove('active'));
+  const activeBtn = document.getElementById(`chip_${choice}`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  const badge = document.getElementById('detectedProviderBadge');
+  if (badge && !isAuto) {
+    const labels = {
+      AUTO: '⚡ Auto-Detect: Ready',
+      PAYTM: '📱 Selected: Paytm Business',
+      PHONEPE: '🟣 Selected: PhonePe UPI',
+      FAMPAY: '🟡 Selected: FamPay (@fam)',
+      BANK: '🏦 Selected: Bank / GPay'
+    };
+    badge.innerHTML = labels[choice] || `⚡ Selected: ${choice}`;
+  }
+}
+
 // Tab switching between 1-Click Google and Manual IMAP
 function switchSettlementTab(tab) {
   const tabGoogle = document.getElementById('settlementTabGoogle');
@@ -1299,7 +1348,9 @@ async function linkGoogleBankingGmail() {
       return;
     }
 
-    const res = await fetch('/api/v1/user/banking/google-link', {
+    const providerInput = (document.getElementById('inputMerchantProvider')?.value || currentUser.upiProvider || 'AUTO').trim();
+
+    const res = await fetch(`${API_BASE}/api/v1/user/banking/google-link`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1307,7 +1358,8 @@ async function linkGoogleBankingGmail() {
         accessToken,
         googleEmail,
         upiVpa: upiInput,
-        businessName: bizInput
+        businessName: bizInput,
+        upiProvider: providerInput
       })
     });
 
@@ -1315,6 +1367,7 @@ async function linkGoogleBankingGmail() {
     if (data.success) {
       currentUser.upiVpa = data.user.upiVpa || upiInput;
       currentUser.businessName = data.user.businessName || bizInput;
+      currentUser.upiProvider = data.user.upiProvider || providerInput;
       currentUser.gmailConnected = true;
       currentUser.gmailEmail = data.user.gmailEmail || googleEmail;
       currentUser.settlementType = 'GOOGLE_OAUTH';
@@ -1363,14 +1416,17 @@ async function saveImapSettlementConfig(event) {
     return;
   }
 
+  const providerInput = (document.getElementById('inputMerchantProvider')?.value || currentUser.upiProvider || 'AUTO').trim();
+
   try {
-    const res = await fetch('/api/v1/user/banking/imap-link', {
+    const res = await fetch(`${API_BASE}/api/v1/user/banking/imap-link`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userEmail: currentUser.email,
         upiVpa: upiInput,
         businessName: bizInput,
+        upiProvider: providerInput,
         gmailEmail: emailInput,
         gmailAppPass: passInput,
         imapHost: hostInput,
@@ -1382,6 +1438,7 @@ async function saveImapSettlementConfig(event) {
     if (data.success) {
       currentUser.upiVpa = data.user.upiVpa || upiInput;
       currentUser.businessName = data.user.businessName || bizInput;
+      currentUser.upiProvider = data.user.upiProvider || providerInput;
       currentUser.gmailConnected = true;
       currentUser.gmailEmail = data.user.gmailEmail || emailInput;
       currentUser.settlementType = 'IMAP';
@@ -1412,7 +1469,7 @@ async function disconnectBankingChannel() {
   }
 
   try {
-    const res = await fetch('/api/v1/user/banking/disconnect', {
+    const res = await fetch(`${API_BASE}/api/v1/user/banking/disconnect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userEmail: currentUser.email })
@@ -1437,7 +1494,7 @@ async function loadMerchantLivePayments() {
   if (!tbody) return;
 
   try {
-    const res = await fetch(`/api/v1/user/banking/payments?email=${encodeURIComponent(currentUser.email)}`);
+    const res = await fetch(`${API_BASE}/api/v1/user/banking/payments?email=${encodeURIComponent(currentUser.email)}`);
     const data = await res.json();
 
     if (data.success && data.payments && data.payments.length > 0) {
