@@ -492,6 +492,9 @@ function renderDashboard() {
 
   updateLiveStandPreview();
 
+  // Check mandatory DPDP and non-refundable terms consent upon dashboard load
+  checkMandatoryConsent();
+
   // Update Plan Pricing Cards for Extend & Upgrade states
   updatePlanCardsUI();
   loadMerchantLivePayments();
@@ -1823,6 +1826,48 @@ async function handleSaveBranding(event) {
       btn.innerHTML = '<span>💾 Save Default Branding</span>';
     }
   }
+}
+
+// ==========================================
+// MANDATORY DPDP & COOKIE CONSENT CONTROLS
+// ==========================================
+
+function checkMandatoryConsent() {
+  if (!currentUser || !currentUser.email) return;
+  const key = 'dpdp_consent_accepted_' + currentUser.email.toLowerCase().trim();
+  const accepted = localStorage.getItem(key);
+  const modal = document.getElementById('modalDpdpConsent');
+  if (!accepted && modal) {
+    modal.style.display = 'flex';
+  }
+}
+
+function updateConsentBtnState() {
+  const c1 = document.getElementById('modalCheckTerms');
+  const c2 = document.getElementById('modalCheckPrivacy');
+  const btn = document.getElementById('btnAcceptConsentModal');
+  if (btn) {
+    const isReady = !!(c1 && c1.checked && c2 && c2.checked);
+    btn.disabled = !isReady;
+    btn.style.opacity = isReady ? '1' : '0.5';
+    btn.style.cursor = isReady ? 'pointer' : 'not-allowed';
+  }
+}
+
+function submitUserConsent() {
+  const c1 = document.getElementById('modalCheckTerms');
+  const c2 = document.getElementById('modalCheckPrivacy');
+  if (!c1?.checked || !c2?.checked) {
+    alert('Please check both boxes to agree to our Terms & Conditions (100% Non-Refundable Policy) and Privacy Policy.');
+    return;
+  }
+  if (currentUser && currentUser.email) {
+    const key = 'dpdp_consent_accepted_' + currentUser.email.toLowerCase().trim();
+    localStorage.setItem(key, String(Date.now()));
+  }
+  localStorage.setItem('cookie_consent_accepted', 'true');
+  const modal = document.getElementById('modalDpdpConsent');
+  if (modal) modal.style.display = 'none';
 }
 
 

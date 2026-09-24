@@ -237,7 +237,7 @@
   <div class="login-container">
     
     <a href="/" class="brand-header">
-      <div class="brand-icon">⚡</div>
+      <img src="/images/logo.png" alt="Logo" style="height: 44px; width: 44px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);">
       <div class="brand-title">PayPerpendicular</div>
     </a>
 
@@ -247,6 +247,19 @@
       <p class="card-subtitle">
         Sign in with Google to enter your personal UPI gateway terminal or merchant dashboard.
       </p>
+
+      <!-- Acceptance Checkboxes -->
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 12px 14px; margin-bottom: 20px; text-align: left; font-size: 12.5px; line-height: 1.5;">
+        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 10px; color: #e2e8f0;">
+          <input type="checkbox" id="checkTermsAccept" style="accent-color: #38bdf8; width: 16px; height: 16px; cursor: pointer;" checked>
+          <span>I have read and agree to the <a href="/terms.html" target="_blank" style="color: #38bdf8; text-decoration: underline; font-weight: 700;">Terms &amp; Conditions</a>.</span>
+        </label>
+        
+        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #e2e8f0;">
+          <input type="checkbox" id="checkPrivacyConsent" style="accent-color: #38bdf8; width: 16px; height: 16px; cursor: pointer;" checked>
+          <span>I agree to the <a href="/privacy.html" target="_blank" style="color: #38bdf8; text-decoration: underline; font-weight: 700;">Privacy Policy</a> &amp; <a href="/data-control.html" target="_blank" style="color: #38bdf8; text-decoration: underline; font-weight: 700;">Data Control</a>.</span>
+        </label>
+      </div>
 
       <button type="button" class="btn-google" id="btnGoogleSignIn" onclick="handleUnifiedSignIn()">
         <svg width="20" height="20" viewBox="0 0 24 24">
@@ -318,9 +331,23 @@
         return;
       }
 
+      const checkTerms = document.getElementById('checkTermsAccept');
+      const checkPrivacy = document.getElementById('checkPrivacyConsent');
+      const feedback = document.getElementById('authFeedback');
+
+      if (!checkTerms?.checked || !checkPrivacy?.checked) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+          feedback.style.color = '#f87171';
+          feedback.innerHTML = '⚠️ <strong>Consent Required:</strong> You must check both boxes to agree to our Terms &amp; Conditions (100% Non-Refundable Policy) and DPDP Act Privacy &amp; Cookies Policy before signing in.';
+        }
+        return;
+      }
+
       const btn = document.getElementById('btnGoogleSignIn');
       const btnText = document.getElementById('btnText');
-      const feedback = document.getElementById('authFeedback');
 
       btn.disabled = true;
       btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Connecting to Google...</span>';
@@ -389,6 +416,8 @@
           if (data.success && data.user) {
             sessionStorage.setItem('gateway_user', JSON.stringify(data.user));
           }
+          localStorage.setItem('dpdp_consent_accepted_' + email, String(Date.now()));
+          localStorage.setItem('cookie_consent_accepted', 'true');
         } catch (e) {
           console.warn('[Sync Error]', e);
         }
