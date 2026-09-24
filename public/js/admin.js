@@ -1,20 +1,20 @@
-// Dynamically resolve Gateway Backend URL (supports paypendicular.web.app, localhost, and Render)
+// Dynamically resolve Gateway Backend URL (supports paypendicular.web.app, upigateway.web.app, localhost, and Render)
 const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
   ? 'https://personal-payment-gateway.onrender.com' 
-  : '';
+  : (window.location.hostname.includes('onrender.com') ? '' : 'https://personal-payment-gateway.onrender.com');
 
 // ==================== MASTER KEY AUTH & FETCH INTERCEPTOR ==================== //
 function getAdminMasterKey() {
-  return localStorage.getItem('admin_master_key') || 
-         sessionStorage.getItem('gateway_master_key') || 
-         'shivambhatt@admin';
+  const k = localStorage.getItem('admin_master_key') || 
+            sessionStorage.getItem('gateway_master_key');
+  return (k && k.trim() && k !== 'undefined' && k !== 'null') ? k.trim() : 'shivambhatt@admin';
 }
 
 const originalFetch = window.fetch;
 window.fetch = async function (url, options = {}) {
   let urlStr = typeof url === 'string' ? url : (url?.url || '');
   
-  // If this is a relative /api/ endpoint and API_BASE is configured (e.g. on paypendicular.web.app), prepend API_BASE!
+  // If this is a relative /api/ endpoint and API_BASE is configured, prepend API_BASE!
   if (API_BASE && urlStr.startsWith('/api/')) {
     urlStr = API_BASE + urlStr;
     if (typeof url === 'string') {
@@ -142,6 +142,10 @@ function switchAdminSidebar(viewId) {
   document.querySelectorAll('.admin-view-section').forEach(view => view.classList.remove('active'));
   const targetView = document.getElementById(`view_admin_${viewId}`);
   if (targetView) targetView.classList.add('active');
+
+  // Close mobile sidebar if open
+  const sidebar = document.getElementById('adminSidebar');
+  if (sidebar) sidebar.classList.remove('mobile-open');
 
   // Update topbar title
   const titleEl = document.getElementById('adminViewTitle');
@@ -1265,42 +1269,6 @@ function copyCurrentSnippet() {
 }
 window.copyCurrentSnippet = copyCurrentSnippet;
 
-async function testApiKeyOrderCreation() {
-  const amountInput = document.getElementById('testOrderAmount');
-  const resultBox = document.getElementById('apiTestConsoleResult');
-  const amt = parseFloat(amountInput.value) || 10;
-
-  resultBox.style.display = 'block';
-  resultBox.innerText = 'Sending HTTP POST request with x-api-key...';
-
-  try {
-    const start = Date.now();
-    const res = await fetch(API_BASE + '/api/orders/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': currentApiKey
-      },
-      body: JSON.stringify({
-        amount: amt,
-        customerName: 'API Key Test Runner',
-        customerPhone: '9999999999'
-      })
-    });
-    const duration = Date.now() - start;
-    const json = await res.json();
-
-    resultBox.innerText = `HTTP ${res.status} ${res.statusText} (${duration}ms)\\n` + JSON.stringify(json, null, 2);
-    if (json.success) {
-      loadStats();
-      loadOrders(currentFilter);
-    }
-  } catch (err) {
-    resultBox.innerText = 'Network Error: ' + err.message;
-  }
-}
-window.testApiKeyOrderCreation = testApiKeyOrderCreation;
-
 function initDashboardData() {
   loadAdminUsers();
   loadAdminSubscriptions();
@@ -1694,9 +1662,21 @@ async function loadAdminUsers() {
         'x-admin-key': getAdminMasterKey()
       }
     });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.warn('[AdminUsers] HTTP', res.status, errText);
+      if (res.status === 401) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #fbbf24; padding: 24px;">Admin session expired. Please re-login.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user directory (HTTP ${res.status}). <button type="button" class="btn btn-secondary" onclick="loadAdminUsers()" style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">🔄 Retry</button></td></tr>`;
+      return;
+    }
+
     const data = await res.json();
     if (!data.success || !data.users) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user directory.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user directory. <button type="button" class="btn btn-secondary" onclick="loadAdminUsers()" style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">🔄 Retry</button></td></tr>';
       return;
     }
 
@@ -1738,7 +1718,7 @@ async function loadAdminUsers() {
     filterAdminUsersTable();
   } catch (err) {
     console.error('Failed to load admin users:', err);
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Network error loading user records.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user records (${err.message || 'Network error'}). <button type="button" class="btn btn-secondary" onclick="loadAdminUsers()" style="margin-left: 10px; padding: 4px 10px; font-size: 11px;">🔄 Retry</button></td></tr>`;
   }
 }
 window.loadAdminUsers = loadAdminUsers;
@@ -1935,10 +1915,14 @@ async function loadAdminSubscriptions() {
 
   try {
     const res = await fetch((API_BASE || '') + '/api/admin/orders?type=PLANS&limit=100');
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load subscriptions (HTTP ${res.status}). <button type="button" class="btn btn-secondary" onclick="loadAdminSubscriptions()" style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">🔄 Retry</button></td></tr>`;
+      return;
+    }
     const data = await res.json();
 
     if (!data.success || !data.orders) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load subscriptions.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load subscriptions. <button type="button" class="btn btn-secondary" onclick="loadAdminSubscriptions()" style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">🔄 Retry</button></td></tr>';
       return;
     }
 
@@ -2371,3 +2355,9 @@ async function resetPlanPrice(planId) {
   } catch(err){ alert('Error: '+err.message); }
 }
 window.resetPlanPrice = resetPlanPrice;
+
+function toggleAdminMobileSidebar() {
+  const sidebar = document.getElementById('adminSidebar');
+  if (sidebar) sidebar.classList.toggle('mobile-open');
+}
+window.toggleAdminMobileSidebar = toggleAdminMobileSidebar;

@@ -114,10 +114,7 @@ function renderOrder(order) {
 
   const uniqueNotice = document.getElementById('uniqueAmountNotice');
   if (uniqueNotice) {
-    if (order.base_amount && Number(order.base_amount) !== Number(order.amount)) {
-      const diffPaise = Math.round((Number(order.amount) - Number(order.base_amount)) * 100);
-      uniqueNotice.innerHTML = `⚡ <span>Pay exact <b>₹${Number(order.amount).toFixed(2)}</b> (+₹0.${diffPaise < 10 ? '0' : ''}${diffPaise} unique tracking code)</span>`;
-    }
+    uniqueNotice.innerHTML = `⚡ <span>Pay exact <b>₹${Number(order.amount).toFixed(2)}</b> for 1-second auto-verification</span>`;
   }
 
   // Set dynamic QR code image source (instant base64 or stream endpoint)

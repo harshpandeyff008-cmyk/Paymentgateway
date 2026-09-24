@@ -30,7 +30,7 @@ export const config = {
     requireApiKey: process.env.REQUIRE_API_KEY !== 'false'
   },
 
-  allowedOrigins: (process.env.ALLOWED_ORIGINS || 'https://upigateway-ccaa4.web.app,https://upigateway-ccaa4.firebaseapp.com,https://paypendicular.web.app,https://paypendicular.firebaseapp.com,https://dealsbyshiv.web.app,https://payment-gateway-ydl1.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000')
+  allowedOrigins: (process.env.ALLOWED_ORIGINS || 'https://upigateway.web.app,https://upigateway.firebaseapp.com,https://upigateway-ccaa4.web.app,https://upigateway-ccaa4.firebaseapp.com,https://personal-payment-gateway.onrender.com,https://paypendicular.web.app,https://paypendicular.firebaseapp.com,https://dealsbyshiv.web.app,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000')
     .split(',')
     .map(s => s.trim().replace(/\/+$/, ''))
     .filter(Boolean),

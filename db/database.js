@@ -674,7 +674,7 @@ export async function lockUserWebsite(email, websiteUrl) {
 
 export async function getAllUsers() {
   try {
-    return await query.all('SELECT id, email, name, photo_url, role, plan, qr_credits, api_key, gmail_connected, gmail_email, website_url, is_website_locked, created_at, updated_at FROM users ORDER BY id DESC');
+    return await query.all('SELECT id, email, name, photo_url, role, plan, qr_credits, api_key, gmail_connected, gmail_email, website_url, is_website_locked, upi_vpa, business_name, created_at, updated_at FROM users ORDER BY id DESC');
   } catch (err) {
     console.error('[DB] Failed to fetch users:', err.message);
     return [];

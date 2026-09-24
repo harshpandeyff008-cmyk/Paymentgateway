@@ -2,10 +2,10 @@
 // USER PANEL & 2-LINE SIDEBAR DASHBOARD
 // ==========================================
 
-// Dynamically resolve Gateway Backend URL (supports Firebase Hosting and local dev)
+// Dynamically resolve Gateway Backend URL (supports Firebase Hosting, custom domains, and Render)
 const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
   ? 'https://personal-payment-gateway.onrender.com' 
-  : '';
+  : (window.location.hostname.includes('onrender.com') ? '' : 'https://personal-payment-gateway.onrender.com');
 
 if (API_BASE) {
   const originalFetch = window.fetch;
@@ -797,6 +797,18 @@ async function initiateBuyPlan(planId, couponCode = '') {
     }
 
     const order = data.order;
+
+    // Check for 100% OFF Free Activation
+    if (data.isFreeActivation || Number(order.amount) <= 0 || order.status === 'PAID') {
+      if (modalFastPoller) clearInterval(modalFastPoller);
+      if (activeOrderTimer) clearInterval(activeOrderTimer);
+      handlePaymentSuccess({ status: 'PAID', amount: 0, utr: `100% FREE (${order.couponApplied?.code || 'COUPON'})` }, order);
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      }
+      return;
+    }
+
     if (modalPlanName) modalPlanName.innerText = order.planName;
     if (modalPlanAmount) modalPlanAmount.innerText = `₹${Number(order.amount).toFixed(2)}`;
     if (modalOrderCode) modalOrderCode.innerText = order.orderCode;
@@ -858,23 +870,19 @@ async function initiateBuyPlan(planId, couponCode = '') {
       }
     }
 
+    // Clean notice without tracking code explanation
     const modalNotice = document.getElementById('modalUniqueNotice');
     if (modalNotice) {
-      if (order.isUniqueOffset || (order.baseAmount && Number(order.baseAmount) !== Number(order.amount))) {
-        const diffPaise = Math.round((Number(order.amount) - Number(order.baseAmount)) * 100);
-        modalNotice.innerHTML = `⚡ <span>Pay exact <b>₹${Number(order.amount).toFixed(2)}</b> (+₹0.${diffPaise < 10 ? '0' : ''}${diffPaise} unique tracking code)</span>`;
-      } else {
-        modalNotice.innerHTML = '⚡ <span>Pay exact amount for instant auto-verification</span>';
-      }
+      modalNotice.innerHTML = `⚡ <span>Pay exact <b>₹${Number(order.amount).toFixed(2)}</b> for 1-second auto-verification</span>`;
     }
 
     // Mobile Intent links
     const btnGpay = document.getElementById('btnIntentGpay');
     const btnPhonepe = document.getElementById('btnIntentPhonepe');
     const btnPaytm = document.getElementById('btnIntentPaytm');
-    if (btnGpay) btnGpay.href = order.intents.gpay;
-    if (btnPhonepe) btnPhonepe.href = order.intents.phonepe;
-    if (btnPaytm) btnPaytm.href = order.intents.paytm;
+    if (btnGpay && order.intents) btnGpay.href = order.intents.gpay;
+    if (btnPhonepe && order.intents) btnPhonepe.href = order.intents.phonepe;
+    if (btnPaytm && order.intents) btnPaytm.href = order.intents.paytm;
 
     if (modalStatusText) {
       modalStatusText.innerHTML = `
@@ -893,7 +901,7 @@ async function initiateBuyPlan(planId, couponCode = '') {
     if (modalFastPoller) clearInterval(modalFastPoller);
     modalFastPoller = setInterval(async () => {
       try {
-        const res = await fetch(`/api/v1/orders/${order.orderCode}`);
+        const res = await fetch((API_BASE || '') + `/api/v1/orders/${order.orderCode}`);
         if (!res.ok) return;
         const oData = await res.json();
         if (oData.success && oData.order && oData.order.status === 'PAID') {
@@ -1025,7 +1033,7 @@ async function applyModalCoupon() {
   if (fb) fb.style.display = 'none';
 
   try {
-    const res = await fetch(`/api/v1/user/coupon/validate?code=${encodeURIComponent(code)}&planId=${encodeURIComponent(currentBuyingPlanId)}`);
+    const res = await fetch((API_BASE || '') + `/api/v1/user/coupon/validate?code=${encodeURIComponent(code)}&planId=${encodeURIComponent(currentBuyingPlanId)}`);
     const data = await res.json();
     if (!data.success || !data.valid) {
       if (fb) {

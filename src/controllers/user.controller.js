@@ -433,6 +433,7 @@ export const UserController = {
         }
         discountAmount = parseFloat(((basePlanPrice * couponResult.coupon.discount_percent) / 100).toFixed(2));
         finalBasePrice = parseFloat((basePlanPrice - discountAmount).toFixed(2));
+        if (finalBasePrice < 0) finalBasePrice = 0;
         couponApplied = {
           code: couponResult.coupon.code,
           discountPercent: couponResult.coupon.discount_percent,
@@ -444,7 +445,66 @@ export const UserController = {
       const now = Date.now();
       const expiresAt = now + 10 * 60 * 1000; // 10 minutes expiry
 
-      // Calculate unique payable amount with paise offset (e.g. 299, 299.01, 299.02)
+      // ─── 100% OFF / FREE COUPON INSTANT ACTIVATION ───
+      if (finalBasePrice <= 0) {
+        const insertResult = await query.run(
+          `INSERT INTO orders (
+            order_code, amount, base_amount, customer_name, customer_phone, status, 
+            created_at, expires_at, paid_at, utr, user_email, plan_id, credits_to_add
+          ) VALUES (?, 0, ?, ?, ?, 'PAID', ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            orderCode,
+            basePlanPrice,
+            user.name || 'User',
+            userEmail,
+            now,
+            expiresAt,
+            now,
+            `100% OFF (${couponApplied?.code || 'FREE'})`,
+            user.email,
+            targetPlan.id,
+            targetPlan.qrCredits
+          ]
+        );
+
+        if (couponApplied) {
+          await markCouponUsed(couponApplied.code, user.email, orderCode, discountAmount);
+        }
+
+        // Immediately upgrade user's plan in DB
+        await updateUserPlanAndCredits(user.email, targetPlan.id, targetPlan.qrCredits);
+
+        await logActivity({
+          eventType: 'PLAN_ACTIVATED_100_COUPON',
+          status: 'SUCCESS',
+          title: `100% Free Plan Activated: ${orderCode}`,
+          details: `User ${user.email} received instant plan activation for ${targetPlan.name} using 100% coupon ${couponApplied?.code}`,
+          clientIp: req.ip || '',
+          origin: req.headers.origin || ''
+        });
+
+        return res.json({
+          success: true,
+          isFreeActivation: true,
+          order: {
+            id: insertResult.lastID,
+            orderCode,
+            amount: 0,
+            baseAmount: basePlanPrice,
+            finalBasePrice: 0,
+            status: 'PAID',
+            couponApplied,
+            planId: targetPlan.id,
+            planName: targetPlan.name,
+            qrCredits: targetPlan.qrCredits,
+            expiresAt,
+            qrDataUrl: '',
+            intents: { generic: '', gpay: '', phonepe: '', paytm: '' }
+          }
+        });
+      }
+
+      // Calculate unique payable amount with paise offset (e.g. 29.90, 29.91)
       const payableAmount = await getUniquePayableAmount(finalBasePrice, 20);
 
       // Insert into orders table

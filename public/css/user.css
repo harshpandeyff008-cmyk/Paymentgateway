@@ -1607,24 +1607,148 @@ body {
   border: 1px solid rgba(244, 63, 94, 0.3);
 }
 
-/* Mobile Responsive */
-@media (max-width: 900px) {
+/* Mobile & Tablet Responsive Engine */
+@media (max-width: 992px) {
+  .dashboard-wrapper {
+    position: relative;
+  }
+
   .sidebar-2line {
     position: fixed;
-    left: -290px;
-    transition: left 0.3s ease;
+    top: 0;
+    left: -310px;
+    height: 100vh;
+    z-index: 10000;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 12px 0 35px rgba(0, 0, 0, 0.85);
   }
+
   .sidebar-2line.mobile-open {
     left: 0;
   }
+
+  #mobileMenuBtn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .main-content-area {
+    width: 100% !important;
+    min-width: 0;
+  }
+
   .content-topbar {
     padding: 14px 18px;
+    gap: 12px;
   }
+
   .content-body {
     padding: 18px 16px;
   }
+
+  .pricing-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+  }
+}
+
+@media (max-width: 768px) {
+  .content-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .topbar-page-title {
+    font-size: 16px;
+  }
+
+  .topbar-quick-stats {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .topbar-stat-pill {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
   .urgent-banner {
-    margin: 14px 16px 0;
+    margin: 12px 14px 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .plan-card {
+    padding: 22px 18px;
+  }
+
+  .table-card {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+
+  .data-table {
+    min-width: 580px;
+  }
+
+  /* Payment Modal Responsiveness */
+  .modal-box {
+    width: 95vw !important;
+    max-width: 440px !important;
+    margin: 12px auto !important;
+    padding: 16px 14px !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+  }
+
+  .official-upi-stand {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 14px 10px !important;
+  }
+
+  .upi-qr-body img {
+    max-width: 190px !important;
+    height: auto !important;
+  }
+
+  .mobile-intent-buttons {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .intent-btn {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar-2line {
+    width: 270px;
+  }
+
+  .topbar-page-title {
+    font-size: 15px;
+  }
+
+  .billing-tab-btn {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
+  .plan-price-wrap .plan-amount {
+    font-size: 32px;
   }
 }
 

@@ -170,7 +170,10 @@
       
       <!-- Content Topbar -->
       <header class="content-topbar">
-        <h1 class="topbar-page-title" id="adminViewTitle">👥 Registered Users &amp; Subscription Tracking</h1>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button type="button" id="adminMobileMenuBtn" class="btn btn-secondary mobile-menu-toggle" onclick="toggleAdminMobileSidebar()" style="display: none; padding: 6px 10px; font-size: 16px;">☰</button>
+          <h1 class="topbar-page-title" id="adminViewTitle">👥 Registered Users &amp; Subscription Tracking</h1>
+        </div>
 
         <div class="topbar-quick-stats">
           <div class="topbar-stat-pill" style="background: rgba(255, 103, 31, 0.1); border-color: rgba(255, 103, 31, 0.3); color: #ff9933;">

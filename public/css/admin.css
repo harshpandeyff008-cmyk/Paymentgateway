@@ -851,3 +851,170 @@ tr:hover td {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ======================================================== */
+/* COMPREHENSIVE RESPONSIVE DESIGN (PHONE, TABLET, LAPTOP)  */
+/* ======================================================== */
+
+/* TABLETS & SMALL LAPTOPS (<= 1024px) */
+@media (max-width: 1024px) {
+  .admin-layout-wrapper {
+    position: relative;
+  }
+
+  .sidebar-2line {
+    position: fixed;
+    top: 0;
+    left: -310px;
+    height: 100vh;
+    z-index: 1000;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 12px 0 35px rgba(0, 0, 0, 0.7);
+  }
+
+  .sidebar-2line.mobile-open {
+    left: 0;
+  }
+
+  .mobile-menu-toggle,
+  #adminMobileMenuBtn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .main-content-area {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .content-topbar {
+    padding: 14px 20px;
+    gap: 12px;
+  }
+
+  .admin-view-section {
+    padding: 20px 20px 40px;
+  }
+
+  .dashboard-split {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+}
+
+/* MOBILE DEVICES (<= 768px) */
+@media (max-width: 768px) {
+  .content-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 16px;
+    gap: 10px;
+  }
+
+  .topbar-page-title {
+    font-size: 17px;
+  }
+
+  .topbar-quick-stats {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .topbar-stat-pill {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .metric-card {
+    padding: 16px;
+  }
+
+  .metric-val {
+    font-size: 24px;
+  }
+
+  .admin-view-section {
+    padding: 14px 14px 32px;
+  }
+
+  .panel-card {
+    padding: 16px;
+    border-radius: var(--radius-md);
+  }
+
+  .table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+  }
+
+  table {
+    min-width: 600px;
+  }
+
+  th, td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .modal-content {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    margin: 15px auto !important;
+    padding: 18px !important;
+  }
+
+  .quick-filter-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .quick-filter-btn {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  .form-grid-2col,
+  .config-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .api-test-console {
+    padding: 14px;
+  }
+}
+
+/* SMALL PHONES (<= 480px) */
+@media (max-width: 480px) {
+  .sidebar-2line {
+    width: 270px;
+  }
+
+  .topbar-page-title {
+    font-size: 15px;
+  }
+
+  .btn {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  .status-pill {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+}
+
+
