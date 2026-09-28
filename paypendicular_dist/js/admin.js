@@ -1,0 +1,1830 @@
+// Dynamically resolve Gateway Backend URL (supports paypendicular.web.app, localhost, and Render)
+const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
+  ? 'https://payment-gateway-ydl1.onrender.com' 
+  : '';
+
+// ==================== MASTER KEY AUTH & FETCH INTERCEPTOR ==================== //
+function getAdminMasterKey() {
+  return localStorage.getItem('admin_master_key') || 
+         sessionStorage.getItem('gateway_master_key') || 
+         'shivambhatt@admin';
+}
+
+const originalFetch = window.fetch;
+window.fetch = async function (url, options = {}) {
+  const urlStr = typeof url === 'string' ? url : (url?.url || '');
+  
+  // Attach x-admin-key to ANY admin endpoint (relative or absolute URL)
+  if (urlStr.includes('/api/admin') && !urlStr.includes('/auth/verify-master-key')) {
+    const key = getAdminMasterKey();
+    options = options || {};
+    options.headers = options.headers || {};
+
+    if (options.headers instanceof Headers) {
+      if (key && !options.headers.has('x-admin-key')) {
+        options.headers.set('x-admin-key', key);
+      }
+    } else {
+      if (key && !options.headers['x-admin-key']) {
+        options.headers['x-admin-key'] = key;
+      }
+    }
+  }
+
+  const response = await originalFetch.call(this, url, options);
+
+  if (response.status === 401 && urlStr.includes('/api/admin') && !urlStr.includes('/auth/verify-master-key')) {
+    console.warn('[AdminAuth] Received 401 from', urlStr);
+    showMasterKeyLockScreen();
+  }
+
+  return response;
+};
+
+function showMasterKeyLockScreen() {
+  const overlay = document.getElementById('masterKeyLockScreen');
+  if (overlay) {
+    overlay.style.display = 'flex';
+    const input = document.getElementById('inputMasterKey');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+}
+window.showMasterKeyLockScreen = showMasterKeyLockScreen;
+
+function hideMasterKeyLockScreen() {
+  const overlay = document.getElementById('masterKeyLockScreen');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+}
+window.hideMasterKeyLockScreen = hideMasterKeyLockScreen;
+
+function toggleMasterKeyInputVisibility() {
+  const input = document.getElementById('inputMasterKey');
+  if (!input) return;
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+window.toggleMasterKeyInputVisibility = toggleMasterKeyInputVisibility;
+
+async function submitMasterKey(e) {
+  if (e) e.preventDefault();
+  const input = document.getElementById('inputMasterKey');
+  const errorBox = document.getElementById('masterKeyError');
+  const btn = document.getElementById('btnUnlockDashboard');
+  const key = input ? input.value.trim() : '';
+
+  if (!key) return;
+
+  btn.disabled = true;
+  btn.innerText = 'Verifying...';
+  if (errorBox) errorBox.style.display = 'none';
+
+  try {
+    const res = await originalFetch('/api/admin/auth/verify-master-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ masterKey: key })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('admin_master_key', key);
+      hideMasterKeyLockScreen();
+      initDashboardData();
+    } else {
+      if (errorBox) {
+        errorBox.style.display = 'block';
+        errorBox.innerText = '❌ ' + (data.error || 'Invalid Master Key. Access Denied.');
+      }
+    }
+  } catch (err) {
+    if (errorBox) {
+      errorBox.style.display = 'block';
+      errorBox.innerText = 'Network error: ' + err.message;
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '🔓 Unlock Dashboard';
+  }
+}
+window.submitMasterKey = submitMasterKey;
+
+function lockAdminDashboard() {
+  localStorage.removeItem('admin_master_key');
+  showMasterKeyLockScreen();
+}
+window.lockAdminDashboard = lockAdminDashboard;
+
+let socket = null;
+let currentFilter = 'ALL';
+
+
+// Elements - Metrics
+const metricRevenue = document.getElementById('metricRevenue');
+const metricTotalOrders = document.getElementById('metricTotalOrders');
+const metricPaidOrders = document.getElementById('metricPaidOrders');
+const metricConversion = document.getElementById('metricConversion');
+const metricPendingOrders = document.getElementById('metricPendingOrders');
+
+const imapDot = document.getElementById('imapDot');
+const imapText = document.getElementById('imapText');
+const uiImapBadge = document.getElementById('uiImapBadge');
+
+const ordersTableBody = document.getElementById('ordersTableBody');
+const paymentsFeed = document.getElementById('paymentsFeed');
+const paymentsCount = document.getElementById('paymentsCount');
+
+// Elements - Simulator
+const simulatorForm = document.getElementById('simulatorForm');
+const simAmount = document.getElementById('simAmount');
+const simUtr = document.getElementById('simUtr');
+const simSender = document.getElementById('simSender');
+const btnSimulate = document.getElementById('btnSimulate');
+const simResult = document.getElementById('simResult');
+
+// Elements - Create Order Modal
+const createOrderForm = document.getElementById('createOrderForm');
+const orderAmount = document.getElementById('orderAmount');
+const orderCustomerName = document.getElementById('orderCustomerName');
+const orderCustomerPhone = document.getElementById('orderCustomerPhone');
+const orderWebhook = document.getElementById('orderWebhook');
+
+// Elements - Frontend Configurator
+const frontendImapForm = document.getElementById('frontendImapForm');
+const uiImapEnabled = document.getElementById('uiImapEnabled');
+const uiImapUser = document.getElementById('uiImapUser');
+const uiImapPass = document.getElementById('uiImapPass');
+const uiImapFilter = document.getElementById('uiImapFilter');
+const btnToggleShowPass = document.getElementById('btnToggleShowPass');
+const uiBtnTestImap = document.getElementById('uiBtnTestImap');
+const uiBtnSaveImap = document.getElementById('uiBtnSaveImap');
+const uiImapFeedback = document.getElementById('uiImapFeedback');
+
+const frontendSettingsForm = document.getElementById('frontendSettingsForm');
+const uiUpiVpa = document.getElementById('uiUpiVpa');
+const uiMerchantName = document.getElementById('uiMerchantName');
+const uiExpiryMinutes = document.getElementById('uiExpiryMinutes');
+const uiBtnSaveSettings = document.getElementById('uiBtnSaveSettings');
+const uiSettingsFeedback = document.getElementById('uiSettingsFeedback');
+
+const uiBtnScanInbox = document.getElementById('uiBtnScanInbox');
+const inboxScanResults = document.getElementById('inboxScanResults');
+
+// Ledger DOM Elements
+const btnSyncAllEmails = document.getElementById('btnSyncAllEmails');
+const syncFeedback = document.getElementById('syncFeedback');
+const ledgerTotalMoney = document.getElementById('ledgerTotalMoney');
+const ledgerTotalCount = document.getElementById('ledgerTotalCount');
+const ledgerTopCustomer = document.getElementById('ledgerTopCustomer');
+const ledgerTopCustomerAmount = document.getElementById('ledgerTopCustomerAmount');
+const ledgerTopSendersList = document.getElementById('ledgerTopSendersList');
+const pasteEmailForm = document.getElementById('pasteEmailForm');
+const pasteEmailInput = document.getElementById('pasteEmailInput');
+const btnParsePaste = document.getElementById('btnParsePaste');
+const pasteFeedback = document.getElementById('pasteFeedback');
+const ledgerTableBody = document.getElementById('ledgerTableBody');
+
+// Tab Switching Logic
+function switchTab(tab) {
+  document.getElementById('tabBtnDashboard').classList.toggle('active', tab === 'dashboard');
+  document.getElementById('tabBtnLedger').classList.toggle('active', tab === 'ledger');
+  document.getElementById('tabBtnConfig').classList.toggle('active', tab === 'config');
+  document.getElementById('tabBtnApiKey').classList.toggle('active', tab === 'apiKey');
+  const btnLogs = document.getElementById('tabBtnLogs');
+  if (btnLogs) btnLogs.classList.toggle('active', tab === 'logs');
+
+  document.getElementById('tabContentDashboard').classList.toggle('active', tab === 'dashboard');
+  document.getElementById('tabContentLedger').classList.toggle('active', tab === 'ledger');
+  document.getElementById('tabContentConfig').classList.toggle('active', tab === 'config');
+  document.getElementById('tabContentApiKey').classList.toggle('active', tab === 'apiKey');
+  const contentLogs = document.getElementById('tabContentLogs');
+  if (contentLogs) contentLogs.classList.toggle('active', tab === 'logs');
+
+  if (tab === 'ledger') {
+    loadLedger();
+  } else if (tab === 'apiKey') {
+    loadApiKeyDetails();
+  } else if (tab === 'logs') {
+    loadApiLogs();
+  }
+}
+window.switchTab = switchTab;
+
+// Modal Helpers
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+window.closeModal = closeModal;
+
+document.getElementById('btnOpenCreateOrder').addEventListener('click', () => openModal('modalCreateOrder'));
+
+window.addEventListener('click', (e) => {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('active');
+  }
+});
+
+// Show / Hide Password
+btnToggleShowPass.addEventListener('click', () => {
+  if (uiImapPass.type === 'password') {
+    uiImapPass.type = 'text';
+    btnToggleShowPass.innerText = '🔒';
+  } else {
+    uiImapPass.type = 'password';
+    btnToggleShowPass.innerText = '👁️';
+  }
+});
+
+// 1. Load Stats and Settings into UI
+async function loadStats() {
+  try {
+    const res = await fetch(API_BASE + '/api/admin/stats');
+    const data = await res.json();
+    if (!data.success) return;
+
+    const { stats } = data;
+    metricRevenue.innerText = `₹ ${Number(stats.totalRevenue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    metricTotalOrders.innerText = stats.totalOrders;
+    metricPaidOrders.innerText = stats.paidOrders;
+    metricPendingOrders.innerText = stats.pendingOrders;
+
+    const rate = stats.totalOrders > 0 ? ((stats.paidOrders / stats.totalOrders) * 100).toFixed(1) : 0;
+    metricConversion.innerText = `${rate}% Success Rate`;
+
+    // IMAP Status
+    updateImapPill(stats.imapStatus);
+
+    // Populate Frontend Configurator fields
+    uiUpiVpa.value = stats.merchantVpa || '';
+    uiMerchantName.value = stats.merchantName || '';
+    uiExpiryMinutes.value = stats.expiryMinutes || 5;
+
+    if (stats.imapStatus) {
+      uiImapEnabled.checked = Boolean(stats.imapStatus.enabled);
+      if (stats.imapStatus.user) uiImapUser.value = stats.imapStatus.user;
+    }
+    if (stats.imapFilter) {
+      uiImapFilter.value = stats.imapFilter;
+    }
+
+  } catch (err) {
+    console.error('Failed to load stats:', err);
+  }
+}
+
+function updateImapPill(status) {
+  if (!status) return;
+
+  imapDot.className = 'status-dot';
+  if (!status.enabled) {
+    imapDot.classList.add('disconnected');
+    imapText.innerText = 'IMAP: Disabled';
+    if (uiImapBadge) {
+      uiImapBadge.className = 'badge PENDING';
+      uiImapBadge.innerText = 'Disabled';
+    }
+  } else if (status.connected && status.listening) {
+    imapDot.classList.add('connected');
+    imapText.innerText = 'IMAP: Live Listening';
+    if (uiImapBadge) {
+      uiImapBadge.className = 'badge PAID';
+      uiImapBadge.innerText = 'Live Listening (Active)';
+    }
+  } else if (status.connected) {
+    imapDot.classList.add('idle');
+    imapText.innerText = 'IMAP: Connected';
+    if (uiImapBadge) {
+      uiImapBadge.className = 'badge PENDING';
+      uiImapBadge.innerText = 'Connected (Idle)';
+    }
+  } else {
+    imapDot.classList.add('disconnected');
+    imapText.innerText = status.lastError ? `IMAP: Error` : 'IMAP: Disconnected';
+    if (uiImapBadge) {
+      uiImapBadge.className = 'badge EXPIRED';
+      uiImapBadge.innerText = status.lastError || 'Disconnected';
+    }
+  }
+}
+
+// 2. Load Orders
+async function loadOrders(filter = 'ALL') {
+  currentFilter = filter;
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/orders?status=${filter}`);
+    const data = await res.json();
+    if (!data.success) return;
+
+    renderOrders(data.orders);
+  } catch (err) {
+    console.error('Failed to load orders:', err);
+  }
+}
+
+function renderOrders(orders) {
+  // Update Simulator Quick Chips with Active Pending Orders
+  const pendingOrders = (orders || []).filter(o => o.status === 'PENDING');
+  const simChips = document.getElementById('simPendingChips');
+  if (simChips) {
+    if (pendingOrders.length === 0) {
+      simChips.innerHTML = `<span style="font-size: 11px; color: var(--accent-amber);">⚠️ No pending orders open. Click 1-Click test below!</span>`;
+    } else {
+      simChips.innerHTML = pendingOrders.slice(0, 4).map(o => `
+        <button type="button" onclick="selectPendingOrderForSim('${o.order_code}', ${o.amount})" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; border-color: rgba(56, 189, 248, 0.4); color: var(--primary); cursor: pointer;" title="Fill ₹${o.amount} into simulator">
+          👉 ${o.order_code}: ₹${Number(o.amount).toFixed(2)}
+        </button>
+      `).join('');
+    }
+  }
+
+  if (!orders || orders.length === 0) {
+    ordersTableBody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">
+          No orders found. Click "+ Create Order" to generate one.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  ordersTableBody.innerHTML = orders.map(ord => {
+    const isPending = ord.status === 'PENDING';
+    const isPaid = ord.status === 'PAID';
+    const isExpired = ord.status === 'EXPIRED';
+
+    let timeDetail = '-';
+    if (isPaid) {
+      timeDetail = `<span style="color: var(--accent-green);">Paid @ ${new Date(ord.paid_at || ord.created_at).toLocaleTimeString()}</span><br><span style="font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim);">${ord.utr || 'Auto'}</span>`;
+    } else if (isPending) {
+      const remainingSecs = Math.max(0, Math.floor((ord.expires_at - Date.now()) / 1000));
+      const mins = Math.floor(remainingSecs / 60);
+      const secs = remainingSecs % 60;
+      timeDetail = `<span style="color: var(--accent-amber);">Expires in ${mins}m ${secs}s</span>`;
+    } else if (isExpired) {
+      timeDetail = `<span style="color: var(--text-dim);">Expired</span>`;
+    }
+
+    return `
+      <tr>
+        <td>
+          <a href="/checkout/${ord.order_code}" target="_blank" class="code-badge" title="Open Customer Checkout">
+            ${ord.order_code} ↗
+          </a>
+        </td>
+        <td style="font-weight: 700; font-size: 15px;">₹ ${Number(ord.amount).toFixed(2)}</td>
+        <td><span class="badge ${ord.status}">${ord.status}</span></td>
+        <td>
+          <div>${ord.customer_name || 'Guest'}</div>
+          <div style="font-size: 11px; color: var(--text-dim);">${ord.customer_phone || ''}</div>
+        </td>
+        <td>${timeDetail}</td>
+        <td>
+          <a href="/checkout/${ord.order_code}" target="_blank" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">
+            Open Page
+          </a>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// 3. Load Payments Log
+async function loadPayments() {
+  try {
+    const res = await fetch(API_BASE + '/api/admin/payments');
+    const data = await res.json();
+    if (!data.success) return;
+
+    renderPayments(data.payments);
+  } catch (err) {
+    console.error('Failed to load payments:', err);
+  }
+}
+
+function renderPayments(payments) {
+  paymentsCount.innerText = `${payments.length} items`;
+
+  if (!payments || payments.length === 0) {
+    paymentsFeed.innerHTML = `
+      <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;">
+        No payments recorded yet.
+      </div>
+    `;
+    return;
+  }
+
+  paymentsFeed.innerHTML = payments.map(p => {
+    const isMatched = p.is_matched === 1;
+    return `
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span style="font-weight: 700; color: ${isMatched ? 'var(--accent-green)' : 'var(--accent-amber)'}; font-size: 14px;">
+            ₹ ${Number(p.amount).toFixed(2)}
+          </span>
+          <span class="badge ${isMatched ? 'PAID' : 'PENDING'}" style="font-size: 10px;">
+            ${isMatched ? `Matched: ${p.matched_order_code}` : 'Unmatched'}
+          </span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono'; margin-bottom: 2px;">
+          Ref: ${p.utr}
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);">
+          <span>From: ${p.sender || 'Unknown'}</span>
+          <span>${new Date(p.received_at).toLocaleTimeString()} (${p.source})</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// 4. Create Order Handler
+createOrderForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitOrder');
+  btn.disabled = true;
+  btn.innerText = 'Creating...';
+
+  try {
+    const payload = {
+      amount: orderAmount.value,
+      customerName: orderCustomerName.value || 'Guest',
+      customerPhone: orderCustomerPhone.value || '',
+      webhookUrl: orderWebhook.value || ''
+    };
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (currentApiKey) {
+      headers['x-api-key'] = currentApiKey;
+    }
+
+    const res = await fetch(API_BASE + '/api/orders/create', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.success && data.order) {
+      closeModal('modalCreateOrder');
+      createOrderForm.reset();
+      
+      loadStats();
+  loadDomainKeysList(); // auto-load
+      loadOrders(currentFilter);
+
+      simAmount.value = data.order.amount;
+      window.open(data.order.checkoutUrl, '_blank');
+    } else {
+      alert(data.error || 'Failed to create order');
+    }
+  } catch (err) {
+    alert('Error creating order: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Generate Checkout Session';
+  }
+});
+
+// 5. Simulator Helpers & Handler
+function selectPendingOrderForSim(code, amount) {
+  simAmount.value = amount;
+  simUtr.value = `SIM-UTR-${Date.now().toString().slice(-6)}`;
+  simResult.style.display = 'block';
+  simResult.style.background = 'rgba(56, 189, 248, 0.1)';
+  simResult.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+  simResult.style.color = '#38bdf8';
+  simResult.innerHTML = `Selected Order <b>${code}</b> for ₹${amount}. Now click "🚀 Simulate Incoming Payment"!`;
+}
+window.selectPendingOrderForSim = selectPendingOrderForSim;
+
+async function quickCreateAndSimulate(amount = 100) {
+  const btn = document.getElementById('btnQuickSimulate');
+  const originalText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = '⏳ Creating & Matching...';
+  }
+  simResult.style.display = 'block';
+  simResult.style.background = 'rgba(56, 189, 248, 0.1)';
+  simResult.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+  simResult.style.color = '#38bdf8';
+  simResult.innerHTML = `⏳ <b>Step 1/2:</b> Creating test order for ₹${amount}...`;
+
+  try {
+    // 1. Create order
+    const orderRes = await fetch(API_BASE + '/api/orders/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(currentApiKey ? { 'x-api-key': currentApiKey } : {})
+      },
+      body: JSON.stringify({
+        amount: amount,
+        customerName: 'Quick Simulation Buyer',
+        customerPhone: '9876543210'
+      })
+    });
+    const orderData = await orderRes.json();
+    if (!orderData.success) {
+      simResult.style.background = 'rgba(239, 68, 68, 0.15)';
+      simResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      simResult.style.color = '#f87171';
+      simResult.innerHTML = `❌ Failed to create test order: ${orderData.error}`;
+      return;
+    }
+
+    const orderCode = orderData.order.orderCode;
+    simResult.innerHTML = `⏳ <b>Step 2/2:</b> Order <b>${orderCode}</b> created! Simulating incoming UPI payment...`;
+
+    // 2. Simulate payment for that exact amount
+    const simRes = await fetch(API_BASE + '/api/admin/simulate-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: amount,
+        sender: 'Test Buyer (Auto)',
+        utr: `SIM-${Date.now().toString().slice(-8)}`
+      })
+    });
+    const simData = await simRes.json();
+
+    if (simData.success && simData.result && simData.result.matched) {
+      simResult.style.background = 'rgba(16, 185, 129, 0.15)';
+      simResult.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      simResult.style.color = '#34d399';
+      simResult.innerHTML = `
+        🎉 <b>100% SUCCESS MATCH!</b><br>
+        Order <b>${orderCode}</b> (₹${amount}) matched with simulated payment!<br>
+        Status: <span class="badge PAID">PAID</span><br>
+        UTR: <code>${simData.result.order.utr}</code>
+      `;
+    } else {
+      simResult.style.background = 'rgba(245, 158, 11, 0.15)';
+      simResult.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+      simResult.style.color = '#fbbf24';
+      simResult.innerHTML = `⚠️ Order created (${orderCode}), but matching pending: ${simData.result?.reason || ''}`;
+    }
+
+    loadStats();
+    loadOrders(currentFilter);
+    loadPayments();
+  } catch (err) {
+    simResult.style.background = 'rgba(239, 68, 68, 0.15)';
+    simResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+    simResult.style.color = '#f87171';
+    simResult.innerHTML = `❌ Error: ${err.message}`;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+}
+window.quickCreateAndSimulate = quickCreateAndSimulate;
+
+simulatorForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  btnSimulate.disabled = true;
+  btnSimulate.innerText = 'Simulating...';
+  simResult.style.display = 'none';
+
+  try {
+    const payload = {
+      amount: simAmount.value,
+      utr: simUtr.value || undefined,
+      sender: simSender.value
+    };
+
+    const res = await fetch(API_BASE + '/api/admin/simulate-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    simResult.style.display = 'block';
+
+    if (data.success && data.result.matched) {
+      simResult.style.background = 'rgba(16, 185, 129, 0.15)';
+      simResult.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      simResult.style.color = '#34d399';
+      simResult.innerHTML = `✅ <b>Success!</b> Matched with Order <b>${data.result.order.order_code}</b> for ₹${data.result.order.amount}!`;
+    } else if (data.success && !data.result.matched) {
+      simResult.style.background = 'rgba(245, 158, 11, 0.12)';
+      simResult.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+      simResult.style.color = '#fbbf24';
+      simResult.innerHTML = `
+        ⚠️ <b>Payment Recorded, But No Pending Order Matched!</b><br>
+        ₹${simAmount.value} database me save ho gaya, lekin matching ke liye is exact amount ka active <b>PENDING</b> order hona chahiye.<br>
+        <button type="button" class="btn btn-primary" onclick="quickCreateAndSimulate(${simAmount.value})" style="margin-top: 8px; font-size: 11.5px; padding: 4px 10px;">
+          ⚡ Click Here: Create ₹${simAmount.value} Order & Match Instantly
+        </button>
+      `;
+    } else {
+      simResult.style.background = 'rgba(239, 68, 68, 0.15)';
+      simResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      simResult.style.color = '#f87171';
+      simResult.innerHTML = `❌ ${data.result?.reason || data.error || 'Simulation failed'}`;
+    }
+
+    loadStats();
+    loadOrders(currentFilter);
+    loadPayments();
+
+  } catch (err) {
+    simResult.style.display = 'block';
+    simResult.style.background = 'rgba(239, 68, 68, 0.15)';
+    simResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+    simResult.style.color = '#f87171';
+    simResult.innerText = 'Error simulating: ' + err.message;
+  } finally {
+    btnSimulate.disabled = false;
+    btnSimulate.innerText = '🚀 Simulate Incoming Payment';
+  }
+});
+
+// 6. Test IMAP 1-Click Button Handler
+uiBtnTestImap.addEventListener('click', async () => {
+  const user = uiImapUser.value.trim();
+  const pass = uiImapPass.value.trim();
+
+  if (!user || !pass) {
+    uiImapFeedback.style.display = 'block';
+    uiImapFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+    uiImapFeedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+    uiImapFeedback.style.color = '#f87171';
+    uiImapFeedback.innerText = '⚠️ Please enter both your Gmail address and 16-character Google App Password to test.';
+    return;
+  }
+
+  uiBtnTestImap.disabled = true;
+  uiBtnTestImap.innerText = '⏳ Connecting to Gmail...';
+  uiImapFeedback.style.display = 'none';
+
+  try {
+    const res = await fetch(API_BASE + '/api/admin/imap/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user, pass })
+    });
+
+    const data = await res.json();
+    uiImapFeedback.style.display = 'block';
+
+    if (data.success) {
+      uiImapFeedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      uiImapFeedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      uiImapFeedback.style.color = '#34d399';
+      uiImapFeedback.innerHTML = `✅ <b>Connection Successful!</b><br>Logged into Gmail. Found <b>${data.totalMessages}</b> emails in INBOX (${data.unseenMessages} unread).`;
+    } else {
+      uiImapFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      uiImapFeedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      uiImapFeedback.style.color = '#f87171';
+      uiImapFeedback.innerHTML = `❌ <b>Connection Failed:</b><br>${data.error}`;
+    }
+  } catch (err) {
+    uiImapFeedback.style.display = 'block';
+    uiImapFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+    uiImapFeedback.style.color = '#f87171';
+    uiImapFeedback.innerText = 'Network error: ' + err.message;
+  } finally {
+    uiBtnTestImap.disabled = false;
+    uiBtnTestImap.innerText = '🔍 Test Connection (1-Click)';
+  }
+});
+
+// 7. Save & Start Live IMAP Listener Handler (Zero .env)
+frontendImapForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  uiBtnSaveImap.disabled = true;
+  uiBtnSaveImap.innerText = 'Saving to Database...';
+
+  try {
+    const payload = {
+      enabled: uiImapEnabled.checked,
+      user: uiImapUser.value.trim(),
+      senderFilter: uiImapFilter.value.trim()
+    };
+    if (uiImapPass.value.trim()) {
+      payload.pass = uiImapPass.value.trim();
+    }
+
+    const res = await fetch(API_BASE + '/api/admin/imap/restart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    uiImapFeedback.style.display = 'block';
+    if (data.success) {
+      uiImapFeedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      uiImapFeedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      uiImapFeedback.style.color = '#34d399';
+      uiImapFeedback.innerHTML = `💾 <b>Settings Saved to Database!</b><br>IMAP Live Listener is now <b>${payload.enabled ? '🟢 ACTIVE & LISTENING' : '⚪ DISABLED'}</b>.`;
+      loadStats();
+    } else {
+      uiImapFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      uiImapFeedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      uiImapFeedback.style.color = '#f87171';
+      uiImapFeedback.innerHTML = `❌ ${data.error || 'Failed to apply settings'}`;
+    }
+  } catch (err) {
+    uiImapFeedback.style.display = 'block';
+    uiImapFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+    uiImapFeedback.style.color = '#f87171';
+    uiImapFeedback.innerText = 'Failed: ' + err.message;
+  } finally {
+    uiBtnSaveImap.disabled = false;
+    uiBtnSaveImap.innerText = '💾 Save & Start Live Listener';
+  }
+});
+
+// 8. Save UPI & Merchant Settings (Zero .env)
+frontendSettingsForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  uiBtnSaveSettings.disabled = true;
+  uiBtnSaveSettings.innerText = 'Saving...';
+
+  try {
+    const res = await fetch(API_BASE + '/api/admin/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        upiVpa: uiUpiVpa.value.trim(),
+        merchantName: uiMerchantName.value.trim(),
+        expiryMinutes: uiExpiryMinutes.value
+      })
+    });
+    const data = await res.json();
+
+    uiSettingsFeedback.style.display = 'block';
+    if (data.success) {
+      uiSettingsFeedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      uiSettingsFeedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      uiSettingsFeedback.style.color = '#34d399';
+      uiSettingsFeedback.innerText = '✅ UPI settings saved to database successfully!';
+      loadStats();
+    } else {
+      uiSettingsFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      uiSettingsFeedback.style.color = '#f87171';
+      uiSettingsFeedback.innerText = '❌ ' + data.error;
+    }
+  } catch (err) {
+    uiSettingsFeedback.style.display = 'block';
+    uiSettingsFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+    uiSettingsFeedback.style.color = '#f87171';
+    uiSettingsFeedback.innerText = 'Error: ' + err.message;
+  } finally {
+    uiBtnSaveSettings.disabled = false;
+    uiBtnSaveSettings.innerText = '💾 Save UPI Settings';
+  }
+});
+
+// 9. Scan Inbox Now Button (Diagnostic live tester)
+uiBtnScanInbox.addEventListener('click', async () => {
+  uiBtnScanInbox.disabled = true;
+  uiBtnScanInbox.innerText = 'Scanning...';
+  inboxScanResults.innerHTML = '<div style="text-align:center; color: var(--text-dim); padding: 14px;">Connecting to Gmail & scanning latest emails...</div>';
+
+  try {
+    const res = await fetch(API_BASE + '/api/admin/imap/recent');
+    const data = await res.json();
+
+    if (data.success && data.emails && data.emails.length > 0) {
+      inboxScanResults.innerHTML = data.emails.map(em => {
+        const hasPayment = em.parsedPayment !== null;
+        return `
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 8px; padding: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="font-weight: 600; font-size: 12px; color: #fff;">${em.subject}</span>
+              <span class="badge ${hasPayment ? 'PAID' : 'PENDING'}" style="font-size: 10px;">
+                ${hasPayment ? `Parsed: ₹${em.parsedPayment.amount}` : 'No Payment Pattern'}
+              </span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-dim);">From: ${em.from}</div>
+            ${hasPayment ? `
+              <div style="font-size: 11px; color: var(--accent-green); margin-top: 4px; font-family: 'JetBrains Mono';">
+                UTR: ${em.parsedPayment.utr} | Sender: ${em.parsedPayment.sender}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    } else {
+      inboxScanResults.innerHTML = `<div style="color: var(--accent-amber); font-size: 12px; padding: 14px; text-align: center;">${data.error || 'No matching emails found or IMAP credentials not connected yet.'}</div>`;
+    }
+  } catch (err) {
+    inboxScanResults.innerHTML = `<div style="color: #ef4444; font-size: 12px; padding: 14px; text-align: center;">Error scanning: ${err.message}</div>`;
+  } finally {
+    uiBtnScanInbox.disabled = false;
+    uiBtnScanInbox.innerText = '📥 Scan Inbox Now';
+  }
+});
+
+// 10. WebSockets Realtime Sync
+function initSocket() {
+  if (typeof io === 'undefined') return;
+
+  socket = io();
+
+  socket.on('connect', () => {
+    console.log('[Socket Admin] Connected.');
+    socket.emit('join_admin');
+  });
+
+  socket.on('new_order', () => {
+    loadStats();
+    loadOrders(currentFilter);
+    loadApiLogs();
+  });
+
+  socket.on('payment_event', () => {
+    loadStats();
+    loadOrders(currentFilter);
+    loadPayments();
+    loadLedger();
+    loadApiLogs();
+  });
+
+  socket.on('order_expired', () => {
+    loadStats();
+    loadOrders(currentFilter);
+    loadApiLogs();
+  });
+
+  socket.on('imap_status', (status) => {
+    updateImapPill(status);
+  });
+
+  socket.on('api_log', () => {
+    loadApiLogs();
+  });
+}
+
+// 10b. Load & Render Request Notes & API Logs
+async function loadApiLogs() {
+  try {
+    const res = await fetch('/api/admin/logs?limit=50');
+    const data = await res.json();
+    if (!data.success) return;
+    renderApiLogs(data.logs);
+  } catch (err) {
+    console.error('Failed to load api logs:', err);
+  }
+}
+window.loadApiLogs = loadApiLogs;
+
+function renderApiLogs(logs) {
+  const tableBody = document.getElementById('apiLogsTableBody');
+  const countSpan = document.getElementById('apiLogsCount');
+  const miniFeed = document.getElementById('dashboardMiniLogsFeed');
+
+  if (countSpan) countSpan.innerText = `${logs.length} entries`;
+
+  // Render main logs table
+  if (tableBody) {
+    if (!logs || logs.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 30px;">
+            No requests or activity recorded yet. Requests from https://dealsbyshiv.web.app will show up here live!
+          </td>
+        </tr>
+      `;
+    } else {
+      tableBody.innerHTML = logs.map(l => {
+        const isSuccess = l.status === 'SUCCESS';
+        const isFailed = l.status === 'FAILED';
+        const badgeClass = isSuccess ? 'PAID' : (isFailed ? 'EXPIRED' : 'PENDING');
+        const timeStr = new Date(l.created_at).toLocaleTimeString();
+        const dateStr = new Date(l.created_at).toLocaleDateString();
+
+        return `
+          <tr>
+            <td style="font-size: 11.5px; color: var(--text-muted); font-family: 'JetBrains Mono';">
+              <div>${timeStr}</div>
+              <div style="font-size: 10px; color: var(--text-dim);">${dateStr}</div>
+            </td>
+            <td><span class="badge ${badgeClass}">${l.status}</span></td>
+            <td><span style="font-size: 11px; font-weight: 600; color: var(--primary);">${l.event_type}</span></td>
+            <td>
+              <div style="font-weight: 600; font-size: 13px; color: #fff;">${escapeHtml(l.title)}</div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(l.details || '')}</div>
+            </td>
+            <td style="font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono';">
+              <div style="color: var(--primary);">${escapeHtml(l.origin || 'Direct')}</div>
+              <div style="font-size: 10px;">${escapeHtml(l.client_ip || '')}</div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // Render Dashboard Mini Feed
+  if (miniFeed) {
+    if (!logs || logs.length === 0) {
+      miniFeed.innerHTML = `
+        <div style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 15px;">
+          Waiting for requests from https://dealsbyshiv.web.app...
+        </div>
+      `;
+    } else {
+      miniFeed.innerHTML = logs.slice(0, 6).map(l => {
+        const isSuccess = l.status === 'SUCCESS';
+        const badgeColor = isSuccess ? 'var(--accent-green)' : (l.status === 'FAILED' ? 'var(--accent-red)' : 'var(--accent-amber)');
+        return `
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${badgeColor}; flex-shrink: 0;"></span>
+              <div style="min-width: 0;">
+                <div style="font-size: 12.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(l.title)}</div>
+                <div style="font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(l.details || '')}</div>
+              </div>
+            </div>
+            <div style="text-align: right; flex-shrink: 0;">
+              <span style="font-size: 10px; color: var(--text-dim);">${new Date(l.created_at).toLocaleTimeString()}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+}
+
+// 11. Load Financial Ledger (Hisab-Kitab)
+async function loadLedger() {
+  try {
+    const res = await fetch(API_BASE + '/api/admin/ledger');
+    const data = await res.json();
+    if (!data.success || !data.ledger) return;
+
+    const { totalCollected, totalTransactions, topSenders, payments } = data.ledger;
+
+    // Metrics
+    ledgerTotalMoney.innerText = `₹ ${Number(totalCollected).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    ledgerTotalCount.innerText = totalTransactions;
+
+    if (topSenders && topSenders.length > 0) {
+      ledgerTopCustomer.innerText = topSenders[0].sender;
+      ledgerTopCustomerAmount.innerText = `₹${Number(topSenders[0].total).toFixed(2)} (${topSenders[0].count} payments)`;
+
+      // Render Top Senders Breakdown
+      ledgerTopSendersList.innerHTML = topSenders.map((s, idx) => {
+        const pct = totalCollected > 0 ? ((s.total / totalCollected) * 100).toFixed(0) : 0;
+        return `
+          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-weight: 700; color: #fff; font-size: 13px;">
+                #${idx + 1} ${s.sender}
+              </span>
+              <span style="font-weight: 700; color: var(--accent-green); font-size: 14px;">
+                ₹ ${Number(s.total).toFixed(2)}
+              </span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);">
+              <span>${s.count} transactions</span>
+              <span>${pct}% of total</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      ledgerTopCustomer.innerText = '-';
+      ledgerTopCustomerAmount.innerText = 'No payments recorded yet';
+      ledgerTopSendersList.innerHTML = `
+        <div style="text-align: center; color: var(--text-dim); padding: 20px; font-size: 13px;">
+          No customer history recorded yet. Sync with Gmail or paste an email.
+        </div>
+      `;
+    }
+
+    // Render Full Historical Ledger Table
+    if (payments && payments.length > 0) {
+      ledgerTableBody.innerHTML = payments.map(p => {
+        return `
+          <tr>
+            <td style="font-size: 12px; color: var(--text-muted);">${new Date(p.received_at).toLocaleString()}</td>
+            <td style="font-weight: 700; font-size: 15px; color: var(--accent-green);">₹ ${Number(p.amount).toFixed(2)}</td>
+            <td style="font-weight: 600;">${p.sender || 'Unknown'}</td>
+            <td style="font-family: 'JetBrains Mono'; font-size: 12px; color: #38bdf8;">${p.utr}</td>
+            <td style="font-size: 12px; color: var(--text-dim);">${p.source}</td>
+            <td><span class="badge PAID">VERIFIED IN LEDGER</span></td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      ledgerTableBody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">
+            No historical payments in ledger. Click "Sync Past Payments from Gmail" above!
+          </td>
+        </tr>
+      `;
+    }
+
+  } catch (err) {
+    console.error('Failed to load ledger:', err);
+  }
+}
+window.loadLedger = loadLedger;
+
+// 12. 1-Click Sync Past Payments from Gmail
+btnSyncAllEmails.addEventListener('click', async () => {
+  btnSyncAllEmails.disabled = true;
+  btnSyncAllEmails.innerText = '⏳ Syncing All Past Emails from Gmail...';
+  syncFeedback.style.display = 'block';
+  syncFeedback.style.background = 'rgba(56, 189, 248, 0.15)';
+  syncFeedback.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+  syncFeedback.style.color = '#38bdf8';
+  syncFeedback.innerHTML = 'Connecting to Gmail inbox and scanning past payment receipts... Please wait 5-10 seconds.';
+
+  try {
+    const res = await fetch(API_BASE + '/api/admin/imap/sync-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ maxEmails: 100 })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      syncFeedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      syncFeedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      syncFeedback.style.color = '#34d399';
+      syncFeedback.innerHTML = `
+        🎉 <b>Hisab-Kitab Complete!</b><br>
+        Scanned <b>${data.scannedCount}</b> past emails.<br>
+        Found & Imported <b>${data.importedCount}</b> payments totaling <b>₹${data.totalAmount.toFixed(2)}</b>!<br>
+        (${data.duplicateCount} already existed in ledger).
+      `;
+      loadLedger();
+      loadStats();
+      loadPayments();
+    } else {
+      syncFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      syncFeedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      syncFeedback.style.color = '#f87171';
+      syncFeedback.innerHTML = `❌ <b>Sync Failed:</b><br>${data.error}`;
+    }
+  } catch (err) {
+    syncFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+    syncFeedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+    syncFeedback.style.color = '#f87171';
+    syncFeedback.innerText = 'Network error: ' + err.message;
+  } finally {
+    btnSyncAllEmails.disabled = false;
+    btnSyncAllEmails.innerText = '🔄 1-Click Sync Past Payments from Gmail';
+  }
+});
+
+// 13. Quick Paste Email to Parse & Add to Ledger
+pasteEmailForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const rawText = pasteEmailInput.value.trim();
+  if (!rawText) return;
+
+  btnParsePaste.disabled = true;
+  btnParsePaste.innerText = 'Parsing...';
+  pasteFeedback.style.display = 'none';
+
+  try {
+    const res = await fetch(API_BASE + '/api/admin/ledger/parse-paste', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: rawText })
+    });
+    const data = await res.json();
+
+    pasteFeedback.style.display = 'block';
+    if (data.success) {
+      pasteFeedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      pasteFeedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      pasteFeedback.style.color = '#34d399';
+      pasteFeedback.innerHTML = `✅ <b>${data.message}</b>`;
+      pasteEmailInput.value = '';
+      loadLedger();
+      loadStats();
+      loadPayments();
+    } else {
+      pasteFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      pasteFeedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      pasteFeedback.style.color = '#f87171';
+      pasteFeedback.innerHTML = `❌ ${data.error}`;
+    }
+  } catch (err) {
+    pasteFeedback.style.display = 'block';
+    pasteFeedback.style.background = 'rgba(239, 68, 68, 0.15)';
+    pasteFeedback.style.color = '#f87171';
+    pasteFeedback.innerText = 'Error parsing: ' + err.message;
+  } finally {
+    btnParsePaste.disabled = false;
+    btnParsePaste.innerText = '⚡ Parse & Add to Ledger';
+  }
+});
+
+// ==================== 14. API KEY MANAGEMENT & INTEGRATION ==================== //
+let currentApiKey = '';
+let currentKeyCreated = null;
+let currentRequireApiKey = true;
+let isKeyVisible = false;
+let activeSnippetLang = 'curl';
+
+async function loadApiKeyDetails() {
+  try {
+    const res = await fetch(API_BASE + '/api/admin/api-key');
+    const data = await res.json();
+    if (!data.success) return;
+
+    currentApiKey = data.apiKey;
+    currentRequireApiKey = data.requireApiKey;
+    currentKeyCreated = data.createdAt;
+
+    const input = document.getElementById('uiApiKeyInput');
+    if (input) {
+      input.value = currentApiKey;
+      input.type = isKeyVisible ? 'text' : 'password';
+    }
+
+    const createdLabel = document.getElementById('apiKeyCreatedAt');
+    if (createdLabel && data.createdAt) {
+      createdLabel.innerText = `Created: ${new Date(data.createdAt).toLocaleDateString()} ${new Date(data.createdAt).toLocaleTimeString()}`;
+    }
+
+    const toggle = document.getElementById('uiToggleRequireApiKey');
+    if (toggle) {
+      toggle.checked = currentRequireApiKey;
+    }
+
+    const badge = document.getElementById('apiKeyStatusBadge');
+    if (badge) {
+      badge.className = currentRequireApiKey ? 'badge badge-success' : 'badge badge-pending';
+      badge.innerText = currentRequireApiKey ? '🟢 Strictly Enforced' : '🔓 Open Testing';
+    }
+
+    renderCurrentSnippet();
+  } catch (err) {
+    console.error('Failed to load API key details:', err);
+  }
+}
+window.loadApiKeyDetails = loadApiKeyDetails;
+
+function toggleApiKeyVisibility() {
+  const input = document.getElementById('uiApiKeyInput');
+  const btn = document.getElementById('btnToggleApiKeyVisibility');
+  if (!input) return;
+
+  isKeyVisible = !isKeyVisible;
+  input.type = isKeyVisible ? 'text' : 'password';
+  btn.innerText = isKeyVisible ? '🙈' : '👁️';
+}
+window.toggleApiKeyVisibility = toggleApiKeyVisibility;
+
+function copyApiKeyToClipboard() {
+  if (!currentApiKey) return;
+  navigator.clipboard.writeText(currentApiKey).then(() => {
+    const feedback = document.getElementById('apiKeyCopyFeedback');
+    if (feedback) {
+      feedback.style.display = 'block';
+      setTimeout(() => {
+        feedback.style.display = 'none';
+      }, 2500);
+    }
+  }).catch(err => {
+    console.error('Clipboard copy error:', err);
+  });
+}
+window.copyApiKeyToClipboard = copyApiKeyToClipboard;
+
+async function confirmRegenerateApiKey() {
+  const confirmed = confirm("⚠️ ARE YOU SURE?\\n\\nRegenerating this API Key will immediately invalidate the current key. Any external apps or websites using the old key will fail until updated.");
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch('/api/admin/api-key/regenerate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`🎉 New API Key Generated!\\n\\nKey: ${data.apiKey}\\n\\nPlease copy and update your applications.`);
+      loadApiKeyDetails();
+    } else {
+      alert(`❌ Error: ${data.error}`);
+    }
+  } catch (err) {
+    alert('Failed to regenerate API Key: ' + err.message);
+  }
+}
+window.confirmRegenerateApiKey = confirmRegenerateApiKey;
+
+async function toggleRequireApiKey(isRequired) {
+  try {
+    const res = await fetch('/api/admin/api-key/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ required: isRequired })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const badge = document.getElementById('apiKeyStatusBadge');
+      if (badge) {
+        badge.className = data.requireApiKey ? 'badge badge-success' : 'badge badge-pending';
+        badge.innerText = data.requireApiKey ? '🟢 Strictly Enforced' : '🔓 Open Testing';
+      }
+    }
+  } catch (err) {
+    console.error('Failed to toggle require API key:', err);
+  }
+}
+window.toggleRequireApiKey = toggleRequireApiKey;
+
+function switchCodeSnippet(lang) {
+  activeSnippetLang = lang;
+  document.getElementById('codeTabCurl')?.classList.toggle('active', lang === 'curl');
+  document.getElementById('codeTabNodejs')?.classList.toggle('active', lang === 'nodejs');
+  document.getElementById('codeTabPython')?.classList.toggle('active', lang === 'python');
+  document.getElementById('codeTabPhp')?.classList.toggle('active', lang === 'php');
+  renderCurrentSnippet();
+}
+window.switchCodeSnippet = switchCodeSnippet;
+
+function renderCurrentSnippet() {
+  const box = document.getElementById('codeSnippetBox');
+  if (!box) return;
+
+  const origin = window.location.origin;
+  const key = currentApiKey || 'pg_live_YOUR_API_KEY_HERE';
+
+  if (activeSnippetLang === 'curl') {
+    box.innerText = `curl -X POST "${origin}/api/orders/create" \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${key}" \\
+  -d '{
+    "amount": 500.00,
+    "customerName": "Rahul Sharma",
+    "customerPhone": "9876543210",
+    "webhookUrl": "https://your-domain.com/webhook"
+  }'`;
+  } else if (activeSnippetLang === 'nodejs') {
+    box.innerText = `// Node.js (v18+ with native fetch)
+const response = await fetch('${origin}/api/orders/create', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${key}'
+  },
+  body: JSON.stringify({
+    amount: 500.00,
+    customerName: 'Rahul Sharma',
+    customerPhone: '9876543210',
+    webhookUrl: 'https://your-domain.com/webhook'
+  })
+});
+
+const data = await response.json();
+if (data.success) {
+  console.log('Order Code:', data.order.orderCode);
+  console.log('Redirect User to Checkout Session:', data.order.checkoutUrl);
+  console.log('Direct Payment Link:', data.order.paymentUrl);
+  console.log('UPI Intent URI:', data.order.upiUri);
+}`;
+  } else if (activeSnippetLang === 'python') {
+    box.innerText = `import requests
+
+url = "${origin}/api/orders/create"
+headers = {
+    "Content-Type": "application/json",
+    "x-api-key": "${key}"
+}
+payload = {
+    "amount": 500.00,
+    "customerName": "Rahul Sharma",
+    "customerPhone": "9876543210",
+    "webhookUrl": "https://your-domain.com/webhook"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+data = response.json()
+
+if data.get("success"):
+    print("Order Code:", data["order"]["orderCode"])
+    print("Checkout URL:", data["order"]["checkoutUrl"])`;
+  } else if (activeSnippetLang === 'php') {
+    box.innerText = `<?php
+$curl = curl_init();
+
+$payload = json_encode([
+    "amount" => 500.00,
+    "customerName" => "Rahul Sharma",
+    "customerPhone" => "9876543210",
+    "webhookUrl" => "https://your-domain.com/webhook"
+]);
+
+curl_setopt_array($curl, [
+    CURLOPT_URL => "${origin}/api/orders/create",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_POSTFIELDS => $payload,
+    CURLOPT_HTTPHEADER => [
+        "Content-Type: application/json",
+        "x-api-key: ${key}"
+    ],
+]);
+
+$response = curl_exec($curl);
+curl_close($curl);
+
+$data = json_decode($response, true);
+if ($data['success']) {
+    echo "Order Code: " . $data['order']['orderCode'] . "\\n";
+    echo "Checkout URL: ${origin}" . $data['order']['checkoutUrl'] . "\\n";
+}`;
+  }
+}
+
+function copyCurrentSnippet() {
+  const box = document.getElementById('codeSnippetBox');
+  if (!box) return;
+  navigator.clipboard.writeText(box.innerText).then(() => {
+    alert('✅ Code snippet copied to clipboard!');
+  });
+}
+window.copyCurrentSnippet = copyCurrentSnippet;
+
+async function testApiKeyOrderCreation() {
+  const amountInput = document.getElementById('testOrderAmount');
+  const resultBox = document.getElementById('apiTestConsoleResult');
+  const amt = parseFloat(amountInput.value) || 10;
+
+  resultBox.style.display = 'block';
+  resultBox.innerText = 'Sending HTTP POST request with x-api-key...';
+
+  try {
+    const start = Date.now();
+    const res = await fetch(API_BASE + '/api/orders/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': currentApiKey
+      },
+      body: JSON.stringify({
+        amount: amt,
+        customerName: 'API Key Test Runner',
+        customerPhone: '9999999999'
+      })
+    });
+    const duration = Date.now() - start;
+    const json = await res.json();
+
+    resultBox.innerText = `HTTP ${res.status} ${res.statusText} (${duration}ms)\\n` + JSON.stringify(json, null, 2);
+    if (json.success) {
+      loadStats();
+      loadOrders(currentFilter);
+    }
+  } catch (err) {
+    resultBox.innerText = 'Network Error: ' + err.message;
+  }
+}
+window.testApiKeyOrderCreation = testApiKeyOrderCreation;
+
+function initDashboardData() {
+  loadStats();
+  loadOrders('ALL');
+  loadPayments();
+  loadLedger();
+  loadApiKeyDetails();
+  loadApiLogs();
+  initSocket();
+}
+
+async function checkAdminAuthOnStartup() {
+  const savedKey = getAdminMasterKey();
+  if (!savedKey) {
+    showMasterKeyLockScreen();
+    return;
+  }
+
+  try {
+    const res = await originalFetch('/api/admin/auth/verify-master-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ masterKey: savedKey })
+    });
+    const data = await res.json();
+    if (data.success) {
+      hideMasterKeyLockScreen();
+      initDashboardData();
+    } else {
+      localStorage.removeItem('admin_master_key');
+      showMasterKeyLockScreen();
+    }
+  } catch (_) {
+    showMasterKeyLockScreen();
+  }
+}
+
+// Verify Master Key authentication before loading any data
+checkAdminAuthOnStartup();
+
+
+// ==========================================
+// MULTI-DOMAIN API KEY MANAGEMENT LOGIC
+// ==========================================
+let allDomainKeys = [];
+
+function generateRandomKeyToInput() {
+  const chars = '0123456789abcdef';
+  let rand = '';
+  for (let i = 0; i < 36; i++) {
+    rand += chars[Math.floor(Math.random() * chars.length)];
+  }
+  const input = document.getElementById('inputNewKeyValue');
+  if (input) input.value = 'pg_live_' + rand;
+}
+window.generateRandomKeyToInput = generateRandomKeyToInput;
+
+async function loadDomainKeysList() {
+  try {
+    const res = await fetch(API_BASE + '/api/admin/domain-keys');
+    const data = await res.json();
+    if (!data.success) return;
+
+    allDomainKeys = data.keys || [];
+    currentRequireApiKey = data.requireApiKey;
+
+    const countLabel = document.getElementById('domainKeysCount');
+    if (countLabel) countLabel.innerText = allDomainKeys.length;
+
+    const toggle = document.getElementById('uiToggleRequireApiKey');
+    if (toggle) toggle.checked = currentRequireApiKey;
+
+    const badge = document.getElementById('apiKeyStatusBadge');
+    if (badge) {
+      badge.className = currentRequireApiKey ? 'badge badge-success' : 'badge badge-pending';
+      badge.innerText = currentRequireApiKey ? '🟢 Strictly Enforced' : '🔓 Open Testing';
+    }
+
+    // Populate test selector
+    const testSelect = document.getElementById('testDomainKeySelect');
+    if (testSelect) {
+      testSelect.innerHTML = '<option value="">Select Domain Key to Test</option>';
+      allDomainKeys.forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k.apiKey;
+        opt.innerText = `${k.domain} (${k.keyName || 'Store'})`;
+        testSelect.appendChild(opt);
+      });
+      if (allDomainKeys.length > 0) {
+        testSelect.selectedIndex = 1;
+        currentApiKey = allDomainKeys[0].apiKey;
+      }
+    }
+
+    renderDomainKeysCards();
+    renderCurrentSnippet();
+  } catch (err) {
+    console.error('Failed to load domain keys:', err);
+  }
+}
+window.loadDomainKeysList = loadDomainKeysList;
+
+function renderDomainKeysCards() {
+  const container = document.getElementById('domainKeysListContainer');
+  if (!container) return;
+
+  if (allDomainKeys.length === 0) {
+    container.innerHTML = '<div style="text-align: center; color: var(--text-dim); padding: 24px; font-size: 12px; background: rgba(255,255,255,0.02); border-radius: 8px;">Koi API key nahi hai. Upar diye gaye form se nayi key banayein.</div>';
+    return;
+  }
+
+  container.innerHTML = allDomainKeys.map(k => {
+    const createdStr = k.createdAt ? new Date(k.createdAt).toLocaleDateString() : 'Active';
+    const isWildcard = k.domain === '*';
+    const domainBadgeColor = isWildcard ? '#a855f7' : '#38bdf8';
+
+    return `
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 12px; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; color: ${domainBadgeColor}; background: rgba(56, 189, 248, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.2);">
+                🌐 ${k.domain}
+              </span>
+              <span style="font-size: 12px; font-weight: 500; color: #fff;">${k.keyName || 'Store Key'}</span>
+            </div>
+            <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">Created: ${createdStr}</div>
+          </div>
+          <button class="btn btn-secondary" onclick="deleteDomainKeyById(${k.id}, '${k.domain}')" style="padding: 3px 8px; font-size: 11px; color: #f87171; border-color: rgba(239, 68, 68, 0.3);" title="Revoke Key">
+            🗑️ Revoke
+          </button>
+        </div>
+
+        <div style="display: flex; gap: 6px; align-items: center; margin-top: 8px;">
+          <input type="password" id="domainKeyInput_${k.id}" class="form-control" readonly style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; padding: 4px 8px; height: 32px; color: var(--primary);" value="${k.apiKey}">
+          <button class="btn btn-secondary" onclick="toggleDomainKeyVisibility(${k.id})" style="padding: 0 8px; height: 32px;" title="Show/Hide">
+            👁️
+          </button>
+          <button class="btn btn-primary" onclick="copyDomainKeyToClip('${k.apiKey}', this)" style="padding: 0 10px; height: 32px; font-size: 11px;" title="Copy Key">
+            📋 Copy
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleDomainKeyVisibility(id) {
+  const input = document.getElementById(`domainKeyInput_${id}`);
+  if (input) {
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+}
+window.toggleDomainKeyVisibility = toggleDomainKeyVisibility;
+
+function copyDomainKeyToClip(key, btn) {
+  navigator.clipboard.writeText(key).then(() => {
+    const orig = btn.innerText;
+    btn.innerText = '✅ Copied!';
+    setTimeout(() => { btn.innerText = orig; }, 2000);
+  });
+}
+window.copyDomainKeyToClip = copyDomainKeyToClip;
+
+async function handleCreateDomainKey(e) {
+  e.preventDefault();
+  const domain = document.getElementById('inputNewKeyDomain').value.trim();
+  const keyName = document.getElementById('inputNewKeyLabel').value.trim();
+  const apiKey = document.getElementById('inputNewKeyValue').value.trim();
+  const feedback = document.getElementById('addKeyFeedback');
+  const btn = document.getElementById('btnSubmitNewKey');
+
+  btn.disabled = true;
+  btn.innerText = 'Saving...';
+
+  try {
+    const res = await fetch(API_BASE + '/api/admin/domain-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain, keyName, apiKey })
+    });
+    const data = await res.json();
+
+    feedback.style.display = 'block';
+    if (data.success) {
+      feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      feedback.style.color = '#34d399';
+      feedback.innerText = '✅ ' + data.message;
+      document.getElementById('inputNewKeyDomain').value = '';
+      document.getElementById('inputNewKeyLabel').value = '';
+      document.getElementById('inputNewKeyValue').value = '';
+      await loadDomainKeysList();
+      setTimeout(() => { feedback.style.display = 'none'; }, 4000);
+    } else {
+      feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      feedback.style.color = '#f87171';
+      feedback.innerText = '❌ ' + data.error;
+    }
+  } catch (err) {
+    feedback.style.display = 'block';
+    feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+    feedback.style.color = '#f87171';
+    feedback.innerText = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '💾 Register & Activate Domain Key';
+  }
+}
+window.handleCreateDomainKey = handleCreateDomainKey;
+
+async function deleteDomainKeyById(id, domain) {
+  const confirmed = confirm(`⚠️ Are you sure you want to revoke the API Key for "${domain}"?\n\nAny store or app using this key will immediately stop working.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/domain-keys/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      await loadDomainKeysList();
+    } else {
+      alert('Failed: ' + data.error);
+    }
+  } catch (err) {
+    alert('Network error: ' + err.message);
+  }
+}
+window.deleteDomainKeyById = deleteDomainKeyById;
+
+// Hook domain keys load into the main tab switch
+const origSwitchTab = window.switchTab;
+window.switchTab = function(tabId) {
+  if (typeof origSwitchTab === 'function') origSwitchTab(tabId);
+  if (tabId === 'apikeys') {
+    loadDomainKeysList();
+  }
+};
+
+async function testApiKeyOrderCreation() {
+  const resultBox = document.getElementById('apiTestConsoleResult');
+  const amountInput = document.getElementById('testOrderAmount');
+  const testSelect = document.getElementById('testDomainKeySelect');
+  const keyToUse = (testSelect && testSelect.value) ? testSelect.value : currentApiKey;
+
+  resultBox.style.display = 'block';
+  resultBox.innerHTML = '<span style="color: var(--text-dim);">Connecting to /api/orders/create with selected Domain Key...</span>';
+
+  try {
+    const res = await fetch(API_BASE + '/api/orders/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': keyToUse,
+        'x-admin-test': 'true'
+      },
+      body: JSON.stringify({
+        amount: parseFloat(amountInput.value) || 10,
+        customerName: 'Admin Authenticator Test',
+        customerPhone: '9999999999'
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      resultBox.innerHTML = `<span style="color: var(--accent-green); font-weight: 600;">✅ HTTP ${res.status} OK - Order Created Successfully!</span>\n\n` +
+        `Order Code:    ${data.order.orderCode}\n` +
+        `Amount:        ₹${data.order.amount}\n` +
+        `Checkout URL:  ${data.checkoutUrl}\n` +
+        `Key Used:      ${keyToUse.slice(0, 10)}...\n` +
+        `Domain Auth:   ACCEPTED`;
+    } else {
+      resultBox.innerHTML = `<span style="color: var(--accent-red); font-weight: 600;">❌ HTTP ${res.status} ${data.error || 'Authentication Failed'}</span>\n\n` +
+        JSON.stringify(data, null, 2);
+    }
+  } catch (err) {
+    resultBox.innerHTML = `<span style="color: var(--accent-red);">Network Error: ${err.message}</span>`;
+  }
+}
+window.testApiKeyOrderCreation = testApiKeyOrderCreation;
+
+
+// ==========================================
+// FIREBASE GOOGLE AUTH & ACCESS CONTROL
+// ==========================================
+const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCBdKUeKjvShFwL3_S5F9M0uYdQHf5poRU",
+  authDomain: "payment-gatway-18d03.firebaseapp.com",
+  projectId: "payment-gatway-18d03",
+  storageBucket: "payment-gatway-18d03.firebasestorage.app",
+  messagingSenderId: "90403754513",
+  appId: "1:90403754513:web:5f3cc2279461ec14d797b0",
+  measurementId: "G-Z8H449C6LX"
+};
+
+let fbApp = null;
+let fbAuth = null;
+
+try {
+  if (typeof firebase !== 'undefined') {
+    fbApp = firebase.initializeApp(firebaseConfig);
+    fbAuth = firebase.auth();
+  }
+} catch (e) {
+  console.warn('Firebase init:', e.message);
+}
+
+// Auto-check stored session
+(function checkStoredAuth() {
+  const storedAuth = sessionStorage.getItem('gateway_admin_auth');
+  const storedEmail = sessionStorage.getItem('gateway_admin_email');
+  if (storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
+    setTimeout(() => {
+      const lockScreen = document.getElementById('masterKeyLockScreen');
+      if (lockScreen) lockScreen.style.display = 'none';
+      const navPill = document.getElementById('navUserProfile');
+      if (navPill) navPill.style.display = 'flex';
+      const navEmail = document.getElementById('navUserEmail');
+      if (navEmail) navEmail.innerText = storedEmail;
+    }, 100);
+  }
+})();
+
+// Monitor Auth State
+if (fbAuth) {
+  fbAuth.onAuthStateChanged((user) => {
+    if (user) {
+      verifyAdminUser(user);
+    }
+  });
+}
+
+async function handleGoogleSignIn() {
+  if (!fbAuth) {
+    alert('Firebase Auth library is still loading. Please check your internet connection.');
+    return;
+  }
+
+  const feedback = document.getElementById('googleAuthFeedback');
+  const btn = document.getElementById('btnGoogleSignIn');
+
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  if (feedback) {
+    feedback.style.display = 'block';
+    feedback.style.background = 'rgba(56, 189, 248, 0.1)';
+    feedback.style.border = '1px solid rgba(56, 189, 248, 0.2)';
+    feedback.style.color = '#38bdf8';
+    feedback.innerText = 'Google Login popup khul raha hai...';
+  }
+
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const result = await fbAuth.signInWithPopup(provider);
+    const user = result.user;
+    await verifyAdminUser(user);
+  } catch (err) {
+    console.error('Google Sign In Error:', err);
+    if (feedback) {
+      feedback.style.display = 'block';
+      feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+      feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      feedback.style.color = '#f87171';
+      feedback.innerText = 'Login Failed: ' + (err.message || 'Popup closed');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+window.handleGoogleSignIn = handleGoogleSignIn;
+
+async function verifyAdminUser(user) {
+  const feedback = document.getElementById('googleAuthFeedback');
+  const userEmail = (user.email || '').toLowerCase().trim();
+
+  if (userEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
+    // ACCESS GRANTED!
+    sessionStorage.setItem('gateway_admin_auth', 'google');
+    sessionStorage.setItem('gateway_admin_email', userEmail);
+    sessionStorage.setItem('gateway_master_key', 'shivambhatt@admin');
+    localStorage.setItem('admin_master_key', 'shivambhatt@admin');
+
+    if (feedback) {
+      feedback.style.display = 'block';
+      feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+      feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      feedback.style.color = '#34d399';
+      feedback.innerHTML = '✅ <b>Access Granted!</b> Welcome Harsh (' + userEmail + '). Loading PayPerpendicular...';
+    }
+
+    const navPill = document.getElementById('navUserProfile');
+    const navAvatar = document.getElementById('navUserAvatar');
+    const navEmail = document.getElementById('navUserEmail');
+    if (navPill) navPill.style.display = 'flex';
+    if (navAvatar && user.photoURL) navAvatar.src = user.photoURL;
+    if (navEmail) navEmail.innerText = userEmail;
+
+    setTimeout(() => {
+      document.getElementById('masterKeyLockScreen').style.display = 'none';
+      if (typeof loadStats === 'function') loadStats();
+      if (typeof loadOrders === 'function') loadOrders();
+      if (typeof loadDomainKeysList === 'function') loadDomainKeysList();
+    }, 600);
+
+  } else {
+    // ACCESS DENIED!
+    if (feedback) {
+      feedback.style.display = 'block';
+      feedback.style.background = 'rgba(239, 68, 68, 0.2)';
+      feedback.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+      feedback.style.color = '#fca5a5';
+      feedback.innerHTML = '⛔ <b>ACCESS DENIED!</b><br>Yeh account (' + (user.email || 'unknown') + ') authorized nahi hai. Sirf <b>' + REQUIRED_ADMIN_EMAIL + '</b> ko is gateway ka access hai.';
+    }
+    await fbAuth.signOut();
+  }
+}
+
+async function handleAdminLogout() {
+  if (fbAuth) {
+    await fbAuth.signOut();
+  }
+  sessionStorage.removeItem('gateway_admin_auth');
+  sessionStorage.removeItem('gateway_admin_email');
+  sessionStorage.removeItem('gateway_master_key');
+  window.location.reload();
+}
+window.handleAdminLogout = handleAdminLogout;

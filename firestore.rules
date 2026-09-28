@@ -1,0 +1,173 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if the user is an authenticated administrator or superadministrator
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin');
+    }
+
+    // Helper function to check if the user is staff or admin
+    function isStaffOrAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'employee' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff');
+    }
+    
+    // Helper function to check if the document belongs to the authenticated user
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Users Collection rules
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isAdmin() || (
+        isOwner(userId) && 
+        request.resource.data.role == resource.data.role
+      );
+      allow delete: if isAdmin();
+
+      match /sessions/{sessionId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Subscriptions Collection rules (Users can create on signup, but CANNOT update expiry/status afterwards)
+    match /subscriptions/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Support Chat Collection rules (Restricted strictly to the client owner & staff/admin)
+    match /chats/{clientUid} {
+      allow read, write: if isOwner(clientUid) || isStaffOrAdmin();
+      
+      match /messages/{messageId} {
+        allow read, write: if isOwner(clientUid) || isStaffOrAdmin();
+      }
+    }
+
+    // Audit Logs Collection rules
+    match /audit_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Gmail Credentials Collection rules
+    match /gmail_credentials/{credId} {
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() ||
+        isStaffOrAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedGmail == resource.data.gmail_email)
+      );
+      allow update, delete: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null && (request.resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Zoho Credentials Collection rules
+    match /zoho_credentials/{credId} {
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() ||
+        isStaffOrAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedZoho == resource.data.zoho_email)
+      );
+      allow update, delete: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null && (request.resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // IMAP Credentials Collection rules
+    match /imap_credentials/{credId} {
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() ||
+        isStaffOrAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedImap == resource.data.imap_email)
+      );
+      allow update, delete: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null && (request.resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // System Status Collection rules
+    match /system/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // System Settings Collection rules
+    match /system_settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Helper function to check if user has license management permission
+    function isLicenseManager() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.allowLicenseKeys == true);
+    }
+
+    // License Keys Collection rules (Single key lookup allowed for signup, bulk listing restricted to Admin/License Manager)
+    match /license_keys/{keyId} {
+      allow get: if true;
+      allow list: if isLicenseManager();
+      allow create, delete: if isLicenseManager();
+      allow update: if request.resource.data.status == 'redeemed' && resource.data.status == 'active';
+    }
+
+    // API Keys Collection rules
+    match /api_keys/{keyId} {
+      allow read, write: if isAdmin();
+    }
+
+    // FF Store Items rules (Public read, Staff/Admin write strictly)
+    match /ff_store/{itemId} {
+      allow read: if true;
+      allow create, update, delete: if isStaffOrAdmin();
+    }
+
+    // FF Upload Tokens Collection rules (Guest upload link management)
+    match /ff_upload_tokens/{tokenId} {
+      allow read: if true;
+      allow create, update, delete: if isStaffOrAdmin();
+    }
+
+    // Inventory Bookings Collection rules
+    match /inventory_bookings/{bookingId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Telegram License Keys Collection rules (Single key lookup allowed, bulk listing restricted to Admin/License Manager)
+    match /telegram_license_keys/{keyId} {
+      allow get: if true;
+      allow list: if isLicenseManager();
+      allow write: if isLicenseManager();
+    }
+
+    // Telegram User Sessions Collection rules
+    match /telegram_user_sessions/{chatId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Gateway Persistent Store (Protected for Admins only)
+    match /gateway_store/{docId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

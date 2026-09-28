@@ -1,0 +1,34 @@
+User-agent: *
+Allow: /
+Allow: /store
+Allow: /pricing
+Allow: /privacy-policy
+Allow: /terms
+Allow: /refund-policy
+Disallow: /admin
+Disallow: /client-dashboard
+Disallow: /admin-dashboard
+
+# Explicit AI Search & LLM Web Crawler Directives (ChatGPT, Perplexity, Claude, Gemini, Apple Intelligence)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://dealsbyshiv.web.app/sitemap.xml
