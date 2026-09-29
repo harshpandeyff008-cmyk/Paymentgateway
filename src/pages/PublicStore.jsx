@@ -574,12 +574,11 @@ export default function PublicStore({ isUserDashboard = false }) {
             ) : (
               <Link
                 to="/login"
-                className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-gray-900 hover:bg-black dark:bg-gray-800 dark:hover:bg-gray-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
-                title="Login / Sign In"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/25 shrink-0"
+                title="Staff & Client Sign In"
               >
-                <LogIn className="w-3.5 h-3.5 text-gray-300" />
-                <span className="hidden md:inline">Sign In</span>
-                <span className="md:hidden">Login</span>
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
               </Link>
             )}
           </div>

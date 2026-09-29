@@ -164,15 +164,9 @@ function MaintenanceWrapper({ children }) {
   return children;
 }
 
-// Domain-Aware Root and Fallback Route Handler
+// Domain-Aware Root and Fallback Route Handler (Always loads Public Store directly)
 function RootRouteHandler() {
-  const hostname = window.location.hostname.toLowerCase();
-  // On custom storefront domains (e.g. garena, dealsbyshiv, freefire), show Public Store directly
-  if (hostname.includes('garena') || hostname.includes('dealsbyshiv') || hostname.includes('freefire')) {
-    return <PublicStore />;
-  }
-  // On ff-store-4a61e, localhost, or standard portal domain, go directly to Login
-  return <Navigate to="/login" replace />;
+  return <PublicStore />;
 }
 
 function App() {
