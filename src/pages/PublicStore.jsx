@@ -95,6 +95,7 @@ export default function PublicStore({ isUserDashboard = false }) {
 
   // Lit Terms & Conditions Agreement Popup (Shows on every visit)
   const [termsAgreed, setTermsAgreed] = useState(false);
+  const [termsCheckbox, setTermsCheckbox] = useState(false);
   const [popupPoints, setPopupPoints] = useState([
     {
       title: '1. 100% VERIFIED GAME ASSETS',
@@ -196,18 +197,41 @@ export default function PublicStore({ isUserDashboard = false }) {
         // Strip any accidental email addresses from public title or description
         const stripEmails = (text) => (text || '').toString().replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi, '[VERIFIED]');
 
+        // Robust price parsing (handles numeric, strings like "₹500", "500/-", "1,500")
+        let parsedPrice = 0;
+        if (typeof d.price === 'number') {
+          parsedPrice = d.price;
+        } else if (d.price) {
+          parsedPrice = Number(String(d.price).replace(/[^0-9.]/g, '')) || 0;
+        }
+
+        // Format media list with accurate video/image type detection
+        const rawMediaList = Array.isArray(d.mediaList) && d.mediaList.length > 0
+          ? d.mediaList
+          : (d.mediaUrl ? [{ url: d.mediaUrl, type: d.mediaType || 'image', name: 'Media' }] : []);
+
+        const normalizedMediaList = rawMediaList.map(m => {
+          const url = (m.url || '').toString();
+          const isVid = m.type === 'video' || url.includes('/video/') || /\.(mp4|webm|mov|m4v|avi)(\?|$)/i.test(url);
+          return {
+            ...m,
+            url,
+            type: isVid ? 'video' : 'image'
+          };
+        });
+
+        const primaryMedia = normalizedMediaList[0] || { url: d.mediaUrl || '', type: d.mediaType || 'image' };
+
         // Safe mapping - STRICTLY NO sensitive data, everything capitalized & bolded
         list.push({
           id: docSnap.id,
           title: stripEmails(d.title || 'FREE FIRE VERIFIED ACCOUNT').toUpperCase(),
           description: stripEmails(d.description || '').toUpperCase(),
-          price: Number(d.price) || 0,
+          price: parsedPrice,
           accountUid: safeUid,
-          mediaUrl: d.mediaUrl || (d.mediaList && d.mediaList[0]?.url) || '',
-          mediaType: d.mediaType || (d.mediaList && d.mediaList[0]?.type) || 'image',
-          mediaList: Array.isArray(d.mediaList) && d.mediaList.length > 0
-            ? d.mediaList
-            : (d.mediaUrl ? [{ url: d.mediaUrl, type: d.mediaType || 'image', name: 'Media' }] : []),
+          mediaUrl: primaryMedia.url,
+          mediaType: primaryMedia.type,
+          mediaList: normalizedMediaList,
           createdAt: d.createdAt || new Date().toISOString()
         });
       });
@@ -379,23 +403,47 @@ export default function PublicStore({ isUserDashboard = false }) {
     return `https://wa.me/${cleanWhatsapp}?text=${text}`;
   };
 
+  // Dynamic filter counts
+  const filterCounts = useMemo(() => {
+    let u500 = 0, f500to2000 = 0, a2000 = 0, vids = 0;
+    items.forEach(item => {
+      if (item.price < 500) u500++;
+      if (item.price >= 500 && item.price <= 2000) f500to2000++;
+      if (item.price > 2000) a2000++;
+      const hasVid = item.mediaList.some(m => m.type === 'video');
+      if (hasVid || item.mediaType === 'video') vids++;
+    });
+    return {
+      all: items.length,
+      under500: u500,
+      from500to2000: f500to2000,
+      above2000: a2000,
+      videos: vids
+    };
+  }, [items]);
+
   // Filter & Sort listings
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      // Search
-      const matchesSearch = 
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.accountUid && item.accountUid.toLowerCase().includes(searchQuery.toLowerCase()));
+      // Search query matching across title, description, UID, price
+      const q = (searchQuery || '').toLowerCase().trim();
+      if (q) {
+        const matchesSearch = 
+          item.title.toLowerCase().includes(q) ||
+          item.description.toLowerCase().includes(q) ||
+          (item.accountUid && item.accountUid.toLowerCase().includes(q)) ||
+          (String(item.price).includes(q));
 
-      if (!matchesSearch) return false;
+        if (!matchesSearch) return false;
+      }
 
       // Price / Type Filters
       if (selectedFilter === 'under500') return item.price < 500;
       if (selectedFilter === '500to2000') return item.price >= 500 && item.price <= 2000;
       if (selectedFilter === 'above2000') return item.price > 2000;
       if (selectedFilter === 'videos') {
-        return item.mediaList.some(m => m.type === 'video');
+        const hasVid = item.mediaList.some(m => m.type === 'video');
+        return hasVid || item.mediaType === 'video';
       }
 
       return true;
@@ -624,53 +672,68 @@ export default function PublicStore({ isUserDashboard = false }) {
             </span>
             <button
               onClick={() => setSelectedFilter('all')}
-              className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 selectedFilter === 'all'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750'
               }`}
             >
-              ALL ({items.length})
+              <span>ALL</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${selectedFilter === 'all' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                {filterCounts.all}
+              </span>
             </button>
             <button
               onClick={() => setSelectedFilter('under500')}
-              className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 selectedFilter === 'under500'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750'
               }`}
             >
-              UNDER ₹500
+              <span>UNDER ₹500</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${selectedFilter === 'under500' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                {filterCounts.under500}
+              </span>
             </button>
             <button
               onClick={() => setSelectedFilter('500to2000')}
-              className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 selectedFilter === '500to2000'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750'
               }`}
             >
-              ₹500 - ₹2,000
+              <span>₹500 - ₹2,000</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${selectedFilter === '500to2000' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                {filterCounts.from500to2000}
+              </span>
             </button>
             <button
               onClick={() => setSelectedFilter('above2000')}
-              className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 selectedFilter === 'above2000'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750'
               }`}
             >
-              ₹2,000+ (HIGH END)
+              <span>₹2,000+ (HIGH END)</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${selectedFilter === 'above2000' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                {filterCounts.above2000}
+              </span>
             </button>
             <button
               onClick={() => setSelectedFilter('videos')}
-              className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 selectedFilter === 'videos'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-750'
               }`}
             >
-              🎬 GAMEPLAY VIDEOS ONLY
+              <span>🎬 GAMEPLAY VIDEOS ONLY</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${selectedFilter === 'videos' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                {filterCounts.videos}
+              </span>
             </button>
           </div>
         </div>
@@ -1310,16 +1373,44 @@ export default function PublicStore({ isUserDashboard = false }) {
               ))}
             </div>
 
+            {/* Interactive Mandatory Checkbox */}
+            <div className="relative z-10 pt-1">
+              <label 
+                className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer select-none ${
+                  termsCheckbox
+                    ? 'bg-indigo-950/60 border-indigo-500 shadow-md shadow-indigo-500/20 text-white'
+                    : 'bg-gray-900/90 border-gray-800 hover:border-gray-700 text-gray-300'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={termsCheckbox}
+                  onChange={(e) => setTermsCheckbox(e.target.checked)}
+                  className="w-5 h-5 mt-0.5 rounded-lg border-gray-600 text-indigo-600 focus:ring-indigo-500 bg-gray-800 shrink-0 cursor-pointer accent-indigo-500"
+                />
+                <span className="text-[11px] font-black uppercase leading-snug tracking-wide">
+                  I HAVE READ, UNDERSTOOD, AND AGREE TO ALL ESCROW PROTOCOLS, REFUND POLICIES &amp; TERMS OF SERVICE.
+                </span>
+              </label>
+            </div>
+
             {/* Action Buttons */}
             <div className="relative z-10 space-y-2.5 pt-1">
-              {/* Primary Agree Button */}
+              {/* Primary Agree Button - Enabled ONLY when checkbox is checked */}
               <button
                 type="button"
-                onClick={() => setTermsAgreed(true)}
-                className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-amber-500 hover:from-indigo-600 hover:to-amber-600 text-white text-xs sm:text-sm font-black uppercase tracking-widest shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                disabled={!termsCheckbox}
+                onClick={() => {
+                  if (termsCheckbox) setTermsAgreed(true);
+                }}
+                className={`w-full py-3.5 px-6 rounded-2xl text-xs sm:text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                  termsCheckbox
+                    ? 'bg-gradient-to-r from-indigo-500 via-purple-600 to-amber-500 hover:from-indigo-600 hover:to-amber-600 text-white shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+                    : 'bg-gray-800 text-gray-500 border border-gray-700/60 cursor-not-allowed opacity-60'
+                }`}
               >
                 <Check className="w-5 h-5 stroke-[3]" />
-                <span>I AGREE & ENTER MARKETPLACE</span>
+                <span>{termsCheckbox ? 'I AGREE & ENTER MARKETPLACE' : 'PLEASE TICK CHECKBOX TO ENTER'}</span>
               </button>
 
               {/* View Terms Link */}

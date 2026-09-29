@@ -62,9 +62,9 @@ export default function PrivacyPolicy() {
               </p>
               <div className="p-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700 text-xs space-y-1.5 font-semibold">
                 <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Data Fiduciary:</span> <span className="text-gray-900 dark:text-white font-extrabold">FREE FIRE OFFICIAL DEALS</span></p>
-                <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Platform URL:</span> <span className="text-indigo-600 dark:text-indigo-400">dealsbyshiv.web.app</span></p>
+                <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Platform URL:</span> <span className="text-indigo-600 dark:text-indigo-400">freefireofficial.in</span></p>
                 <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Designated Grievance Officer:</span> Free Fire Official Deals — Compliance & Grievance Desk</p>
-                <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Contact Email:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold">support@dealsbyshiv.web.app</span></p>
+                <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Contact Email:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold">support@freefireofficial.in</span></p>
                 <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Governing Law:</span> Laws of India — DPDP Act 2023, IT Act 2000, Consumer Protection Act 2019</p>
               </div>
             </section>
@@ -205,7 +205,7 @@ export default function PrivacyPolicy() {
                 </div>
               </div>
               <p className="text-xs font-semibold pt-1">
-                To exercise any of these rights, email <span className="text-indigo-600 dark:text-indigo-400 font-bold">support@dealsbyshiv.web.app</span> from your registered email address, or use the in-app mechanisms provided in your Profile page.
+                To exercise any of these rights, email <span className="text-indigo-600 dark:text-indigo-400 font-bold">support@freefireofficial.in</span> from your registered email address, or use the in-app mechanisms provided in your Profile page.
               </p>
             </section>
 
@@ -393,7 +393,7 @@ export default function PrivacyPolicy() {
               </p>
               <div className="p-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700 text-xs space-y-1.5 font-semibold">
                 <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Grievance Officer:</span> Free Fire Official Deals — Compliance & Grievance Desk</p>
-                <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Official Email:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold">support@dealsbyshiv.web.app</span></p>
+                <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Official Email:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold">support@freefireofficial.in</span></p>
                 <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Acknowledgment:</span> Within 24 hours of receiving the grievance.</p>
                 <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Resolution Timeline:</span> Within 72 business hours. Data deletion requests processed within 7-14 business days.</p>
                 <p><span className="text-gray-400 uppercase tracking-wider text-[10px]">Escalation:</span> If unsatisfied, you may approach the <span className="text-gray-900 dark:text-white font-bold">Data Protection Board of India</span> under DPDP Act 2023 — Section 27.</p>

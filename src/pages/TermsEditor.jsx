@@ -95,7 +95,7 @@ SECTION 13. SEVERABILITY, NON-WAIVER & INTEGRATION (PAROL EVIDENCE):
 SECTION 14. STATUTORY GRIEVANCE REDRESSAL DISCLOSURE & INTERMEDIARY SAFE HARBOR:
 14.1 In strict compliance with Rule 3(2) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, and the Consumer Protection (E-Commerce) Rules, 2020, the designated Grievance Redressal mechanism is cataloged as follows:
 • Designated Compliance Officer: Chief Escrow & Digital Grievance Administrator
-• Official Redressal Conduit: support@dealsbyshiv.web.app (Escrow Desk)
+• Official Redressal Conduit: support@freefireofficial.in (Escrow Desk)
 • Procedural Protocols: All grievances must include cryptographic transaction hashes, account UID identifiers, and a sworn declaration under penalty of perjury.
 • Statutory Response Latency: Formal acknowledgment within twenty-four (24) chronological hours; administrative determination rendered within seventy-two (72) standard business hours.`;
 
@@ -283,7 +283,7 @@ export default function TermsEditor() {
                         Marketplace Cyber Popup Agreement Points (4 Highlights)
                       </h3>
                       <span className="text-[10px] text-gray-400 font-bold uppercase">
-                        These points appear inside the neon popup modal when buyers open dealsbyshiv.web.app
+                        These points appear inside the neon popup modal when buyers open freefireofficial.in
                       </span>
                     </div>
                   </div>
@@ -370,7 +370,7 @@ export default function TermsEditor() {
               {/* Save Bar */}
               <div className="sticky bottom-4 z-20 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-4">
                 <span className="text-xs font-black uppercase text-gray-500 dark:text-gray-400 hidden sm:inline">
-                  ⚡ Changes immediately update live across dealsbyshiv & terms pages
+                  ⚡ Changes immediately update live across freefireofficial & terms pages
                 </span>
                 
                 <button

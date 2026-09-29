@@ -1040,7 +1040,7 @@ export default function Profile() {
               </div>
               <div className="p-3 bg-amber-50/50 dark:bg-amber-950/15 rounded-xl border border-amber-200 dark:border-amber-800 space-y-1">
                 <span className="text-[9px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider">Right to Grievance (S.13)</span>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Email: support@dealsbyshiv.web.app</p>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Email: support@freefireofficial.in</p>
               </div>
             </div>
 

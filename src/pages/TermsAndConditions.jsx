@@ -80,7 +80,7 @@ SECTION 13. SEVERABILITY, NON-WAIVER & INTEGRATION (PAROL EVIDENCE):
 SECTION 14. STATUTORY GRIEVANCE REDRESSAL DISCLOSURE & INTERMEDIARY SAFE HARBOR:
 14.1 In strict compliance with Rule 3(2) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, and the Consumer Protection (E-Commerce) Rules, 2020, the designated Grievance Redressal mechanism is cataloged as follows:
 • Designated Compliance Officer: Chief Escrow & Digital Grievance Administrator
-• Official Redressal Conduit: support@dealsbyshiv.web.app (Escrow Desk)
+• Official Redressal Conduit: support@freefireofficial.in (Escrow Desk)
 • Procedural Protocols: All grievances must include cryptographic transaction hashes, account UID identifiers, and a sworn declaration under penalty of perjury.
 • Statutory Response Latency: Formal acknowledgment within twenty-four (24) chronological hours; administrative determination rendered within seventy-two (72) standard business hours.`;
 
