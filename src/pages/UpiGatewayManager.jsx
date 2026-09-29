@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Sidebar from '../components/Sidebar';
@@ -9,32 +9,26 @@ import {
   QrCode, 
   ShieldCheck, 
   Search, 
-  Filter, 
   CheckCircle2, 
   Clock, 
-  XCircle, 
   Download, 
   Printer, 
   RefreshCw, 
-  ExternalLink, 
-  Copy, 
-  Check, 
-  Send, 
   Phone, 
-  Layers, 
   FileText, 
   Scale, 
   Smartphone, 
   IndianRupee, 
-  Sparkles, 
-  AlertCircle, 
-  Sliders, 
   Zap, 
   Lock, 
-  UserCheck,
+  X,
+  Copy,
+  Check,
+  CheckCircle,
+  ExternalLink,
   ChevronRight,
-  Eye,
-  X
+  Shield,
+  HelpCircle
 } from 'lucide-react';
 
 export default function UpiGatewayManager() {
@@ -169,7 +163,6 @@ export default function UpiGatewayManager() {
         setPingStatus('online');
         showToast("Gateway Server is Online & Responsive!", "success");
       } else {
-        // Fallback test
         const testRes = await fetch(`${gatewayUrl}/api/orders/TEST-PING`, {
           headers: { 'x-api-key': gatewayApiKey }
         });
@@ -249,30 +242,32 @@ export default function UpiGatewayManager() {
       await setDoc(doc(db, 'payment_orders', orderObj.orderCode), {
         orderCode: orderObj.orderCode,
         amount: orderObj.amount,
-        customerName: testCustomerName,
-        customerPhone: testCustomerPhone,
-        itemTitle: testItemTitle,
-        accountUid: 'TEST-UID-9999',
-        status: 'PENDING',
-        utr: '',
-        isTest: true,
+        customerName: testCustomerName.trim() || 'Admin Test User',
+        customerPhone: testCustomerPhone.trim() || '9876543210',
+        itemId: 'ADMIN_SIMULATOR',
+        itemTitle: testItemTitle.trim() || 'ADMIN LIVE SIMULATION TEST',
+        accountUid: 'TEST_UID_999',
+        status: orderObj.status || 'PENDING',
         termsAccepted: true,
-        termsAcceptedAt: new Date().toISOString(),
         refundPolicyAccepted: true,
-        deviceSignature: navigator.userAgent,
-        createdAt: serverTimestamp()
+        termsAcceptedAt: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        qrCode: orderObj.qrCode || '',
+        paymentUrl: orderObj.paymentUrl || '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       }, { merge: true });
 
-      showToast("Dynamic Test QR Generated! Scan to simulate payment.", "success");
+      showToast("Test Payment QR Generated & Polling Active!", "success");
     } catch (err) {
-      console.error("Test order err:", err);
+      console.error("Test QR Error:", err);
       showToast(err.message || "Failed to create test order", "error");
     } finally {
       setIsGeneratingTest(false);
     }
   };
 
-  // Poll Test Order Status
+  // Real-time polling for test payment
   useEffect(() => {
     if (!isPollingTest || !testOrderResult?.orderCode) return;
 
@@ -286,16 +281,14 @@ export default function UpiGatewayManager() {
           const st = (data.order.status || '').toUpperCase();
           setTestPollStatus(st);
           if (st === 'PAID' || st === 'SUCCESS') {
-            setTestOrderResult(prev => ({ ...prev, ...data.order, status: 'PAID' }));
             setIsPollingTest(false);
-            showToast(`Payment of ₹${data.order.amount} Detected & Verified! UTR: ${data.order.utr || 'VALID'}`, "success");
-
-            // Update in Firestore
+            showToast("Test Payment Received & Verified by Bank!", "success");
             await updateDoc(doc(db, 'payment_orders', testOrderResult.orderCode), {
               status: 'PAID',
-              utr: data.order.utr || 'TEST-BANK-UTR',
-              paidAt: serverTimestamp()
-            }).catch(() => null);
+              utr: data.order.utr || 'TEST_UTR_' + Date.now(),
+              paidAt: new Date().toISOString(),
+              updatedAt: serverTimestamp()
+            });
           }
         }
       } catch (e) {
@@ -369,64 +362,68 @@ export default function UpiGatewayManager() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-955 font-sans overflow-hidden transition-colors duration-200 selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col font-sans transition-colors duration-200">
       
       {/* Sidebar Navigation */}
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* Main Content Area - padded left on desktop so it never overlaps sidebar */}
+      <div className="flex-1 lg:pl-72 flex flex-col min-w-0">
         
         {/* Top Navbar */}
-        <Navbar setIsOpen={setSidebarOpen} title="UPI Gateway & Legal Audit Center" />
+        <Navbar onMenuClick={() => setSidebarOpen(true)} title="UPI Gateway & Legal Audit" />
 
         {/* Page Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        <main className="flex-1 p-3 sm:p-5 lg:p-7 space-y-6 max-w-7xl w-full mx-auto overflow-x-hidden">
           
-          {/* Header Banner */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-gray-900 via-gray-950 to-[#0c1813] border border-emerald-500/40 rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden">
-            <div className="relative z-10 space-y-1.5">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>GOVT / TAX / POLICE STATUTORY COMPLIANCE READY</span>
+          {/* Header Banner - Fully Responsive */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-950 to-[#071a12] border border-emerald-500/30 p-5 sm:p-7 text-white shadow-xl">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>GOVT / TAX / POLICE STATUTORY COMPLIANT</span>
+                </div>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tight flex flex-wrap items-center gap-2">
+                  <span>UPI GATEWAY</span>
+                  <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 bg-clip-text text-transparent">&amp; ESCROW AUDIT</span>
+                </h1>
+                <p className="text-xs font-semibold text-gray-400 leading-relaxed">
+                  Real-time UPI QR engine, customer KYC tracing, bank UTR logging, and electronic Terms &amp; Refund Policy compliance certificates.
+                </p>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight flex items-center gap-2">
-                <span>UPI GATEWAY</span>
-                <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">&amp; ESCROW AUDIT</span>
-              </h1>
-              <p className="text-xs font-semibold text-gray-400 max-w-2xl leading-relaxed">
-                Full-stack UPI QR order engine, customer KYC traceability, bank UTR logging, and electronic Terms &amp; Refund Policy compliance certificates for statutory authorities.
-              </p>
-            </div>
 
-            {/* Quick Summary Numbers */}
-            <div className="relative z-10 flex items-center gap-3">
-              <div className="px-4 py-3 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-center">
-                <span className="text-[10px] font-black uppercase text-gray-400 block">Total Volume</span>
-                <span className="text-lg sm:text-xl font-black text-emerald-400">₹{stats.totalRevenue.toLocaleString()}</span>
+              {/* Responsive Quick Stats */}
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 sm:gap-3 shrink-0">
+                <div className="px-4 py-3 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-center">
+                  <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Total Volume</span>
+                  <span className="text-base sm:text-xl font-black text-emerald-400">₹{stats.totalRevenue.toLocaleString()}</span>
+                </div>
+                <div className="px-4 py-3 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-center">
+                  <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Verified Orders</span>
+                  <span className="text-base sm:text-xl font-black text-teal-300">{stats.paidCount} / {stats.totalOrders}</span>
+                </div>
               </div>
-              <div className="px-4 py-3 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-center">
-                <span className="text-[10px] font-black uppercase text-gray-400 block">Verified Orders</span>
-                <span className="text-lg sm:text-xl font-black text-teal-300">{stats.paidCount} / {stats.totalOrders}</span>
-              </div>
+
             </div>
           </div>
 
-          {/* 3-Section Slidebar / Tab Controls */}
-          <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1.5 rounded-2xl shadow-xs overflow-x-auto no-scrollbar">
+          {/* 3-Section Slidebar / Tab Controls - Responsive Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1.5 rounded-2xl shadow-xs">
             
             <button
               type="button"
               onClick={() => setActiveTab('orders')}
-              className={`flex-1 min-w-[200px] py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-3 px-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'orders'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <Scale className="w-4 h-4" />
-              <span>1. Customer Orders &amp; Audit Trail</span>
-              <span className={`px-2 py-0.5 rounded-md text-[9.5px] ${activeTab === 'orders' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-800'}`}>
+              <Scale className="w-4 h-4 shrink-0" />
+              <span className="truncate">1. Orders &amp; Audit Trail</span>
+              <span className={`px-2 py-0.5 rounded-md text-[10px] shrink-0 ${activeTab === 'orders' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-800'}`}>
                 {orders.length}
               </span>
             </button>
@@ -434,27 +431,27 @@ export default function UpiGatewayManager() {
             <button
               type="button"
               onClick={() => setActiveTab('test')}
-              className={`flex-1 min-w-[200px] py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-3 px-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'test'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <Zap className="w-4 h-4" />
-              <span>2. Live Test Payment Simulator</span>
+              <Zap className="w-4 h-4 shrink-0" />
+              <span className="truncate">2. Test Payment Simulator</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('config')}
-              className={`flex-1 min-w-[200px] py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-3 px-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'config'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <Sliders className="w-4 h-4" />
-              <span>3. Gateway &amp; API Configuration</span>
+              <Lock className="w-4 h-4 shrink-0" />
+              <span className="truncate">3. Gateway API Config</span>
             </button>
 
           </div>
@@ -464,178 +461,261 @@ export default function UpiGatewayManager() {
             <div className="space-y-4">
               
               {/* Controls Bar: Search, Status Filter, Export */}
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
                 
                 {/* Search Box */}
-                <div className="relative flex-1 w-full">
+                <div className="relative flex-1">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="SEARCH BY CUSTOMER PHONE, NAME, UTR HASH, ORDER CODE, OR FREE FIRE UID..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs font-black uppercase text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    placeholder="Search phone, name, UTR, code, or FF UID..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-2xl text-xs font-black uppercase text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   />
                 </div>
 
-                {/* Status Pills */}
-                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
-                  {['all', 'PAID', 'PENDING', 'EXPIRED'].map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setStatusFilter(st)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${
-                        statusFilter === st
-                          ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-xs'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  ))}
-                </div>
+                {/* Filter Pills & Export */}
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                    {['all', 'PAID', 'PENDING', 'EXPIRED'].map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setStatusFilter(st)}
+                        className={`flex-1 sm:flex-initial px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${
+                          statusFilter === st
+                            ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-xs'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
 
-                {/* Export Button */}
-                <button
-                  type="button"
-                  onClick={handleExportCSV}
-                  className="w-full md:w-auto px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-955/40 dark:hover:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shrink-0 transition-all"
-                  title="Export for Income Tax / Police / Legal Verification"
-                >
-                  <Download className="w-4 h-4 text-emerald-600" />
-                  <span>Export Govt Ledger (CSV)</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleExportCSV}
+                    className="w-full sm:w-auto px-4 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-955/40 dark:hover:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl sm:rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shrink-0 transition-all"
+                    title="Export for Income Tax / Police / Legal Verification"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
 
               </div>
 
-              {/* Transactions Table */}
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-xs overflow-hidden">
+              {/* Transactions Container */}
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl shadow-xs overflow-hidden">
                 {loadingOrders ? (
-                  <div className="p-16 text-center space-y-3">
-                    <div className="w-10 h-10 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <div className="p-12 text-center space-y-3">
+                    <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
                     <p className="text-xs font-black uppercase text-gray-400 tracking-wider">Syncing UPI Gateway Audit Records...</p>
                   </div>
                 ) : filteredOrders.length === 0 ? (
-                  <div className="p-12 text-center space-y-2 text-gray-400">
-                    <FileText className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700" />
+                  <div className="p-10 text-center space-y-2 text-gray-400">
+                    <FileText className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-700" />
                     <h3 className="text-sm font-black uppercase tracking-wider text-gray-800 dark:text-gray-200">No Payment Records Found</h3>
                     <p className="text-xs font-semibold">Generate a test payment in Tab 2 or place an order on the public storefront.</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-gray-50 dark:bg-gray-850/80 border-b border-gray-200 dark:border-gray-800 text-[10.5px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                          <th className="p-4">Customer &amp; Phone</th>
-                          <th className="p-4">Order Code</th>
-                          <th className="p-4">Asset / Item UID</th>
-                          <th className="p-4">Amount</th>
-                          <th className="p-4">Bank UTR Number</th>
-                          <th className="p-4">Status</th>
-                          <th className="p-4">Legal Agreement</th>
-                          <th className="p-4 text-right">Statutory Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-xs font-bold">
-                        {filteredOrders.map((o) => {
-                          const isPaid = (o.status || '').toUpperCase() === 'PAID' || (o.status || '').toUpperCase() === 'SUCCESS';
-                          return (
-                            <tr key={o.id} className="hover:bg-gray-50/80 dark:hover:bg-gray-850/50 transition-colors">
-                              
-                              {/* Customer Name & Phone */}
-                              <td className="p-4 space-y-0.5">
-                                <span className="text-gray-900 dark:text-white font-black block">{o.customerName || 'Customer'}</span>
-                                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
-                                  <Phone className="w-3 h-3 text-emerald-500 shrink-0" />
-                                  <span>{o.customerPhone || 'N/A'}</span>
-                                </div>
-                              </td>
+                  <>
+                    {/* DESKTOP TABLE VIEW (hidden on mobile) */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 dark:bg-gray-850/80 border-b border-gray-200 dark:border-gray-800 text-[10.5px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th className="p-4">Customer &amp; Phone</th>
+                            <th className="p-4">Order Code</th>
+                            <th className="p-4">Asset / Item UID</th>
+                            <th className="p-4">Amount</th>
+                            <th className="p-4">Bank UTR Number</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4">Legal Agreement</th>
+                            <th className="p-4 text-right">Statutory Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-xs font-bold">
+                          {filteredOrders.map((o) => {
+                            const isPaid = (o.status || '').toUpperCase() === 'PAID' || (o.status || '').toUpperCase() === 'SUCCESS';
+                            return (
+                              <tr key={o.id} className="hover:bg-gray-50/80 dark:hover:bg-gray-850/50 transition-colors">
+                                
+                                <td className="p-4 space-y-0.5">
+                                  <span className="text-gray-900 dark:text-white font-black block">{o.customerName || 'Customer'}</span>
+                                  <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
+                                    <Phone className="w-3 h-3 text-emerald-500 shrink-0" />
+                                    <span>{o.customerPhone || 'N/A'}</span>
+                                  </div>
+                                </td>
 
-                              {/* Order Code */}
-                              <td className="p-4 font-mono font-black text-indigo-600 dark:text-indigo-400">
-                                {o.orderCode || o.id}
-                              </td>
+                                <td className="p-4 font-mono font-black text-indigo-600 dark:text-indigo-400">
+                                  {o.orderCode || o.id}
+                                </td>
 
-                              {/* Asset / Item UID */}
-                              <td className="p-4 space-y-0.5">
-                                <span className="text-gray-800 dark:text-gray-200 font-black block truncate max-w-[160px]">{o.itemTitle || 'Free Fire Account'}</span>
-                                {o.accountUid && (
-                                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-                                    UID: {o.accountUid}
+                                <td className="p-4 space-y-0.5">
+                                  <span className="text-gray-800 dark:text-gray-200 font-black block truncate max-w-[160px]">{o.itemTitle || 'Free Fire Account'}</span>
+                                  {o.accountUid && (
+                                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                      UID: {o.accountUid}
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="p-4 font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                  ₹{o.amount || 0}
+                                </td>
+
+                                <td className="p-4 font-mono text-gray-700 dark:text-gray-300">
+                                  {o.utr ? (
+                                    <span className="px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-955/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
+                                      {o.utr}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400 italic">Pending Bank Webhook</span>
+                                  )}
+                                </td>
+
+                                <td className="p-4">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                    isPaid
+                                      ? 'bg-emerald-100 dark:bg-emerald-955 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                      : o.status === 'EXPIRED'
+                                      ? 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                                      : 'bg-amber-100 dark:bg-amber-955/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 animate-pulse'
+                                  }`}>
+                                    {isPaid && <CheckCircle2 className="w-3 h-3" />}
+                                    {o.status || 'PENDING'}
                                   </span>
-                                )}
-                              </td>
+                                </td>
 
-                              {/* Amount */}
-                              <td className="p-4 font-black text-emerald-600 dark:text-emerald-400 text-sm">
-                                ₹{o.amount || 0}
-                              </td>
-
-                              {/* Bank UTR Number */}
-                              <td className="p-4 font-mono text-gray-700 dark:text-gray-300">
-                                {o.utr ? (
-                                  <span className="px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-955/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
-                                    {o.utr}
+                                <td className="p-4 space-y-0.5">
+                                  <div className="flex items-center gap-1 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                                    <Check className="w-3 h-3" />
+                                    <span>T&amp;C + REFUND ACCEPTED</span>
+                                  </div>
+                                  <span className="text-[9.5px] text-gray-400 block font-mono">
+                                    {new Date(o.createdAt).toLocaleDateString()}
                                   </span>
-                                ) : (
-                                  <span className="text-gray-400 italic">Pending Bank Webhook</span>
-                                )}
-                              </td>
+                                </td>
 
-                              {/* Status */}
-                              <td className="p-4">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedAuditOrder(o)}
+                                    className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-955/40 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer transition-all inline-flex items-center gap-1"
+                                    title="View Statutory Legal Certificate"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    <span>Legal Certificate</span>
+                                  </button>
+                                  
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCheckLiveStatus(o.orderCode || o.id)}
+                                    className="p-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300 rounded-xl transition-all cursor-pointer inline-flex items-center"
+                                    title="Poll Bank Server Status"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* MOBILE CARD VIEW (Optimized for small screens) */}
+                    <div className="block md:hidden divide-y divide-gray-100 dark:divide-gray-800 p-3 space-y-3">
+                      {filteredOrders.map((o) => {
+                        const isPaid = (o.status || '').toUpperCase() === 'PAID' || (o.status || '').toUpperCase() === 'SUCCESS';
+                        return (
+                          <div key={o.id} className="p-4 rounded-2xl bg-gray-50/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 space-y-3">
+                            
+                            {/* Card Top Row: Code, Status, Amount */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <span className="text-[10px] font-bold text-gray-400 uppercase block">Order Code</span>
+                                <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-xs">{o.orderCode || o.id}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-base font-black text-emerald-600 dark:text-emerald-400 block">₹{o.amount || 0}</span>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                                   isPaid
-                                    ? 'bg-emerald-100 dark:bg-emerald-955 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                                    : o.status === 'EXPIRED'
-                                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-500'
-                                    : 'bg-amber-100 dark:bg-amber-955/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 animate-pulse'
+                                    ? 'bg-emerald-100 dark:bg-emerald-955 text-emerald-700 dark:text-emerald-300'
+                                    : 'bg-amber-100 dark:bg-amber-955/60 text-amber-700 dark:text-amber-300'
                                 }`}>
-                                  {isPaid && <CheckCircle2 className="w-3 h-3" />}
+                                  {isPaid && <CheckCircle2 className="w-2.5 h-2.5" />}
                                   {o.status || 'PENDING'}
                                 </span>
-                              </td>
+                              </div>
+                            </div>
 
-                              {/* Legal Agreement */}
-                              <td className="p-4 space-y-0.5">
-                                <div className="flex items-center gap-1 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
-                                  <Check className="w-3 h-3" />
-                                  <span>T&amp;C + REFUND ACCEPTED</span>
+                            {/* Card Customer & Item */}
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Customer:</span>
+                                <span className="font-bold text-gray-900 dark:text-white">{o.customerName || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between font-mono text-[11px]">
+                                <span className="text-gray-400">Phone:</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{o.customerPhone || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Item:</span>
+                                <span className="font-bold text-gray-800 dark:text-gray-200 truncate max-w-[180px]">{o.itemTitle || 'Free Fire Account'}</span>
+                              </div>
+                              {o.accountUid && (
+                                <div className="flex justify-between font-mono text-[10.5px]">
+                                  <span className="text-gray-400">FF UID:</span>
+                                  <span className="text-indigo-500 font-bold">{o.accountUid}</span>
                                 </div>
-                                <span className="text-[9.5px] text-gray-400 block font-mono">
-                                  {new Date(o.createdAt).toLocaleDateString()}
-                                </span>
-                              </td>
+                              )}
+                              {o.utr && (
+                                <div className="flex justify-between font-mono text-[10.5px]">
+                                  <span className="text-gray-400">Bank UTR:</span>
+                                  <span className="text-teal-500 font-bold">{o.utr}</span>
+                                </div>
+                              )}
+                            </div>
 
-                              {/* Actions */}
-                              <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedAuditOrder(o)}
-                                  className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-955/40 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer transition-all inline-flex items-center gap-1"
-                                  title="View Statutory Legal Certificate"
-                                >
-                                  <Printer className="w-3.5 h-3.5" />
-                                  <span>Legal Certificate</span>
-                                </button>
-                                
-                                <button
-                                  type="button"
-                                  onClick={() => handleCheckLiveStatus(o.orderCode || o.id)}
-                                  className="p-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300 rounded-xl transition-all cursor-pointer inline-flex items-center"
-                                  title="Poll Bank Server Status"
-                                >
-                                  <RefreshCw className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
+                            {/* Legal Consent Badge */}
+                            <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200 dark:border-gray-700/60">
+                              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                                <Check className="w-3 h-3" /> T&amp;C Accepted
+                              </span>
+                              <span className="font-mono">{new Date(o.createdAt).toLocaleDateString()}</span>
+                            </div>
 
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                            {/* Mobile Card Action Buttons */}
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedAuditOrder(o)}
+                                className="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Certificate</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCheckLiveStatus(o.orderCode || o.id)}
+                                className="py-2.5 px-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-650 text-gray-800 dark:text-gray-100 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>Check Bank</span>
+                              </button>
+                            </div>
+
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -644,16 +724,16 @@ export default function UpiGatewayManager() {
 
           {/* TAB 2: LIVE TEST PAYMENT SIMULATOR */}
           {activeTab === 'test' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
               {/* Left Column: Test Generator Form */}
-              <div className="lg:col-span-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-7 shadow-xs space-y-5">
+              <div className="lg:col-span-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-xs space-y-5">
                 <div className="flex items-center gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-955/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-800">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-955/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-800 shrink-0">
                     <QrCode className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                    <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-gray-900 dark:text-white">
                       Instant Test Order Generator
                     </h3>
                     <p className="text-xs font-semibold text-gray-400">
@@ -663,10 +743,28 @@ export default function UpiGatewayManager() {
                 </div>
 
                 <form onSubmit={handleCreateTestOrder} className="space-y-4">
+                  
+                  {/* Quick Amount Pills */}
                   <div>
-                    <label className="block text-xs font-black uppercase text-gray-400 mb-1">
+                    <label className="block text-xs font-black uppercase text-gray-400 mb-1.5">
                       Test Amount (₹ INR)
                     </label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {['10', '50', '100', '500'].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setTestAmount(val)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            testAmount === val 
+                              ? 'bg-emerald-600 text-white shadow-xs' 
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                          }`}
+                        >
+                          ₹{val}
+                        </button>
+                      ))}
+                    </div>
                     <div className="relative">
                       <IndianRupee className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
@@ -675,7 +773,7 @@ export default function UpiGatewayManager() {
                         required
                         value={testAmount}
                         onChange={(e) => setTestAmount(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                       />
                     </div>
                   </div>
@@ -689,7 +787,7 @@ export default function UpiGatewayManager() {
                       required
                       value={testCustomerName}
                       onChange={(e) => setTestCustomerName(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     />
                   </div>
 
@@ -698,11 +796,11 @@ export default function UpiGatewayManager() {
                       Customer Phone / WhatsApp
                     </label>
                     <input
-                      type="text"
+                      type="tel"
                       required
                       value={testCustomerPhone}
                       onChange={(e) => setTestCustomerPhone(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     />
                   </div>
 
@@ -714,14 +812,14 @@ export default function UpiGatewayManager() {
                       type="text"
                       value={testItemTitle}
                       onChange={(e) => setTestItemTitle(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={isGeneratingTest}
-                    className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black uppercase tracking-wider text-xs rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black uppercase tracking-wider text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isGeneratingTest ? <RefreshCw className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
                     <span>Generate Test UPI QR Code</span>
@@ -730,7 +828,7 @@ export default function UpiGatewayManager() {
               </div>
 
               {/* Right Column: Live QR Stand Output */}
-              <div className="lg:col-span-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-7 shadow-xs flex flex-col items-center justify-center text-center space-y-4">
+              <div className="lg:col-span-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-xs flex flex-col items-center justify-center text-center">
                 {testOrderResult ? (
                   <div className="w-full max-w-sm space-y-4">
                     
@@ -745,29 +843,29 @@ export default function UpiGatewayManager() {
                     </div>
 
                     {/* QR Code Container */}
-                    <div className="p-4 bg-white rounded-3xl border-2 border-emerald-500/40 shadow-xl inline-block">
+                    <div className="p-4 bg-white rounded-3xl border-2 border-emerald-500/40 shadow-xl inline-block max-w-full">
                       {testOrderResult.qrDataUrl ? (
                         <img 
                           src={testOrderResult.qrDataUrl} 
                           alt="Test UPI QR" 
-                          className="w-56 h-56 object-contain mx-auto" 
+                          className="w-48 h-48 sm:w-56 sm:h-56 object-contain mx-auto" 
                         />
                       ) : (
-                        <div className="w-56 h-56 flex items-center justify-center font-mono text-xs font-bold text-gray-400">
+                        <div className="w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center font-mono text-xs font-bold text-gray-400">
                           QR LOADING...
                         </div>
                       )}
                     </div>
 
                     {/* Order Details */}
-                    <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-2xl space-y-1 text-left text-xs font-semibold">
-                      <div className="flex justify-between">
+                    <div className="p-3.5 bg-gray-50 dark:bg-gray-800 rounded-2xl space-y-1.5 text-left text-xs font-semibold">
+                      <div className="flex justify-between items-center">
                         <span className="text-gray-400">Order Code:</span>
                         <span className="font-mono font-bold text-indigo-500">{testOrderResult.orderCode}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span className="text-gray-400">Payable Amount:</span>
-                        <span className="font-bold text-emerald-500">₹{testOrderResult.amount}</span>
+                        <span className="font-bold text-emerald-500 text-sm">₹{testOrderResult.amount}</span>
                       </div>
                     </div>
 
@@ -775,7 +873,7 @@ export default function UpiGatewayManager() {
                     {testOrderResult.upiUri && (
                       <a
                         href={testOrderResult.upiUri}
-                        className="block w-full py-2.5 px-4 rounded-xl bg-gray-900 dark:bg-gray-800 hover:bg-black text-white text-xs font-black uppercase tracking-wider text-center"
+                        className="block w-full py-3 px-4 rounded-xl bg-gray-900 dark:bg-gray-800 hover:bg-black text-white text-xs font-black uppercase tracking-wider text-center transition-all shadow-md"
                       >
                         Open In UPI App (GPay / Paytm / PhonePe)
                       </a>
@@ -783,13 +881,13 @@ export default function UpiGatewayManager() {
 
                   </div>
                 ) : (
-                  <div className="space-y-3 py-12">
-                    <Smartphone className="w-14 h-14 mx-auto text-gray-300 dark:text-gray-700 animate-pulse" />
+                  <div className="space-y-3 py-10 sm:py-16">
+                    <Smartphone className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 animate-pulse" />
                     <h4 className="text-sm font-black uppercase text-gray-800 dark:text-gray-200">
                       Payment Stand Standby
                     </h4>
                     <p className="text-xs font-semibold text-gray-400 max-w-xs mx-auto">
-                      Fill out the form on the left and click "Generate Test UPI QR Code" to preview customer stand.
+                      Fill out the form on the left and click "Generate Test UPI QR Code" to preview live stand.
                     </p>
                   </div>
                 )}
@@ -800,19 +898,19 @@ export default function UpiGatewayManager() {
 
           {/* TAB 3: GATEWAY & API CONFIGURATION */}
           {activeTab === 'config' && (
-            <div className="max-w-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="max-w-3xl w-full mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-xs space-y-6">
               
-              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-955/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-955/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-800 shrink-0">
                     <Lock className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                    <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-gray-900 dark:text-white">
                       UPI Gateway API Credentials
                     </h3>
                     <p className="text-xs font-semibold text-gray-400">
-                      Configure your high-speed Render Node.js UPI QR Gateway endpoints.
+                      Configure your Node.js UPI QR Gateway endpoints.
                     </p>
                   </div>
                 </div>
@@ -820,7 +918,7 @@ export default function UpiGatewayManager() {
                 <button
                   type="button"
                   onClick={handlePingGateway}
-                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-955/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-955/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${pingStatus === 'checking' ? 'animate-spin' : ''}`} />
                   <span>Test Ping</span>
@@ -860,7 +958,7 @@ export default function UpiGatewayManager() {
                 {/* Statutory Legal Notice Box */}
                 <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-955/20 border border-emerald-200 dark:border-emerald-800/60 space-y-2 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
                   <div className="flex items-center gap-2 font-black uppercase">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span>Statutory Safe Harbor Compliance Note</span>
                   </div>
                   <p className="text-[11px] leading-relaxed opacity-90">
@@ -887,19 +985,19 @@ export default function UpiGatewayManager() {
       {/* STATUTORY LEGAL AUDIT CERTIFICATE MODAL (GOVT / TAX / POLICE PROOF) */}
       {selectedAuditOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto font-sans">
-          <div className="bg-white dark:bg-gray-900 border-2 border-emerald-500/50 rounded-3xl max-w-2xl w-full shadow-[0_0_50px_rgba(16,185,129,0.3)] overflow-hidden relative my-auto text-gray-900 dark:text-white">
+          <div className="bg-white dark:bg-gray-900 border-2 border-emerald-500/50 rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-[0_0_50px_rgba(16,185,129,0.3)] overflow-hidden relative my-auto text-gray-900 dark:text-white">
             
             {/* Certificate Header */}
-            <div className="p-6 bg-gradient-to-r from-gray-900 via-[#071912] to-gray-900 border-b border-emerald-500/30 text-white flex items-center justify-between">
+            <div className="p-4 sm:p-6 bg-gradient-to-r from-gray-900 via-[#071912] to-gray-900 border-b border-emerald-500/30 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-950/80 border border-emerald-400 flex items-center justify-center text-emerald-400 shadow-md">
-                  <Scale className="w-6 h-6" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-950/80 border border-emerald-400 flex items-center justify-center text-emerald-400 shadow-md shrink-0">
+                  <Scale className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold block">
+                  <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold block">
                     GOVERNMENT / STATUTORY AUDIT PROOF
                   </span>
-                  <h3 className="text-base font-black uppercase tracking-tight">
+                  <h3 className="text-sm sm:text-base font-black uppercase tracking-tight">
                     Statutory Escrow &amp; Payment Certificate
                   </h3>
                 </div>
@@ -914,10 +1012,10 @@ export default function UpiGatewayManager() {
             </div>
 
             {/* Certificate Body (Printable & Formal) */}
-            <div className="p-6 sm:p-8 space-y-6 max-h-[75vh] overflow-y-auto">
+            <div className="p-4 sm:p-7 space-y-4 sm:space-y-6 max-h-[75vh] overflow-y-auto">
               
               {/* Seal & Identifier */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-955/20 border border-emerald-200 dark:border-emerald-800/50 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-955/20 border border-emerald-200 dark:border-emerald-800/50 text-xs">
                 <div>
                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Official Escrow Reference No.</span>
                   <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
@@ -933,7 +1031,7 @@ export default function UpiGatewayManager() {
               </div>
 
               {/* Grid of Verified Facts */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs font-semibold">
                 
                 <div className="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl space-y-1">
                   <span className="text-[9.5px] font-black uppercase text-gray-400 block">Customer Name</span>
@@ -974,15 +1072,15 @@ export default function UpiGatewayManager() {
               </div>
 
               {/* Electronic Consent & Agreement Signatures */}
-              <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 space-y-2 text-[11px] leading-relaxed">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 space-y-2 text-[11px] leading-relaxed">
                 <div className="font-black uppercase tracking-wide text-gray-900 dark:text-white flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                   <span>Statutory Digital Acceptance Proof</span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-300">
                   The consumer explicitly executed an electronic signature and check-box consent to all <strong>Free Fire Official Escrow Protocols</strong>, <strong>No-Questions Replacement &amp; Refund Mandates</strong>, and <strong>DPDP Act 2023 Digital Terms</strong> prior to QR generation.
                 </p>
-                <div className="pt-2 flex flex-wrap gap-2 text-[9px] font-mono text-gray-500 uppercase">
+                <div className="pt-1 flex flex-wrap gap-2 text-[9px] font-mono text-gray-500 uppercase">
                   <span>• IT Act 2000 Section 65B Admissible</span>
                   <span>• Intermediary Safe Harbor Verified</span>
                 </div>
@@ -995,10 +1093,10 @@ export default function UpiGatewayManager() {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="px-5 py-2.5 bg-gray-900 hover:bg-black dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all"
+                className="px-4 py-2.5 bg-gray-900 hover:bg-black dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all"
               >
                 <Printer className="w-4 h-4" />
-                <span>Print Statutory Document</span>
+                <span>Print Certificate</span>
               </button>
 
               <button
