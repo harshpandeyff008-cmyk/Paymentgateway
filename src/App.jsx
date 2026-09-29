@@ -48,11 +48,19 @@ function MaintenanceWrapper({ children }) {
   const location = useLocation();
 
   useEffect(() => {
+    let timer = setTimeout(() => {
+      setLoading(false);
+    }, 2500);
+
     const unsub = subscribeToMaintenanceMode((data) => {
       setMaintenance(data);
       setLoading(false);
+      clearTimeout(timer);
     });
-    return () => unsub();
+    return () => {
+      clearTimeout(timer);
+      unsub();
+    };
   }, []);
 
   // Normalise role
