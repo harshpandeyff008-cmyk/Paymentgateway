@@ -283,6 +283,13 @@ export default function PublicStore({ isUserDashboard = false }) {
     return `https://wa.me/${cleanWhatsapp}?text=${text}`;
   };
 
+  // View Details & Full Proofs Modal Helper
+  const handleOpenDetails = (item) => {
+    if (!item) return;
+    setSelectedItem(item);
+    setModalMediaIndex(0);
+  };
+
   // UPI Gateway Helpers
   const handleOpenBuyModal = (item) => {
     setBuyModalItem(item);
