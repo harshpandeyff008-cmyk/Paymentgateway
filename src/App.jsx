@@ -31,6 +31,7 @@ import TermsEditor from './pages/TermsEditor';
 import SuspiciousLogs from './pages/SuspiciousLogs';
 import UserDashboard from './pages/UserDashboard';
 import AdminUsers from './pages/AdminUsers';
+import UpiGatewayManager from './pages/UpiGatewayManager';
 import GarenaSplashLoader from './components/GarenaSplashLoader';
 import CookieConsentBanner from './components/CookieConsentBanner';
 import { AdminGuard, ClientGuard, AuthGuard, StoreStaffGuard } from './components/RouteGuard';
@@ -298,6 +299,14 @@ function App() {
                   element={
                     <AdminGuard>
                       <AdminUsers />
+                    </AdminGuard>
+                  } 
+                />
+                <Route 
+                  path="/admin/upi-gateway" 
+                  element={
+                    <AdminGuard>
+                      <UpiGatewayManager />
                     </AdminGuard>
                   } 
                 />

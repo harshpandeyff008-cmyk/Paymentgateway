@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase/config';
-import { collection, query, onSnapshot, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { logoutUser } from '../firebase/auth';
@@ -352,6 +352,30 @@ export default function PublicStore({ isUserDashboard = false }) {
       setCurrentOrder(data.order);
       setPaymentStep('gateway');
       setIsPollingPayment(true);
+
+      // Persist full statutory KYC order record into Firestore payment_orders
+      try {
+        await setDoc(doc(db, 'payment_orders', data.order.orderCode), {
+          orderCode: data.order.orderCode,
+          amount: Number(data.order.amount || buyModalItem.price),
+          customerName: (customerName || '').trim() || 'Store Customer',
+          customerPhone: cleanPhone,
+          itemId: buyModalItem.id || 'N/A',
+          itemTitle: buyModalItem.title || 'Free Fire Account',
+          accountUid: buyModalItem.accountUid || 'VERIFIED',
+          status: 'PENDING',
+          termsAccepted: true,
+          refundPolicyAccepted: true,
+          termsAcceptedAt: new Date().toISOString(),
+          userAgent: navigator.userAgent || 'Web Browser',
+          qrCode: data.order.qrCode || '',
+          paymentUrl: data.order.paymentUrl || '',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (fErr) {
+        console.warn("Could not write order record to Firestore:", fErr);
+      }
     } catch (err) {
       console.error("UPI Order creation error:", err);
       setOrderError(err.message || 'Payment gateway server is offline. Please make sure the server is running on port 3000.');
@@ -382,9 +406,29 @@ export default function PublicStore({ isUserDashboard = false }) {
             }));
             setPaymentStep('success');
             setIsPollingPayment(false);
+
+            // Update status in Firestore
+            try {
+              await updateDoc(doc(db, 'payment_orders', currentOrder.orderCode), {
+                status: 'PAID',
+                utr: data.order.utr || 'VERIFIED_' + Date.now(),
+                paidAt: new Date().toISOString(),
+                updatedAt: serverTimestamp()
+              });
+            } catch (uErr) {
+              console.warn("Could not update order status in Firestore:", uErr);
+            }
           } else if (st === 'EXPIRED') {
             setCurrentOrder(prev => ({ ...prev, status: 'EXPIRED' }));
             setIsPollingPayment(false);
+            try {
+              await updateDoc(doc(db, 'payment_orders', currentOrder.orderCode), {
+                status: 'EXPIRED',
+                updatedAt: serverTimestamp()
+              });
+            } catch (uErr) {
+              console.warn("Could not mark order expired in Firestore:", uErr);
+            }
           }
         }
       } catch (err) {
