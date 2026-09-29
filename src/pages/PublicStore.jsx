@@ -80,7 +80,7 @@ export default function PublicStore({ isUserDashboard = false }) {
 
   // UPI Gateway Integration State (defaults to live Render gateway & official pg_live API key)
   const defaultGatewayUrl = import.meta.env.VITE_UPI_GATEWAY_URL || 'https://payment-gateway-ydl1.onrender.com';
-  const defaultGatewayKey = import.meta.env.VITE_UPI_GATEWAY_API_KEY || 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0';
+  const defaultGatewayKey = import.meta.env.VITE_UPI_GATEWAY_API_KEY || 'pg_live_bb2fa0d24e1caa68ff36319b8447773c';
   const [gatewayUrl, setGatewayUrl] = useState(defaultGatewayUrl);
   const [gatewayApiKey, setGatewayApiKey] = useState(defaultGatewayKey);
 
