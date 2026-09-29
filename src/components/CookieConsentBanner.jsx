@@ -43,30 +43,23 @@ export default function CookieConsentBanner() {
 
     let timer = null;
 
-    // Handler when user accepts the terms popup on the marketplace
+    // Show after 2.5 seconds on initial load
+    timer = setTimeout(() => {
+      setVisible(true);
+    }, 2500);
+
+    // If terms agreement event fires, ensure it shows smoothly after 1.5s
     const handleTermsAgreed = () => {
-      // 2.5 seconds gentle pause after terms acceptance before showing cookie consent
-      timer = setTimeout(() => {
+      setTimeout(() => {
         setVisible(true);
-      }, 2500);
+      }, 1500);
     };
 
     window.addEventListener('escrow_terms_agreed', handleTermsAgreed);
 
-    // On pages without terms popup (or if already agreed), show after 4 seconds
-    const fallbackTimer = setTimeout(() => {
-      // Only show if not on root/store or if terms are not actively blocking
-      const path = (window.location.pathname || '').toLowerCase();
-      const isStoreRoute = path === '/' || path === '/store' || path === '/marketplace';
-      if (!isStoreRoute) {
-        setVisible(true);
-      }
-    }, 4000);
-
     return () => {
       window.removeEventListener('escrow_terms_agreed', handleTermsAgreed);
       if (timer) clearTimeout(timer);
-      if (fallbackTimer) clearTimeout(fallbackTimer);
     };
   }, []);
 
