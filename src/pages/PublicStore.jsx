@@ -1401,7 +1401,14 @@ export default function PublicStore({ isUserDashboard = false }) {
                 type="button"
                 disabled={!termsCheckbox}
                 onClick={() => {
-                  if (termsCheckbox) setTermsAgreed(true);
+                  if (termsCheckbox) {
+                    setTermsAgreed(true);
+                    try {
+                      window.dispatchEvent(new CustomEvent('escrow_terms_agreed'));
+                    } catch (e) {
+                      // Silent fail
+                    }
+                  }
                 }}
                 className={`w-full py-3.5 px-6 rounded-2xl text-xs sm:text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
                   termsCheckbox

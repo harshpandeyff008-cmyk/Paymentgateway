@@ -33,17 +33,41 @@ export default function CookieConsentBanner() {
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    // Show banner only if consent hasn't been given yet
+    // Check if consent has already been given
     try {
       const consent = localStorage.getItem(CONSENT_KEY);
-      if (!consent) {
-        // Small delay so it doesn't flash during splash screen
-        const timer = setTimeout(() => setVisible(true), 1500);
-        return () => clearTimeout(timer);
-      }
+      if (consent) return;
     } catch {
-      setVisible(true);
+      // Continue
     }
+
+    let timer = null;
+
+    // Handler when user accepts the terms popup on the marketplace
+    const handleTermsAgreed = () => {
+      // 2.5 seconds gentle pause after terms acceptance before showing cookie consent
+      timer = setTimeout(() => {
+        setVisible(true);
+      }, 2500);
+    };
+
+    window.addEventListener('escrow_terms_agreed', handleTermsAgreed);
+
+    // On pages without terms popup (or if already agreed), show after 4 seconds
+    const fallbackTimer = setTimeout(() => {
+      // Only show if not on root/store or if terms are not actively blocking
+      const path = (window.location.pathname || '').toLowerCase();
+      const isStoreRoute = path === '/' || path === '/store' || path === '/marketplace';
+      if (!isStoreRoute) {
+        setVisible(true);
+      }
+    }, 4000);
+
+    return () => {
+      window.removeEventListener('escrow_terms_agreed', handleTermsAgreed);
+      if (timer) clearTimeout(timer);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
   }, []);
 
   const handleAccept = () => {
