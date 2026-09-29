@@ -19,7 +19,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(true);
   const [maintenance, setMaintenance] = useState({ maintenanceMode: false, maintenanceMessage: '', allowAdminLogin: true });
   
   const { currentUser, userDoc, blockInfo, setBlockInfo } = useAuth();
@@ -65,10 +64,6 @@ export default function Login() {
   }, [currentUser, userDoc, maintenance.maintenanceMode, navigate]);
 
   const handleGoogleSignIn = async () => {
-    if (!termsAccepted) {
-      showToast("Please agree to the Terms & Conditions and Escrow Protocol to proceed.", "error");
-      return;
-    }
     setGoogleLoading(true);
     try {
       const user = await loginWithGoogle();
@@ -120,10 +115,6 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!termsAccepted) {
-      showToast("Please agree to the Terms & Conditions and Escrow Protocol to proceed.", "error");
-      return;
-    }
     setLoading(true);
     try {
       const userCredential = await loginUser(email, password);
@@ -338,37 +329,12 @@ export default function Login() {
               </div>
             )}
 
-            {/* Interactive Terms & Escrow Agreement Checkbox */}
-            <div className="pt-1">
-              <label 
-                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
-                  termsAccepted
-                    ? 'bg-emerald-950/40 border-emerald-500/40 shadow-xs text-white'
-                    : 'bg-gray-900/90 border-gray-800 text-gray-400 hover:border-gray-700'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={termsAccepted}
-                  onChange={(e) => setTermsAccepted(e.target.checked)}
-                  className="w-4.5 h-4.5 mt-0.5 rounded-lg border-gray-700 bg-gray-900 text-emerald-500 focus:ring-emerald-500/30 accent-emerald-500 cursor-pointer shrink-0"
-                />
-                <span className="text-[11px] font-bold leading-tight">
-                  I agree to the <Link to="/terms-and-conditions" target="_blank" className="text-emerald-400 font-extrabold hover:underline">Terms &amp; Conditions</Link>, Escrow Policy &amp; <Link to="/privacy-policy" target="_blank" className="text-emerald-400 font-extrabold hover:underline">Privacy Policy</Link>.
-                </span>
-              </label>
-            </div>
-
             {/* 1-Click Google Sign In */}
             <button
               type="button"
               onClick={handleGoogleSignIn}
-              disabled={loading || googleLoading || !termsAccepted}
-              className={`w-full py-3 px-4 rounded-xl border shadow-md transition-all flex items-center justify-center gap-3 text-xs uppercase tracking-wider font-black ${
-                termsAccepted
-                  ? 'bg-white hover:bg-gray-100 text-gray-900 border-gray-200 hover:shadow-lg cursor-pointer'
-                  : 'bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed opacity-50'
-              }`}
+              disabled={loading || googleLoading}
+              className="w-full py-3 px-4 bg-white hover:bg-gray-100 text-gray-900 font-black rounded-xl border border-gray-200 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 text-xs uppercase tracking-wider cursor-pointer"
             >
               {googleLoading ? (
                 <Loader className="w-4 h-4 animate-spin text-emerald-600" />
@@ -440,12 +406,8 @@ export default function Login() {
 
               <button
                 type="submit"
-                disabled={loading || !termsAccepted}
-                className={`w-full py-3 px-4 mt-2 font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 text-sm ${
-                  termsAccepted
-                    ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 cursor-pointer'
-                    : 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed opacity-50'
-                }`}
+                disabled={loading}
+                className="w-full py-3 px-4 mt-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
               >
                 {loading && <Loader className="w-4 h-4 animate-spin" />}
                 <span>Sign In To Portal</span>
