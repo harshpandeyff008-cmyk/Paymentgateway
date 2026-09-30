@@ -60,11 +60,10 @@ export async function processIncomingPayment({
        WHERE user_email = ? 
          AND status = 'PENDING'
          AND (plan_id IS NULL OR plan_id = '')
-         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
-         AND ABS(created_at - ?) <= 30 * 60 * 1000
+         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 30 * 60 * 1000)
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
-      [merchantEmail, amount, amount, receivedTimestamp, receivedTimestamp]
+      [merchantEmail, amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
@@ -74,11 +73,10 @@ export async function processIncomingPayment({
       `SELECT * FROM orders 
        WHERE (plan_id IS NOT NULL OR order_code LIKE 'PLAN-%')
          AND status = 'PENDING'
-         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
-         AND ABS(created_at - ?) <= 30 * 60 * 1000
+         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 30 * 60 * 1000)
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
-      [amount, amount, receivedTimestamp, receivedTimestamp]
+      [amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
@@ -87,11 +85,10 @@ export async function processIncomingPayment({
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE status = 'PENDING'
-         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
-         AND ABS(created_at - ?) <= 30 * 60 * 1000
+         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 30 * 60 * 1000)
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
-      [amount, amount, receivedTimestamp, receivedTimestamp]
+      [amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
