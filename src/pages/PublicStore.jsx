@@ -169,7 +169,7 @@ export default function PublicStore({ isUserDashboard = false }) {
     const unsubPayment = onSnapshot(doc(db, 'system_settings', 'payment_gateway'), (docSnap) => {
       if (docSnap.exists()) {
         const pd = docSnap.data();
-        if (pd.apiKey && !pd.apiKey.includes('bb2fa0d24e1caa68ff36319b8447773c')) {
+        if (pd.apiKey && !pd.apiKey.includes('bb2fa0d24e1caa68ff36319b8447773c') && !pd.apiKey.includes('549f404a2dddac4e59ff3ec1ed93d51de0b0')) {
           setGatewayApiKey(pd.apiKey);
         } else {
           setGatewayApiKey('pg_live_8bd7aeec3c650fd7370049101cb01da0');

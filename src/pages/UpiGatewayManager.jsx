@@ -107,7 +107,7 @@ export default function UpiGatewayManager() {
         } else {
           setGatewayUrl('https://personal-payment-gateway.onrender.com');
         }
-        if (d.apiKey && !d.apiKey.includes('bb2fa0d24e1caa68ff36319b8447773c')) {
+        if (d.apiKey && !d.apiKey.includes('bb2fa0d24e1caa68ff36319b8447773c') && !d.apiKey.includes('549f404a2dddac4e59ff3ec1ed93d51de0b0')) {
           setGatewayApiKey(d.apiKey);
         } else {
           setGatewayApiKey('pg_live_8bd7aeec3c650fd7370049101cb01da0');
