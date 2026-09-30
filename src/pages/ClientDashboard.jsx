@@ -865,8 +865,8 @@ export default function ClientDashboard() {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
-            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-            client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET,
+            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '62657909282-4vqrr6vbgql3m4qsbgi2plqo6gdho0bu.apps.googleusercontent.com',
+            client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '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',
             refresh_token: credData.gmail_refresh_token,
             grant_type: 'refresh_token'
           })

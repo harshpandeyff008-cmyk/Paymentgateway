@@ -40,8 +40,8 @@ export default function OAuthCallback() {
 
     const exchangeCodeForTokens = async () => {
       try {
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '62657909282-4vqrr6vbgql3m4qsbgi2plqo6gdho0bu.apps.googleusercontent.com';
+        const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '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';
         const redirectUri = window.location.origin + '/oauth-callback';
 
         if (!clientId || !clientSecret || clientId === 'your_google_client_id_here') {

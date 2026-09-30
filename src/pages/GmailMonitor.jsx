@@ -792,8 +792,8 @@ export default function GmailMonitor() {
 
   // Gmail Token Refresh Flow
   const getFreshAccessToken = async (user) => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '62657909282-4vqrr6vbgql3m4qsbgi2plqo6gdho0bu.apps.googleusercontent.com';
+    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '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';
     if (!clientId || !clientSecret || clientId === 'your_google_client_id_here') {
       throw new Error("Google OAuth credentials are not fully configured in your .env file.");
     }
@@ -825,8 +825,8 @@ export default function GmailMonitor() {
 
   // Zoho Token Refresh Flow with proxy fallback
   const getFreshZohoAccessToken = async (user) => {
-    const clientId = import.meta.env.VITE_ZOHO_CLIENT_ID;
-    const clientSecret = import.meta.env.VITE_ZOHO_CLIENT_SECRET;
+    const clientId = import.meta.env.VITE_ZOHO_CLIENT_ID || '1000.FZJ97A4AV5S97D1KBMEAZ69CUDZCPH';
+    const clientSecret = import.meta.env.VITE_ZOHO_CLIENT_SECRET || 'befb4c2a53a5ede358f3f3eda7fe8e728f4115dae6';
     if (!clientId || !clientSecret) {
       throw new Error("Zoho OAuth credentials are not fully configured in your .env file.");
     }

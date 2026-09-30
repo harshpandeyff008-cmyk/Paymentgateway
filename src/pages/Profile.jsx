@@ -211,7 +211,7 @@ export default function Profile() {
   };
 
   const handleConnectGmail = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '62657909282-4vqrr6vbgql3m4qsbgi2plqo6gdho0bu.apps.googleusercontent.com';
     if (!clientId || clientId === 'your_google_client_id_here') {
       showToast("Google Client ID is not configured in .env", "error");
       return;
@@ -260,7 +260,7 @@ export default function Profile() {
   };
 
   const handleConnectZoho = () => {
-    const clientId = import.meta.env.VITE_ZOHO_CLIENT_ID;
+    const clientId = import.meta.env.VITE_ZOHO_CLIENT_ID || '1000.FZJ97A4AV5S97D1KBMEAZ69CUDZCPH';
     if (!clientId) {
       showToast("Zoho Client ID is not configured in .env", "error");
       return;
@@ -295,7 +295,7 @@ export default function Profile() {
     e.preventDefault();
     setTestingImap(true);
     try {
-      const proxyServerUrl = import.meta.env.VITE_IMAP_PROXY_SERVER_URL;
+      const proxyServerUrl = import.meta.env.VITE_IMAP_PROXY_SERVER_URL || 'https://imap-proxy-server.vercel.app';
       const cleanPass = imapPassword.replace(/\s+/g, '');
       let res;
 

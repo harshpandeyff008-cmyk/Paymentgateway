@@ -67,8 +67,8 @@ export default function ZohoCallback() {
 
     const exchangeCodeForTokens = async () => {
       try {
-        const clientId = import.meta.env.VITE_ZOHO_CLIENT_ID;
-        const clientSecret = import.meta.env.VITE_ZOHO_CLIENT_SECRET;
+        const clientId = import.meta.env.VITE_ZOHO_CLIENT_ID || '1000.FZJ97A4AV5S97D1KBMEAZ69CUDZCPH';
+        const clientSecret = import.meta.env.VITE_ZOHO_CLIENT_SECRET || 'befb4c2a53a5ede358f3f3eda7fe8e728f4115dae6';
         const redirectUri = window.location.origin + '/zoho-callback';
 
         if (!clientId || !clientSecret) {
@@ -79,7 +79,7 @@ export default function ZohoCallback() {
                         window.location.hostname === '127.0.0.1' || 
                         window.location.port !== '';
 
-        const proxyServerUrl = import.meta.env.VITE_ZOHO_PROXY_SERVER_URL || import.meta.env.VITE_IMAP_PROXY_SERVER_URL;
+        const proxyServerUrl = import.meta.env.VITE_ZOHO_PROXY_SERVER_URL || import.meta.env.VITE_IMAP_PROXY_SERVER_URL || 'https://imap-proxy-server.vercel.app';
         let tokenResponse;
 
         // Stage 1: Primary Configured Proxy Server
