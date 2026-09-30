@@ -43,7 +43,7 @@ export async function scanAndProcessRecentEmails() {
       const total = status.messages || 0;
 
       if (total > 0) {
-        const startSeq = Math.max(1, total - 4);
+        const startSeq = Math.max(1, total - 9);
         for await (const message of pollerClient.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
           const parsed = await simpleParser(message.source);
           const subject = parsed.subject || '';
@@ -57,7 +57,7 @@ export async function scanAndProcessRecentEmails() {
             );
 
           if (matchesFilter) {
-            const paymentData = parsePaymentEmail(subject, bodyText, emailDate);
+            const paymentData = parsePaymentEmail(subject, bodyText, emailDate, merchant?.upi_provider || 'AUTO');
             if (paymentData.success && paymentData.amount && paymentData.utr) {
               const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
               if (!paymentRow) {
@@ -156,7 +156,7 @@ export async function scanAndProcessMerchantEmails() {
           const total = status.messages || 0;
 
           if (total > 0) {
-            const startSeq = Math.max(1, total - 4);
+            const startSeq = Math.max(1, total - 9);
             for await (const message of merchantClient.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
               const parsed = await simpleParser(message.source);
               const subject = parsed.subject || '';
@@ -164,7 +164,7 @@ export async function scanAndProcessMerchantEmails() {
               const bodyText = parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, ' ') : '');
               const emailDate = parsed.date || new Date();
 
-              const paymentData = parsePaymentEmail(subject, bodyText, emailDate);
+              const paymentData = parsePaymentEmail(subject, bodyText, emailDate, merchant?.upi_provider || 'AUTO');
               if (paymentData.success && paymentData.amount && paymentData.utr) {
                 const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
                 if (!paymentRow) {
@@ -706,7 +706,7 @@ async function fetchAndProcessLatestMessage(imapClient, io) {
       return;
     }
 
-    const paymentData = parsePaymentEmail(subject, bodyText, emailDate);
+    const paymentData = parsePaymentEmail(subject, bodyText, emailDate, merchant?.upi_provider || 'AUTO');
     if (paymentData.success && paymentData.amount) {
       console.log(`[IMAP] ✅ Payment Extracted: ₹${paymentData.amount}, UTR: ${paymentData.utr}`);
       statusInfo.processedCount++;

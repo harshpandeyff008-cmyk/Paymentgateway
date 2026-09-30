@@ -588,6 +588,28 @@ function renderDashboard() {
   if (inBiz && !inBiz.value) inBiz.value = currentUser.businessName || '';
   if (inImapEmail && !inImapEmail.value) inImapEmail.value = currentUser.gmailEmail || currentUser.email || '';
 
+  // Update IMAP Status UI Banner
+  const imapActiveBanner = document.getElementById('settlementActiveBanner');
+  const imapStatusBadge = document.getElementById('imapLinkStatusBadge');
+  const imapPassInput = document.getElementById('inputImapPass');
+
+  if (currentUser.gmailConnected) {
+    if (imapStatusBadge) {
+      imapStatusBadge.innerHTML = '<span style="color: #34d399; font-weight: 700; background: rgba(16,185,129,0.15); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(16,185,129,0.3);">🟢 ACTIVE & LISTENING</span>';
+    }
+    if (imapPassInput && !imapPassInput.value) {
+      imapPassInput.placeholder = '•••• •••• •••• •••• (Saved & Active)';
+    }
+  } else {
+    if (imapStatusBadge) {
+      imapStatusBadge.innerHTML = '<span style="color: #94a3b8;">⚪ Not Connected</span>';
+    }
+    if (imapPassInput && !imapPassInput.value) {
+      imapPassInput.placeholder = '16-character App Password';
+    }
+  }
+
+
   // Restore saved UPI Provider choice
   if (currentUser.upiProvider) {
     setUpiProviderChoice(currentUser.upiProvider, true);
