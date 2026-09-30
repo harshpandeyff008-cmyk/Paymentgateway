@@ -102,8 +102,16 @@ export default function UpiGatewayManager() {
     const unsub = onSnapshot(doc(db, 'system_settings', 'payment_gateway'), (docSnap) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
-        if (d.gatewayUrl) setGatewayUrl(d.gatewayUrl);
-        if (d.apiKey) setGatewayApiKey(d.apiKey);
+        if (d.gatewayUrl && !d.gatewayUrl.includes('payment-gateway-ydl1') && !d.gatewayUrl.includes('localhost')) {
+          setGatewayUrl(d.gatewayUrl);
+        } else {
+          setGatewayUrl('https://personal-payment-gateway.onrender.com');
+        }
+        if (d.apiKey && !d.apiKey.includes('bb2fa0d24e1caa68ff36319b8447773c')) {
+          setGatewayApiKey(d.apiKey);
+        } else {
+          setGatewayApiKey('pg_live_8bd7aeec3c650fd7370049101cb01da0');
+        }
       }
     }, (err) => {
       console.warn("Gateway config listener notice:", err);

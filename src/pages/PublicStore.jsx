@@ -169,8 +169,16 @@ export default function PublicStore({ isUserDashboard = false }) {
     const unsubPayment = onSnapshot(doc(db, 'system_settings', 'payment_gateway'), (docSnap) => {
       if (docSnap.exists()) {
         const pd = docSnap.data();
-        if (pd.apiKey) setGatewayApiKey(pd.apiKey);
-        if (pd.gatewayUrl) setGatewayUrl(pd.gatewayUrl);
+        if (pd.apiKey && !pd.apiKey.includes('bb2fa0d24e1caa68ff36319b8447773c')) {
+          setGatewayApiKey(pd.apiKey);
+        } else {
+          setGatewayApiKey('pg_live_8bd7aeec3c650fd7370049101cb01da0');
+        }
+        if (pd.gatewayUrl && !pd.gatewayUrl.includes('payment-gateway-ydl1') && !pd.gatewayUrl.includes('localhost')) {
+          setGatewayUrl(pd.gatewayUrl);
+        } else {
+          setGatewayUrl('https://personal-payment-gateway.onrender.com');
+        }
       }
     }, (err) => {
       console.warn("Real-time payment gateway sync note:", err);
