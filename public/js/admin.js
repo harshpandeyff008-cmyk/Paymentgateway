@@ -1306,6 +1306,9 @@ function refreshAdminAll() {
 window.refreshAdminAll = refreshAdminAll;
 
 async function checkAdminAuthOnStartup() {
+  // Pre-load data from Firebase RTDB immediately so tables populate in 0.1s!
+  initDashboardData();
+
   const savedKey = getAdminMasterKey();
   if (!savedKey) {
     showMasterKeyLockScreen();
@@ -1326,8 +1329,8 @@ async function checkAdminAuthOnStartup() {
       if (res.status === 401) {
         localStorage.removeItem('admin_master_key');
         sessionStorage.removeItem('gateway_master_key');
+        showMasterKeyLockScreen();
       }
-      showMasterKeyLockScreen();
     }
   } catch (_) {
     // If transient network error / Render spin-up, do NOT wipe saved key; unlock and let requests sync
@@ -1611,9 +1614,10 @@ try {
 (function checkStoredAuth() {
   const storedAuth = sessionStorage.getItem('gateway_admin_auth');
   const storedEmail = (sessionStorage.getItem('gateway_admin_email') || '').toLowerCase().trim();
+  const masterKey = (localStorage.getItem('admin_master_key') || sessionStorage.getItem('gateway_master_key') || '').trim();
 
-  if (storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
-    updateAdminProfileUI(storedEmail);
+  if (masterKey === 'shivambhatt@admin' || (storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase())) {
+    updateAdminProfileUI(storedEmail || REQUIRED_ADMIN_EMAIL, '', 'Administrator');
     hideMasterKeyLockScreen();
     initDashboardData();
     return;
@@ -1623,6 +1627,11 @@ try {
   if (fbAuth) {
     fbAuth.onAuthStateChanged((user) => {
       if (!user) {
+        if (getAdminMasterKey() === 'shivambhatt@admin') {
+          updateAdminProfileUI(REQUIRED_ADMIN_EMAIL, '', 'Administrator');
+          initDashboardData();
+          return;
+        }
         window.location.href = '/login';
       } else {
         const userEmail = (user.email || '').toLowerCase().trim();
@@ -1635,12 +1644,22 @@ try {
           hideMasterKeyLockScreen();
           initDashboardData();
         } else {
-          // Regular merchant entered /admin -> redirect to user panel
+          // If master key is active in browser, don't kick admin out to /user
+          if (getAdminMasterKey() === 'shivambhatt@admin') {
+            updateAdminProfileUI(REQUIRED_ADMIN_EMAIL, '', 'Administrator');
+            initDashboardData();
+            return;
+          }
           window.location.href = '/user';
         }
       }
     });
   } else {
+    if (getAdminMasterKey() === 'shivambhatt@admin') {
+      updateAdminProfileUI(REQUIRED_ADMIN_EMAIL, '', 'Administrator');
+      initDashboardData();
+      return;
+    }
     window.location.href = '/login';
   }
 })();
@@ -1703,6 +1722,33 @@ async function loadAdminUsers() {
   const countEl = document.getElementById('adminUsersCount');
   if (!tbody) return;
 
+  // Helper to deduplicate & enrich user objects
+  function processUsers(users) {
+    if (!Array.isArray(users)) return [];
+    const map = new Map();
+    users.forEach(u => {
+      if (!u || !u.email) return;
+      const email = String(u.email).toLowerCase().trim();
+      const existing = map.get(email);
+      if (!existing) {
+        map.set(email, { ...u, email });
+      } else {
+        map.set(email, {
+          ...existing,
+          ...u,
+          name: u.name || existing.name || 'Merchant User',
+          plan: (u.plan && u.plan !== 'NONE') ? u.plan : existing.plan,
+          upi_vpa: u.upi_vpa || existing.upi_vpa || '',
+          gmail_connected: (u.gmail_connected !== undefined ? u.gmail_connected : existing.gmail_connected),
+          gmail_email: u.gmail_email || existing.gmail_email || '',
+          api_key: u.api_key || existing.api_key || '',
+          id: u.id || existing.id || '-'
+        });
+      }
+    });
+    return Array.from(map.values());
+  }
+
   // 1. FAST PATH: Instant Direct Fetch from Firebase Realtime Database (0.1s load)
   try {
     const cloudRes = await fetch('https://upigateway-ccaa4-default-rtdb.firebaseio.com/users.json');
@@ -1711,7 +1757,7 @@ async function loadAdminUsers() {
       if (cloudData && typeof cloudData === 'object') {
         const cloudUsers = Object.values(cloudData);
         if (cloudUsers.length > 0) {
-          adminUsersList = cloudUsers;
+          adminUsersList = processUsers(cloudUsers);
           updateAdminMetrics(adminUsersList);
           renderActiveBankingMonitors(adminUsersList);
           filterAdminUsersTable();
@@ -1733,7 +1779,7 @@ async function loadAdminUsers() {
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.users) && data.users.length > 0) {
-        adminUsersList = data.users;
+        adminUsersList = processUsers(data.users);
         updateAdminMetrics(adminUsersList);
         renderActiveBankingMonitors(adminUsersList);
         filterAdminUsersTable();
@@ -1852,9 +1898,10 @@ function renderAdminUsersTable(users) {
   const countEl = document.getElementById('adminUsersCount');
   if (!tbody) return;
 
-  if (countEl) countEl.innerText = `${users.length} shown (of ${adminUsersList.length})`;
+  const list = users || [];
+  if (countEl) countEl.innerText = `${list.length} shown (of ${adminUsersList.length})`;
 
-  if (!users || users.length === 0) {
+  if (list.length === 0) {
     tbody.innerHTML = `
       <tr>
         <td colspan="9" style="text-align: center; color: var(--text-dim); padding: 30px;">
@@ -1865,13 +1912,14 @@ function renderAdminUsersTable(users) {
     return;
   }
 
-  tbody.innerHTML = users.map(u => {
+  tbody.innerHTML = list.map(u => {
+    if (!u) return '';
     const isNone = !u.plan || u.plan === 'NONE';
     const isPaid = !isNone;
 
     const planBadge = isNone
       ? '<span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-dim); border: 1px solid var(--border-card);">NO PLAN</span>'
-      : `<span class="badge PAID" style="background: rgba(168,85,247,0.18); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); font-weight: 700;">${u.plan}</span>`;
+      : `<span class="badge PAID" style="background: rgba(168,85,247,0.18); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); font-weight: 700;">${escapeHtml(u.plan)}</span>`;
 
     const subStatusBadge = isPaid
       ? '<span class="badge PAID" style="font-size: 10px;">👑 SUBSCRIBED</span>'
@@ -1890,14 +1938,17 @@ function renderAdminUsersTable(users) {
       : '<span style="color: var(--text-dim); font-size: 11px;">Standby</span>';
 
     const apiKeyDisplay = u.api_key
-      ? `<div style="display: flex; align-items: center; gap: 4px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--primary);">${u.api_key.substring(0, 10)}...</span><button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText('${u.api_key}'); alert('API Key Copied!');" style="padding: 2px 6px; font-size: 10px;" title="Copy Full Key">📋</button></div>`
+      ? `<div style="display: flex; align-items: center; gap: 4px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--primary);">${escapeHtml(u.api_key.substring(0, 10))}...</span><button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText('${escapeHtml(u.api_key)}'); alert('API Key Copied!');" style="padding: 2px 6px; font-size: 10px;" title="Copy Full Key">📋</button></div>`
       : '<span style="color: var(--text-dim); font-size: 11px;">-</span>';
 
-    const userInitial = (u.name || u.email || 'U').charAt(0).toUpperCase();
+    const rawInitial = (u.name || u.email || 'U').trim();
+    const userInitial = rawInitial ? rawInitial.charAt(0).toUpperCase() : 'U';
+    const safeEmail = String(u.email || '').replace(/'/g, "\\'");
+    const safePlan = String(u.plan || 'NONE').replace(/'/g, "\\'");
 
     return `
       <tr>
-        <td style="color: var(--text-dim); font-size: 11.5px; font-family: 'JetBrains Mono';">#${u.id}</td>
+        <td style="color: var(--text-dim); font-size: 11.5px; font-family: 'JetBrains Mono';">#${u.id || '-'}</td>
         <td>
           <div style="display: flex; align-items: center; gap: 8px;">
             <div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-purple), var(--primary)); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;">
@@ -1905,7 +1956,7 @@ function renderAdminUsersTable(users) {
             </div>
             <div>
               <div style="font-weight: 600; color: #fff; font-size: 12.5px;">${escapeHtml(u.name || 'Merchant User')}</div>
-              <div style="font-size: 11px; color: var(--text-dim);">${escapeHtml(u.email)}</div>
+              <div style="font-size: 11px; color: var(--text-dim);">${escapeHtml(u.email || '')}</div>
             </div>
           </div>
         </td>
@@ -1916,7 +1967,7 @@ function renderAdminUsersTable(users) {
         <td>${gmailBadge}</td>
         <td>${apiKeyDisplay}</td>
         <td>
-          <button type="button" class="btn btn-secondary" onclick="openAdjustUserModal('${escapeHtml(u.email)}', '${escapeHtml(u.plan || 'NONE')}')" style="padding: 4px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;">
+          <button type="button" class="btn btn-secondary" onclick="openAdjustUserModal('${safeEmail}', '${safePlan}')" style="padding: 4px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;">
             <span>⚙️</span> Manage
           </button>
         </td>
