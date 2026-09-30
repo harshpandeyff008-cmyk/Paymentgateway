@@ -1,3 +1,9 @@
+
+// Pre-warm Render Backend on page load to eliminate 50s cold-start delays for remote users
+try {
+  fetch('https://personal-payment-gateway.onrender.com/api/admin/banking/status', { mode: 'no-cors' }).catch(() => {});
+} catch (_) {}
+
 // ==========================================
 // USER PANEL & 2-LINE SIDEBAR DASHBOARD
 // ==========================================
@@ -1096,11 +1102,15 @@ async function initiateBuyPlan(planId, couponCode = '') {
     const onOrderUpdate = (update) => {
       if (update.orderCode === order.orderCode && update.status === 'PAID') {
         if (modalFastPoller) clearInterval(modalFastPoller);
+        if (socket && typeof socket.off === 'function') {
         socket.off('order_status_update', onOrderUpdate);
+      }
         handlePaymentSuccess(update, order);
       }
     };
-    socket.on('order_status_update', onOrderUpdate);
+    if (socket && typeof socket.on === 'function') {
+      socket.on('order_status_update', onOrderUpdate);
+    }
 
   } catch (err) {
     console.error('Plan purchase error:', err);

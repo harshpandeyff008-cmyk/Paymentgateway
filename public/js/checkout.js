@@ -1,3 +1,9 @@
+
+// Pre-warm Render Backend on page load to eliminate 50s cold-start delays for remote users
+try {
+  fetch('https://personal-payment-gateway.onrender.com/api/admin/banking/status', { mode: 'no-cors' }).catch(() => {});
+} catch (_) {}
+
 // Extract orderCode from URL path (/checkout/:code)
 const pathParts = window.location.pathname.split('/');
 const orderCode = pathParts[pathParts.length - 1] || '';
@@ -235,7 +241,7 @@ function initRealtimeSocket() {
     socket.emit('join_order', orderCode);
   });
 
-  socket.on('order_status_update', (data) => {
+  socket?.on?.('order_status_update', (data) => {
     console.log('[Socket] Order update received:', data);
     if (data.status === 'PAID') {
       if (fastPoller) clearInterval(fastPoller);

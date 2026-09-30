@@ -421,9 +421,9 @@ export const UserController = {
         return res.status(400).json({ success: false, error: `Invalid plan. Must be one of: ${Object.keys(PLANS).join(', ')}` });
       }
 
-      const user = await getUserByEmail(userEmail);
+      let user = await getUserByEmail(userEmail);
       if (!user) {
-        return res.status(404).json({ success: false, error: 'User does not exist. Please sign in first.' });
+        user = await syncUser({ email: userEmail, name: userEmail.split('@')[0] });
       }
 
       // Apply plan price override (admin-set custom price)
