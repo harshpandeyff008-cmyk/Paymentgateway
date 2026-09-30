@@ -113,6 +113,10 @@ export async function checkGoogleBankingAlerts(accessToken, targetEmail, isMerch
               rawSnippet: `[Google Link: ${targetEmail}] ${subject} - ${paymentData.sender || fromAddress}`,
               merchantEmail: isMerchant ? targetEmail : null
             });
+            // Keep the watcher on only while another pending order remains.
+            import('./imapListener.js')
+              .then(({ schedulePaymentMonitoringSync }) => schedulePaymentMonitoringSync())
+              .catch(() => {});
             processedCount++;
           }
         }
@@ -171,12 +175,13 @@ export async function scanGoogleBankingAccounts() {
  * Start the background poller for Google Banking Accounts
  */
 export function startGmailWatcher() {
-  if (watcherInterval) clearInterval(watcherInterval);
-  // Ultra-fast 3-second bank credit scan
+  if (watcherInterval) return;
+  // Runs only while an unexpired order exists (controlled by the payment monitor lifecycle).
+  scanGoogleBankingAccounts().catch(() => {});
   watcherInterval = setInterval(() => {
     scanGoogleBankingAccounts().catch(() => {});
-  }, 3000);
-  console.log('[GmailWatcher] Background Google Banking Link poller initialized (3s ultra-fast interval).');
+  }, 4000);
+  console.log('[GmailWatcher] Background Google Banking Link poller initialized (4s fast verification interval).');
 }
 
 export function stopGmailWatcher() {

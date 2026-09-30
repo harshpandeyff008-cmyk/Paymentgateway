@@ -7,8 +7,8 @@ import { setupSocketHandlers } from './src/sockets/socketHandler.js';
 import { startExpiryCleaner, stopExpiryCleaner } from './src/jobs/expiryCleaner.job.js';
 import { SettingModel } from './src/models/setting.model.js';
 import { setSocketIO } from './src/services/matchingEngine.service.js';
-import { startImapListener, stopImapListener } from './src/services/imapListener.service.js';
-import { startGmailWatcher, stopGmailWatcher } from './services/gmailWatcher.service.js';
+import { syncPaymentMonitoring, stopImapListener } from './src/services/imapListener.service.js';
+import { stopGmailWatcher } from './services/gmailWatcher.service.js';
 import logger from './src/utils/logger.js';
 
 // Global error handlers for uncaught process exceptions
@@ -55,7 +55,7 @@ async function bootstrap() {
   startExpiryCleaner(io, 30000);
 
   // 7. Start listening on configured port
-  server.listen(config.port, () => {
+  server.listen(config.port, async () => {
     logger.info('======================================================');
     logger.info(`🚀 Personal UPI Gateway live on: http://localhost:${config.port}`);
     logger.info(`📱 Admin Dashboard:            http://localhost:${config.port}/admin`);
@@ -65,13 +65,9 @@ async function bootstrap() {
     logger.info(`🔐 Admin Master Key:            ${config.adminSecret}`);
     logger.info('======================================================');
 
-    // 8. Launch real-time IMAP email listener if configured
-    if (config.imap.enabled) {
-      startImapListener(io);
-    }
-
-    // 9. Launch real-time Google OAuth Banking Link watcher
-    startGmailWatcher();
+    // 8. Start email monitoring only when a pending order exists. This also
+    // restores monitoring after a process restart if orders are still active.
+    await syncPaymentMonitoring(io);
   });
 }
 

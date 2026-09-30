@@ -7,10 +7,10 @@ export function buildUpiUri({ vpa, merchantName, amount, orderCode, note }) {
   // IMPORTANT: VPA (pa=) must NOT be encodeURIComponent'd
   // The @ symbol MUST remain as @ — Paytm, GPay, PhonePe etc. all reject %40
   // Only pn= (name) and tn= (note) should be percent-encoded per NPCI spec
-  const cleanVpa = vpa.trim();
-  const cleanName = encodeURIComponent(merchantName.trim());
-  const cleanAmount = Number(amount).toFixed(2);
-  const cleanNote = encodeURIComponent(note || `Pay ${orderCode}`);
+  const cleanVpa = (vpa || 'ffdealsbyjena@fam').trim();
+  const cleanName = encodeURIComponent((merchantName || 'Merchant').trim());
+  const cleanAmount = Number(amount || 0).toFixed(2);
+  const cleanNote = encodeURIComponent(note || (orderCode ? `Pay ${orderCode}` : 'UPI Payment'));
   // tr= transaction reference helps UPI apps track + reconcile payments
   const txnRef = encodeURIComponent(orderCode || `TXN${Date.now()}`);
 

@@ -20,6 +20,8 @@ import {
 } from '../../db/database.js';
 import { buildUpiUri, generateQrDataUrl } from '../utils/qr.util.js';
 import { config } from '../../config.js';
+import { syncPaymentMonitoring } from '../../services/imapListener.js';
+import { CloudSyncService } from '../services/cloudSync.service.js';
 
 export const PLANS = {
   // 1-WEBSITE
@@ -471,8 +473,26 @@ export const UserController = {
           await markCouponUsed(couponApplied.code, user.email, orderCode, discountAmount);
         }
 
-        // Immediately upgrade user's plan in DB
+        // Immediately upgrade user's plan in DB and Firebase
         await updateUserPlanAndCredits(user.email, targetPlan.id, targetPlan.qrCredits);
+
+        const freeOrderObj = {
+          id: insertResult.lastID,
+          order_code: orderCode,
+          amount: 0,
+          base_amount: basePlanPrice,
+          customer_name: user.name || 'User',
+          customer_phone: userEmail,
+          status: 'PAID',
+          created_at: now,
+          expires_at: expiresAt,
+          paid_at: now,
+          utr: `100% OFF (${couponApplied?.code || 'FREE'})`,
+          user_email: user.email,
+          plan_id: targetPlan.id,
+          credits_to_add: targetPlan.qrCredits
+        };
+        CloudSyncService.saveOrder(freeOrderObj).catch(() => {});
 
         await logActivity({
           eventType: 'PLAN_ACTIVATED_100_COUPON',
@@ -526,6 +546,24 @@ export const UserController = {
           targetPlan.qrCredits
         ]
       );
+
+      const pendingOrderObj = {
+        id: insertResult.lastID,
+        order_code: orderCode,
+        amount: payableAmount,
+        base_amount: basePlanPrice,
+        customer_name: user.name || 'User',
+        customer_phone: userEmail,
+        status: 'PENDING',
+        created_at: now,
+        expires_at: expiresAt,
+        user_email: user.email,
+        plan_id: targetPlan.id,
+        credits_to_add: targetPlan.qrCredits
+      };
+      CloudSyncService.saveOrder(pendingOrderObj).catch(() => {});
+
+      await syncPaymentMonitoring(req.io);
 
       // Mark coupon as used after order is created
       if (couponApplied) {
@@ -932,6 +970,8 @@ export const UserController = {
          VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)`,
         [orderCode, payableAmount, baseAmount, customerName, customerPhone, createdAt, expiresAt, user ? user.email : '']
       );
+
+      await syncPaymentMonitoring(req.io);
 
       const upiUri = buildUpiUri({
         vpa: merchantVpa,

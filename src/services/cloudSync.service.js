@@ -1,60 +1,34 @@
 import logger from '../utils/logger.js';
 
-const FIRESTORE_BASE = 'https://firestore.googleapis.com/v1/projects/ff-store-4a61e/databases/(default)/documents/ff_store';
+// Realtime Database endpoint for project upigateway-ccaa4
+const RTDB_BASE = 'https://upigateway-ccaa4-default-rtdb.firebaseio.com';
 
-function toFirestoreFields(obj) {
-  const fields = {};
-  for (const [key, val] of Object.entries(obj)) {
-    if (val === null || val === undefined) {
-      fields[key] = { nullValue: null };
-    } else if (typeof val === 'boolean') {
-      fields[key] = { booleanValue: val };
-    } else if (typeof val === 'number') {
-      fields[key] = Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
-    } else if (Array.isArray(val)) {
-      fields[key] = {
-        arrayValue: {
-          values: val.map(v => typeof v === 'object' ? { stringValue: JSON.stringify(v) } : { stringValue: String(v) })
-        }
-      };
-    } else if (typeof val === 'object') {
-      fields[key] = { stringValue: JSON.stringify(val) };
-    } else {
-      fields[key] = { stringValue: String(val) };
-    }
-  }
-  return fields;
+// Helper to sanitize keys for Firebase RTDB (cannot contain ., #, $, [, ])
+export function encodeKey(str) {
+  if (!str) return '';
+  return String(str)
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, '_dot_')
+    .replace(/[#$\[\]]/g, '_');
 }
 
-function fromFirestoreFields(fields) {
-  if (!fields) return {};
-  const obj = {};
-  for (const [key, field] of Object.entries(fields)) {
-    if ('stringValue' in field) obj[key] = field.stringValue;
-    else if ('integerValue' in field) obj[key] = parseInt(field.integerValue, 10);
-    else if ('doubleValue' in field) obj[key] = parseFloat(field.doubleValue);
-    else if ('booleanValue' in field) obj[key] = field.booleanValue;
-    else if ('nullValue' in field) obj[key] = null;
-    else if ('arrayValue' in field) {
-      obj[key] = (field.arrayValue.values || []).map(v => {
-        if ('stringValue' in v) return v.stringValue;
-        return v;
-      });
-    }
-  }
-  return obj;
+export function decodeKey(str) {
+  if (!str) return '';
+  return String(str).replace(/_dot_/g, '.');
 }
 
 export const CloudSyncService = {
+  // ─── SETTINGS ─────────────────────────────────────────────────────────────
   async loadSettings() {
     try {
-      const url = `${FIRESTORE_BASE}/gateway_settings`;
-      const res = await fetch(url);
+      const res = await fetch(`${RTDB_BASE}/settings.json`);
       if (res.ok) {
-        const data = await res.json();
-        const settings = fromFirestoreFields(data.fields);
-        logger.info(`[CloudSync] Loaded settings from Firestore: upi="${settings.merchant_upi_vpa}"`);
-        return settings;
+        const settings = await res.json();
+        if (settings) {
+          logger.info('[CloudSync] Loaded settings from Firebase RTDB');
+          return settings;
+        }
       }
     } catch (e) {
       logger.warn(`[CloudSync] Failed to load settings: ${e.message}`);
@@ -64,20 +38,13 @@ export const CloudSyncService = {
 
   async saveSettings(settings) {
     try {
-      const url = `${FIRESTORE_BASE}/gateway_settings`;
-      const body = JSON.stringify({
-        fields: toFirestoreFields({
-          ...settings,
-          updated_at: Date.now()
-        })
-      });
-      const res = await fetch(url, {
-        method: 'PATCH',
+      const res = await fetch(`${RTDB_BASE}/settings.json`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body
+        body: JSON.stringify({ ...settings, updated_at: Date.now() })
       });
       if (res.ok) {
-        logger.info('[CloudSync] Saved settings to Firestore');
+        logger.info('[CloudSync] Saved settings to Firebase RTDB');
         return true;
       }
     } catch (e) {
@@ -86,41 +53,146 @@ export const CloudSyncService = {
     return false;
   },
 
-  async loadDomainKeys() {
+  // ─── USERS ────────────────────────────────────────────────────────────────
+  async saveUser(user) {
+    if (!user || !user.email) return false;
     try {
-      const url = `${FIRESTORE_BASE}/gateway_domain_keys`;
-      const res = await fetch(url);
+      const key = encodeKey(user.email);
+      const res = await fetch(`${RTDB_BASE}/users/${key}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...user,
+          email: user.email.toLowerCase().trim(),
+          updated_at: Date.now()
+        })
+      });
       if (res.ok) {
-        const data = await res.json();
-        const parsed = fromFirestoreFields(data.fields);
-        if (parsed.keys_json) {
-          const keys = JSON.parse(parsed.keys_json);
-          logger.info(`[CloudSync] Loaded ${keys.length} domain keys from Firestore`);
-          return keys;
+        logger.info(`[CloudSync] Saved user ${user.email} to Firebase RTDB (Plan: ${user.plan || 'NONE'})`);
+        return true;
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save user ${user.email}: ${e.message}`);
+    }
+    return false;
+  },
+
+  async getUser(email) {
+    if (!email) return null;
+    try {
+      const key = encodeKey(email);
+      const res = await fetch(`${RTDB_BASE}/users/${key}.json`);
+      if (res.ok) {
+        const user = await res.json();
+        return user;
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to fetch user ${email}: ${e.message}`);
+    }
+    return null;
+  },
+
+  async getAllUsers() {
+    try {
+      const res = await fetch(`${RTDB_BASE}/users.json`);
+      if (res.ok) {
+        const usersObj = await res.json();
+        if (usersObj) {
+          return Object.values(usersObj);
         }
       }
     } catch (e) {
-      logger.warn(`[CloudSync] Failed to load domain keys: ${e.message}`);
+      logger.warn(`[CloudSync] Failed to fetch all users: ${e.message}`);
     }
     return [];
   },
 
-  async saveDomainKeys(keysArray) {
+  // ─── COUPONS ──────────────────────────────────────────────────────────────
+  async saveCoupon(coupon) {
+    if (!coupon || !coupon.code) return false;
     try {
-      const url = `${FIRESTORE_BASE}/gateway_domain_keys`;
-      const body = JSON.stringify({
-        fields: toFirestoreFields({
-          keys_json: JSON.stringify(keysArray),
+      const codeKey = encodeKey(coupon.code);
+      const res = await fetch(`${RTDB_BASE}/coupons/${codeKey}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...coupon,
+          code: coupon.code.toUpperCase().trim(),
           updated_at: Date.now()
         })
       });
-      const res = await fetch(url, {
-        method: 'PATCH',
+      return res.ok;
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save coupon ${coupon.code}: ${e.message}`);
+    }
+    return false;
+  },
+
+  async deleteCoupon(code) {
+    if (!code) return false;
+    try {
+      const codeKey = encodeKey(code);
+      const res = await fetch(`${RTDB_BASE}/coupons/${codeKey}.json`, {
+        method: 'DELETE'
+      });
+      return res.ok;
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to delete coupon ${code}: ${e.message}`);
+    }
+    return false;
+  },
+
+  async getAllCoupons() {
+    try {
+      const res = await fetch(`${RTDB_BASE}/coupons.json`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) return Object.values(data);
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to fetch coupons: ${e.message}`);
+    }
+    return [];
+  },
+
+  // ─── PLAN PRICES ──────────────────────────────────────────────────────────
+  async savePlanPrices(prices) {
+    try {
+      const res = await fetch(`${RTDB_BASE}/plan_prices.json`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body
+        body: JSON.stringify(prices || {})
+      });
+      return res.ok;
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save plan prices: ${e.message}`);
+    }
+    return false;
+  },
+
+  async getPlanPrices() {
+    try {
+      const res = await fetch(`${RTDB_BASE}/plan_prices.json`);
+      if (res.ok) {
+        const data = await res.json();
+        return data || {};
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to load plan prices: ${e.message}`);
+    }
+    return {};
+  },
+
+  // ─── DOMAIN API KEYS ──────────────────────────────────────────────────────
+  async saveDomainKeys(keysArray) {
+    try {
+      const res = await fetch(`${RTDB_BASE}/domain_api_keys.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(keysArray || [])
       });
       if (res.ok) {
-        logger.info(`[CloudSync] Saved ${keysArray.length} domain keys to Firestore`);
+        logger.info(`[CloudSync] Saved ${(keysArray || []).length} domain keys to Firebase RTDB`);
         return true;
       }
     } catch (e) {
@@ -129,17 +201,48 @@ export const CloudSyncService = {
     return false;
   },
 
-  async loadOrders() {
+  async loadDomainKeys() {
     try {
-      const url = `${FIRESTORE_BASE}/gateway_orders_data`;
-      const res = await fetch(url);
+      const res = await fetch(`${RTDB_BASE}/domain_api_keys.json`);
       if (res.ok) {
-        const data = await res.json();
-        const parsed = fromFirestoreFields(data.fields);
-        if (parsed.orders_json) {
-          const orders = JSON.parse(parsed.orders_json);
-          logger.info(`[CloudSync] Loaded ${orders.length} orders from Firestore`);
-          return orders;
+        const keys = await res.json();
+        if (Array.isArray(keys)) return keys;
+        if (keys && typeof keys === 'object') return Object.values(keys);
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to load domain keys: ${e.message}`);
+    }
+    return [];
+  },
+
+  // ─── ORDERS ───────────────────────────────────────────────────────────────
+  async saveOrder(order) {
+    if (!order) return false;
+    const code = order.order_code || order.orderCode;
+    if (!code) return false;
+    try {
+      const res = await fetch(`${RTDB_BASE}/orders/${encodeKey(code)}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...order,
+          updated_at: Date.now()
+        })
+      });
+      return res.ok;
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save order ${code}: ${e.message}`);
+    }
+    return false;
+  },
+
+  async getAllOrders() {
+    try {
+      const res = await fetch(`${RTDB_BASE}/orders.json`);
+      if (res.ok) {
+        const ordersObj = await res.json();
+        if (ordersObj) {
+          return Object.values(ordersObj);
         }
       }
     } catch (e) {
@@ -148,73 +251,130 @@ export const CloudSyncService = {
     return [];
   },
 
-  async saveOrders(ordersArray) {
-    try {
-      const url = `${FIRESTORE_BASE}/gateway_orders_data`;
-      const slice = ordersArray.slice(0, 200);
-      const body = JSON.stringify({
-        fields: toFirestoreFields({
-          orders_json: JSON.stringify(slice),
-          updated_at: Date.now()
-        })
-      });
-      const res = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body
-      });
-      if (res.ok) {
-        logger.info(`[CloudSync] Synced ${slice.length} orders to Firestore`);
-        return true;
-      }
-    } catch (e) {
-      logger.warn(`[CloudSync] Failed to save orders: ${e.message}`);
-    }
-    return false;
-  },
+  // ─── RESTORE ALL ON STARTUP ───────────────────────────────────────────────
+  /**
+   * Called during database initialization so Render startup automatically
+   * repopulates the SQLite cache from Firebase Realtime Database.
+   */
+  async restoreAllFromCloud(query) {
+    if (!query) return;
+    logger.info('[CloudSync] Starting cloud restore from Firebase RTDB...');
 
-  async loadPayments() {
     try {
-      const url = `${FIRESTORE_BASE}/gateway_payments_data`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        const parsed = fromFirestoreFields(data.fields);
-        if (parsed.payments_json) {
-          const payments = JSON.parse(parsed.payments_json);
-          logger.info(`[CloudSync] Loaded ${payments.length} payments from Firestore`);
-          return payments;
+      // 1. Restore Users
+      const cloudUsers = await this.getAllUsers();
+      if (cloudUsers.length > 0) {
+        logger.info(`[CloudSync] Restoring ${cloudUsers.length} users from Firebase RTDB...`);
+        for (const u of cloudUsers) {
+          if (!u || !u.email) continue;
+          const email = u.email.toLowerCase().trim();
+          const existing = await query.get('SELECT * FROM users WHERE email = ?', [email]);
+          if (!existing) {
+            await query.run(
+              `INSERT INTO users (
+                email, name, photo_url, role, plan, qr_credits, api_key,
+                gmail_connected, gmail_email, gmail_app_pass, website_url,
+                website_urls, is_website_locked, website_locked_at, max_websites,
+                upi_vpa, business_name, settlement_type, upi_provider,
+                default_brand_name, default_brand_logo_url, default_theme,
+                default_redirect_url, default_custom_note, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                email,
+                u.name || 'User',
+                u.photo_url || '',
+                u.role || 'user',
+                u.plan || 'NONE',
+                u.qr_credits !== undefined ? u.qr_credits : 0,
+                u.api_key || '',
+                u.gmail_connected ? 1 : 0,
+                u.gmail_email || '',
+                u.gmail_app_pass || '',
+                u.website_url || '',
+                u.website_urls || '',
+                u.is_website_locked ? 1 : 0,
+                u.website_locked_at || null,
+                u.max_websites || 1,
+                u.upi_vpa || '',
+                u.business_name || '',
+                u.settlement_type || 'GOOGLE_OAUTH',
+                u.upi_provider || 'AUTO',
+                u.default_brand_name || '',
+                u.default_brand_logo_url || '',
+                u.default_theme || 'tiranga',
+                u.default_redirect_url || '',
+                u.default_custom_note || '',
+                u.created_at || Date.now(),
+                u.updated_at || Date.now()
+              ]
+            );
+          } else {
+            // If cloud user has an active plan and local has NONE, upgrade local!
+            if (u.plan && u.plan !== 'NONE' && (!existing.plan || existing.plan === 'NONE')) {
+              await query.run(
+                `UPDATE users SET plan = ?, qr_credits = ?, max_websites = ?, is_website_locked = ?, website_url = ?, website_urls = ? WHERE email = ?`,
+                [u.plan, u.qr_credits || 999999, u.max_websites || 1, u.is_website_locked ? 1 : 0, u.website_url || '', u.website_urls || '', email]
+              );
+            }
+          }
         }
       }
-    } catch (e) {
-      logger.warn(`[CloudSync] Failed to load payments: ${e.message}`);
-    }
-    return [];
-  },
 
-  async savePayments(paymentsArray) {
-    try {
-      const url = `${FIRESTORE_BASE}/gateway_payments_data`;
-      const slice = paymentsArray.slice(0, 200);
-      const body = JSON.stringify({
-        fields: toFirestoreFields({
-          payments_json: JSON.stringify(slice),
-          updated_at: Date.now()
-        })
-      });
-      const res = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body
-      });
-      if (res.ok) {
-        logger.info(`[CloudSync] Synced ${slice.length} payments to Firestore`);
-        return true;
+      // 2. Restore Coupons
+      const cloudCoupons = await this.getAllCoupons();
+      if (cloudCoupons.length > 0) {
+        logger.info(`[CloudSync] Restoring ${cloudCoupons.length} coupons from Firebase RTDB...`);
+        for (const c of cloudCoupons) {
+          if (!c || !c.code) continue;
+          const existing = await query.get('SELECT * FROM coupons WHERE code = ?', [c.code.toUpperCase().trim()]);
+          if (!existing) {
+            await query.run(
+              `INSERT INTO coupons (code, discount_percent, max_uses, used_count, expires_at, is_active, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [
+                c.code.toUpperCase().trim(),
+                c.discount_percent || 0,
+                c.max_uses || null,
+                c.used_count || 0,
+                c.expires_at || null,
+                c.is_active !== undefined ? (c.is_active ? 1 : 0) : 1,
+                c.created_at || Date.now()
+              ]
+            );
+          }
+        }
       }
-    } catch (e) {
-      logger.warn(`[CloudSync] Failed to save payments: ${e.message}`);
+
+      // 3. Restore Plan Prices
+      const cloudPrices = await this.getPlanPrices();
+      if (cloudPrices && Object.keys(cloudPrices).length > 0) {
+        await query.run(
+          `INSERT INTO settings (key, value) VALUES ('plan_price_overrides', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+          [JSON.stringify(cloudPrices)]
+        );
+      }
+
+      // 4. Restore Domain API Keys
+      const cloudDomainKeys = await this.loadDomainKeys();
+      if (cloudDomainKeys.length > 0) {
+        for (const k of cloudDomainKeys) {
+          if (!k || !k.api_key) continue;
+          const existing = await query.get('SELECT * FROM domain_api_keys WHERE api_key = ?', [k.api_key]);
+          if (!existing) {
+            await query.run(
+              `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at, last_used_at)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [k.key_name || 'Key', k.domain, k.api_key, k.status || 'ACTIVE', k.created_at || Date.now(), k.last_used_at || null]
+            );
+          }
+        }
+      }
+
+      logger.info('[CloudSync] Cloud restore from Firebase RTDB completed successfully!');
+    } catch (err) {
+      logger.error(`[CloudSync] Cloud restore error: ${err.message}`);
     }
-    return false;
   }
 };
 

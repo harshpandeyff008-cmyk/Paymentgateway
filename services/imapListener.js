@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { query, logActivity } from '../db/database.js';
 import { parsePaymentEmail } from './emailParser.js';
 import { processIncomingPayment, reconcileUnmatchedPayments } from './matchingEngine.js';
+import { startGmailWatcher, stopGmailWatcher } from './gmailWatcher.service.js';
 
 /**
  * Active Background Auto-Poller:
@@ -69,6 +70,7 @@ export async function scanAndProcessRecentEmails() {
                   source: 'IMAP',
                   rawSnippet: `[Admin IMAP] ${subject} - ${paymentData.sender || fromAddress}`
                 });
+                schedulePaymentMonitoringSync();
               }
             }
           }
@@ -154,6 +156,7 @@ export async function scanAndProcessMerchantEmails() {
                     rawSnippet: `[Merchant: ${merchant.email}] ${subject} - ${paymentData.sender || fromAddress}`,
                     merchantEmail: merchant.email
                   });
+                  schedulePaymentMonitoringSync();
                 }
               }
             }
@@ -178,6 +181,10 @@ let isRunning = false;
 let globalIo = null;
 let activeMailboxLock = null;
 let keepAliveTimer = null;
+let reconnectTimer = null;
+let reconnectAttempt = 0;
+let monitoringSyncTimer = null;
+let monitoringSyncPromise = null;
 
 let statusInfo = {
   enabled: config.imap.enabled,
@@ -196,6 +203,60 @@ export function getImapStatus() {
     enabled: config.imap.enabled,
     user: config.imap.user || ''
   };
+}
+
+/** Start monitors only while at least one payment order can still be matched. */
+export async function syncPaymentMonitoring(io = null) {
+  if (io) globalIo = io;
+  if (monitoringSyncPromise) return monitoringSyncPromise;
+
+  monitoringSyncPromise = (async () => {
+    const pending = await query.get(
+      `SELECT COUNT(*) AS count FROM orders WHERE status = 'PENDING' AND expires_at > ?`,
+      [Date.now()]
+    );
+    const pendingCount = Number(pending?.count || 0);
+
+    const hasImapCreds = Boolean(config.imap.enabled && config.imap.user && config.imap.pass);
+
+    if (pendingCount === 0 && !hasImapCreds) {
+      const wasActive = isRunning || Boolean(pollerInterval) || Boolean(reconnectTimer);
+      await stopImapListener(false);
+      stopGmailWatcher();
+      if (wasActive) console.log('[Payment Monitoring] No active orders and no IMAP credentials configured; all email monitors are stopped.');
+      return { active: false, pendingCount: 0 };
+    }
+
+    startGmailWatcher();
+    if (config.imap.enabled && !isRunning) {
+      await startImapListener(globalIo);
+    }
+    return { active: true, pendingCount };
+  })();
+
+  try {
+    return await monitoringSyncPromise;
+  } finally {
+    monitoringSyncPromise = null;
+  }
+}
+
+export function schedulePaymentMonitoringSync() {
+  if (monitoringSyncTimer) clearTimeout(monitoringSyncTimer);
+  monitoringSyncTimer = setTimeout(() => {
+    syncPaymentMonitoring(globalIo).catch(err => console.warn('[Payment Monitoring] State sync failed:', err.message));
+  }, 0);
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer || !config.imap.enabled) return;
+  const delay = Math.min(60000, 1000 * (2 ** reconnectAttempt));
+  reconnectAttempt = Math.min(reconnectAttempt + 1, 6);
+  console.log(`[IMAP] Reconnecting in ${Math.round(delay / 1000)} seconds...`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    syncPaymentMonitoring(globalIo).catch(err => console.warn('[IMAP] Reconnect check failed:', err.message));
+  }, delay);
 }
 
 /**
@@ -438,6 +499,8 @@ export async function syncHistoricalPayments({ maxEmails = 100 } = {}) {
 export async function startImapListener(io = null) {
   if (io) globalIo = io;
 
+  if (isRunning) return;
+
   if (!config.imap.enabled) {
     console.log('[IMAP] IMAP listener is currently disabled.');
     statusInfo.enabled = false;
@@ -502,8 +565,8 @@ export async function startImapListener(io = null) {
       if (globalIo) globalIo.to('admin_room').emit('imap_status', getImapStatus());
 
       if (isRunning && config.imap.enabled) {
-        console.log('[IMAP] Reconnecting in 10 seconds...');
-        setTimeout(() => startImapListener(globalIo), 10000);
+        isRunning = false;
+        scheduleReconnect();
       }
     });
 
@@ -512,6 +575,7 @@ export async function startImapListener(io = null) {
 
     statusInfo.connected = true;
     statusInfo.lastError = null;
+    reconnectAttempt = 0;
     console.log('[IMAP] Successfully authenticated with IMAP!');
 
     activeMailboxLock = await client.getMailboxLock(config.imap.mailbox);
@@ -573,6 +637,7 @@ export async function startImapListener(io = null) {
     statusInfo.connected = false;
     statusInfo.listening = false;
     statusInfo.lastError = err.message;
+    isRunning = false;
     if (globalIo) globalIo.to('admin_room').emit('imap_status', getImapStatus());
     await logActivity({
       eventType: 'IMAP_ERROR',
@@ -580,6 +645,7 @@ export async function startImapListener(io = null) {
       title: 'IMAP Connection Error',
       details: err.message
     });
+    scheduleReconnect();
   }
 }
 
@@ -628,6 +694,7 @@ async function fetchAndProcessLatestMessage(imapClient, io) {
         source: 'IMAP',
         rawSnippet: paymentData.rawSnippet
       });
+      schedulePaymentMonitoringSync();
 
       if (io) io.to('admin_room').emit('imap_status', getImapStatus());
     }
@@ -638,6 +705,10 @@ async function fetchAndProcessLatestMessage(imapClient, io) {
 
 export async function stopImapListener(disablePermanently = false) {
   isRunning = false;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   if (disablePermanently) {
     config.imap.enabled = false;
   }
@@ -671,9 +742,7 @@ export async function restartImapListener(newConfig = null, io = null) {
   }
 
   await stopImapListener(false);
-  if (config.imap.enabled) {
-    await startImapListener(io || globalIo);
-  }
+  await syncPaymentMonitoring(io || globalIo);
 }
 
 export default {
@@ -683,5 +752,7 @@ export default {
   testImapConnection,
   fetchRecentPaymentEmails,
   syncHistoricalPayments,
-  getImapStatus
+  getImapStatus,
+  syncPaymentMonitoring,
+  schedulePaymentMonitoringSync
 };

@@ -270,6 +270,38 @@
           </div>
         </div>
 
+        <!-- Consolidated banking monitor view: only accounts actively linked by merchants -->
+        <div class="panel-card" style="margin-bottom: 24px; border-left: 4px solid #34d399;">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span>📡 Active Banking Monitors</span>
+                <span id="activeBankingMonitorCount" style="font-size: 11px; color: #34d399;">0 connected</span>
+              </div>
+              <p style="font-size: 11.5px; color: var(--text-dim); margin: 5px 0 0; font-weight: 400;">One place for every merchant with an active IMAP or Google Gmail payment monitor.</p>
+            </div>
+            <div id="activeBankingListenerStatus" class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-dim); border: 1px solid var(--border-card);">Platform listener: checking…</div>
+          </div>
+
+          <div style="overflow-x: auto; margin-top: 14px;">
+            <table class="table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th>Merchant</th>
+                  <th>Connected banking email</th>
+                  <th>Monitor type</th>
+                  <th>IMAP host</th>
+                  <th>Settlement UPI</th>
+                  <th>Plan</th>
+                </tr>
+              </thead>
+              <tbody id="activeBankingMonitorsBody">
+                <tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 22px;">Loading connected monitors…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Users Directory Table Panel -->
         <div class="panel-card">
           <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">

@@ -3,6 +3,8 @@ import { claimOrderWithUtr, reconcileUnmatchedPayments } from '../services/match
 import { buildUpiUri, streamQrPng, generateQrDataUrl } from '../utils/qr.util.js';
 import { config } from '../../config.js';
 import { logActivity, getUniquePayableAmount, getUserByEmail } from '../../db/database.js';
+import { syncPaymentMonitoring } from '../../services/imapListener.js';
+import { CloudSyncService } from '../services/cloudSync.service.js';
 
 function generateOrderCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -93,9 +95,12 @@ export const OrderController = {
         redirectUrl: finalRedirectUrl
       });
 
+      // The first active payment request starts the monitor on demand.
+      await syncPaymentMonitoring(req.io);
+
       // Use merchant's own registered UPI VPA if configured, otherwise fallback to platform defaults
-      const merchantVpa = req.userRecord?.upi_vpa || config.merchant.upiVpa;
-      const merchantName = finalBrandName;
+      const merchantVpa = (req.userRecord?.upi_vpa || config.merchant.upiVpa || 'ffdealsbyjena@fam').trim();
+      const merchantName = (finalBrandName || config.merchant.name || 'Merchant').trim();
 
       const upiUri = buildUpiUri({
         vpa: merchantVpa,
@@ -139,6 +144,9 @@ export const OrderController = {
         qrImageUrl: `${baseUrl}/api/qr?data=${encodeURIComponent(upiUri)}`
       };
 
+      // Persist order to Firebase Realtime Database
+      CloudSyncService.saveOrder(orderData).catch(() => {});
+
       await logActivity({
         eventType: 'ORDER_CREATED',
         status: 'SUCCESS',
@@ -151,12 +159,12 @@ export const OrderController = {
       if (req.io) {
         req.io.to('admin_room').emit('new_order', orderData);
         req.io.to('admin_room').emit('api_log', {
-          event_type: 'ORDER_CREATED',
+          eventType: 'ORDER_CREATED',
           status: 'SUCCESS',
           title: `Order Created: ${orderCode}`,
           details: `₹${parsedAmount.toFixed(2)} from ${origin || 'Client'}`,
           origin,
-          created_at: createdAt
+          createdAt: createdAt
         });
       }
 

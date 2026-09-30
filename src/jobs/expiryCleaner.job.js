@@ -2,6 +2,8 @@ import { OrderModel } from '../models/order.model.js';
 import { triggerWebhook } from '../../services/matchingEngine.js';
 import { logActivity } from '../../db/database.js';
 import logger from '../utils/logger.js';
+import { syncPaymentMonitoring } from '../../services/imapListener.js';
+import { CloudSyncService } from '../services/cloudSync.service.js';
 
 let intervalId = null;
 
@@ -15,6 +17,7 @@ export function startExpiryCleaner(io, intervalMs = 30000) {
 
       for (const ord of expiredOrders) {
         await OrderModel.markAsExpired(ord.id);
+        CloudSyncService.saveOrder({ ...ord, status: 'EXPIRED', failure_reason: 'PAYMENT_EXPIRED' }).catch(() => {});
         logger.info(`[Cleaner] Order expired: ${ord.order_code}`);
 
         // Log the expiry event in database
@@ -53,6 +56,9 @@ export function startExpiryCleaner(io, intervalMs = 30000) {
           }, 'order.expired');
         }
       }
+
+      // Also stops all monitors as soon as the final pending order expires.
+      await syncPaymentMonitoring(io);
     } catch (err) {
       logger.error(`[Cleaner Error]: ${err.message}`);
     }
@@ -69,4 +75,3 @@ export function stopExpiryCleaner() {
 }
 
 export default { startExpiryCleaner, stopExpiryCleaner };
-

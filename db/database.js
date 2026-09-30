@@ -2,6 +2,7 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { CloudSyncService } from '../src/services/cloudSync.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,6 +60,9 @@ export async function setSetting(key, value) {
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
     [key, strValue]
   );
+  try {
+    getAllSettings().then(all => CloudSyncService.saveSettings(all)).catch(() => {});
+  } catch (_) {}
 }
 
 export async function getAllSettings() {
@@ -90,11 +94,19 @@ export async function addDomainApiKey({ keyName = 'Default Key', domain, apiKey,
      VALUES (?, ?, ?, ?, ?, ?)`,
     [keyName, domain, apiKey, status, now, null]
   );
-  return { id: res.lastID, key_name: keyName, domain, api_key: apiKey, status, created_at: now, last_used_at: null };
+  const created = { id: res.lastID, key_name: keyName, domain, api_key: apiKey, status, created_at: now, last_used_at: null };
+  try {
+    getAllDomainKeys().then(keys => CloudSyncService.saveDomainKeys(keys)).catch(() => {});
+  } catch (_) {}
+  return created;
 }
 
 export async function deleteDomainApiKey(id) {
-  return await query.run('DELETE FROM domain_api_keys WHERE id = ?', [id]);
+  const res = await query.run('DELETE FROM domain_api_keys WHERE id = ?', [id]);
+  try {
+    getAllDomainKeys().then(keys => CloudSyncService.saveDomainKeys(keys)).catch(() => {});
+  } catch (_) {}
+  return res;
 }
 
 export async function findDomainApiKey(clientKey) {
@@ -391,6 +403,11 @@ export async function initDatabase() {
   } catch (_) {}
 
   console.log('[DB] SQLite database initialized at:', dbPath);
+  try {
+    await CloudSyncService.restoreAllFromCloud(query);
+  } catch (err) {
+    console.warn('[DB] Cloud restore warning:', err.message);
+  }
 }
 
 export async function logActivity({ eventType, status = 'INFO', title, details = '', clientIp = '', origin = '' }) {
@@ -436,19 +453,72 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
 
   let user = await query.get('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
   if (!user) {
-    const initialApiKey = generateApiKey();
-    await query.run(
-      `INSERT INTO users (email, name, photo_url, role, plan, qr_credits, api_key, gmail_connected, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'NONE', 0, ?, 0, ?, ?)`,
-      [normalizedEmail, name, photoUrl, role, initialApiKey, now, now]
-    );
-    user = await query.get('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
+    // 1. Check Cloud RTDB before assuming new user
+    let cloudUser = null;
+    try {
+      cloudUser = await CloudSyncService.getUser(normalizedEmail);
+    } catch (_) {}
+
+    if (cloudUser) {
+      // Restore user with their active plan, credits, and keys from Firebase!
+      const initialApiKey = cloudUser.api_key || generateApiKey();
+      await query.run(
+        `INSERT INTO users (
+          email, name, photo_url, role, plan, qr_credits, api_key,
+          gmail_connected, website_url, website_urls, is_website_locked,
+          upi_vpa, business_name, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          normalizedEmail,
+          name || cloudUser.name || 'User',
+          photoUrl || cloudUser.photo_url || '',
+          cloudUser.role || role,
+          cloudUser.plan || 'NONE',
+          cloudUser.qr_credits !== undefined ? cloudUser.qr_credits : 0,
+          initialApiKey,
+          cloudUser.gmail_connected ? 1 : 0,
+          cloudUser.website_url || '',
+          cloudUser.website_urls || '',
+          cloudUser.is_website_locked ? 1 : 0,
+          cloudUser.upi_vpa || '',
+          cloudUser.business_name || '',
+          cloudUser.created_at || now,
+          now
+        ]
+      );
+      user = await query.get('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
+    } else {
+      const initialApiKey = generateApiKey();
+      await query.run(
+        `INSERT INTO users (email, name, photo_url, role, plan, qr_credits, api_key, gmail_connected, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'NONE', 0, ?, 0, ?, ?)`,
+        [normalizedEmail, name, photoUrl, role, initialApiKey, now, now]
+      );
+      user = await query.get('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
+    }
   } else {
+    // If local user has NO active plan, check if cloud has an active plan
+    if (!user.plan || user.plan === 'NONE') {
+      try {
+        const cloudUser = await CloudSyncService.getUser(normalizedEmail);
+        if (cloudUser && cloudUser.plan && cloudUser.plan !== 'NONE') {
+          await query.run(
+            `UPDATE users SET plan = ?, qr_credits = ?, max_websites = ?, is_website_locked = ?, website_url = ?, website_urls = ?, updated_at = ? WHERE email = ?`,
+            [cloudUser.plan, cloudUser.qr_credits || 999999, cloudUser.max_websites || 1, cloudUser.is_website_locked ? 1 : 0, cloudUser.website_url || '', cloudUser.website_urls || '', now, normalizedEmail]
+          );
+        }
+      } catch (_) {}
+    }
     await query.run(
       `UPDATE users SET name = COALESCE(?, name), photo_url = COALESCE(?, photo_url), updated_at = ? WHERE email = ?`,
       [name, photoUrl, now, normalizedEmail]
     );
     user = await query.get('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
+  }
+
+  // Always keep Cloud RTDB up to date
+  if (user) {
+    CloudSyncService.saveUser(user).catch(() => {});
   }
   return user;
 }
@@ -506,7 +576,13 @@ export async function updateUserPlanAndCredits(email, plan, creditsToAdd = 0, ma
     `UPDATE users SET plan = ?, qr_credits = ?, max_websites = ?, updated_at = ? WHERE email = ?`,
     [plan.toUpperCase(), newCredits, websitesLimit, now, email.trim().toLowerCase()]
   );
-  return await getUserByEmail(email);
+  const updatedUser = await getUserByEmail(email);
+  if (updatedUser) {
+    CloudSyncService.saveUser(updatedUser).catch(err => {
+      console.warn('[DB] Failed to sync user plan to Firebase:', err.message);
+    });
+  }
+  return updatedUser;
 }
 
 export async function updateUserGmailConfig(email, { gmailEmail = '', gmailConnected = 1, gmailAppPass = '' }) {
@@ -516,7 +592,9 @@ export async function updateUserGmailConfig(email, { gmailEmail = '', gmailConne
     `UPDATE users SET gmail_email = ?, gmail_connected = ?, gmail_app_pass = ?, updated_at = ? WHERE email = ?`,
     [gmailEmail, gmailConnected ? 1 : 0, gmailAppPass, now, email.trim().toLowerCase()]
   );
-  return await getUserByEmail(email);
+  const updated = await getUserByEmail(email);
+  if (updated) CloudSyncService.saveUser(updated).catch(() => {});
+  return updated;
 }
 
 export async function updateUserGoogleBankingLink(email, { upiVpa = '', businessName = '', upiProvider = 'AUTO', googleEmail = '', accessToken = '' }) {
@@ -535,7 +613,9 @@ export async function updateUserGoogleBankingLink(email, { upiVpa = '', business
      WHERE email = ?`,
     [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', googleEmail, accessToken, now, email.trim().toLowerCase()]
   );
-  return await getUserByEmail(email);
+  const updated = await getUserByEmail(email);
+  if (updated) CloudSyncService.saveUser(updated).catch(() => {});
+  return updated;
 }
 
 export async function updateUserImapBankingLink(email, { upiVpa = '', businessName = '', upiProvider = 'AUTO', imapEmail = '', imapAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993, imapSecure = 1 }) {
@@ -557,7 +637,9 @@ export async function updateUserImapBankingLink(email, { upiVpa = '', businessNa
      WHERE email = ?`,
     [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', imapEmail, imapAppPass, imapHost, Number(imapPort) || 993, imapSecure ? 1 : 0, now, email.trim().toLowerCase()]
   );
-  return await getUserByEmail(email);
+  const updated = await getUserByEmail(email);
+  if (updated) CloudSyncService.saveUser(updated).catch(() => {});
+  return updated;
 }
 
 // Backward compatibility alias for legacy imports
@@ -575,7 +657,9 @@ export async function disconnectUserBanking(email) {
      WHERE email = ?`,
     [now, email.trim().toLowerCase()]
   );
-  return await getUserByEmail(email);
+  const updated = await getUserByEmail(email);
+  if (updated) CloudSyncService.saveUser(updated).catch(() => {});
+  return updated;
 }
 
 export async function getUserPayments(email, limit = 50) {
@@ -604,6 +688,8 @@ export async function regenerateUserApiKey(email) {
     `UPDATE users SET api_key = ?, updated_at = ? WHERE email = ?`,
     [newKey, now, email.trim().toLowerCase()]
   );
+  const updated = await getUserByEmail(email);
+  if (updated) CloudSyncService.saveUser(updated).catch(() => {});
   return newKey;
 }
 
@@ -663,6 +749,10 @@ export async function lockUserWebsite(email, websiteUrl) {
   }
 
   const updatedUser = await getUserByEmail(email);
+  if (updatedUser) {
+    CloudSyncService.saveUser(updatedUser).catch(() => {});
+  }
+
   return { 
     success: true, 
     user: updatedUser, 
@@ -674,7 +764,24 @@ export async function lockUserWebsite(email, websiteUrl) {
 
 export async function getAllUsers() {
   try {
-    return await query.all('SELECT id, email, name, photo_url, role, plan, qr_credits, api_key, gmail_connected, gmail_email, website_url, is_website_locked, upi_vpa, business_name, created_at, updated_at FROM users ORDER BY id DESC');
+    let localUsers = await query.all('SELECT id, email, name, photo_url, role, plan, qr_credits, api_key, gmail_connected, gmail_email, settlement_type, imap_host, imap_port, website_url, is_website_locked, upi_vpa, business_name, created_at, updated_at FROM users ORDER BY id DESC');
+
+    // Merge with any users from Cloud RTDB in case Render disk reset
+    try {
+      const cloudUsers = await CloudSyncService.getAllUsers();
+      if (cloudUsers && cloudUsers.length > 0) {
+        const localEmails = new Set(localUsers.map(u => (u.email || '').toLowerCase()));
+        for (const cu of cloudUsers) {
+          if (!cu || !cu.email) continue;
+          if (!localEmails.has(cu.email.toLowerCase())) {
+            await syncUser(cu);
+            localUsers.push(cu);
+          }
+        }
+      }
+    } catch (_) {}
+
+    return localUsers;
   } catch (err) {
     console.error('[DB] Failed to fetch users:', err.message);
     return [];
@@ -763,7 +870,11 @@ export async function createCoupon({ code, discountPercent, maxUses = -1, expire
      VALUES (?, ?, ?, 0, 1, ?, ?)`,
     [code.toUpperCase().trim(), parseFloat(discountPercent), parseInt(maxUses, 10), expiresAt || null, now]
   );
-  return { id: result.lastID, code: code.toUpperCase().trim(), discount_percent: parseFloat(discountPercent), max_uses: parseInt(maxUses, 10), used_count: 0, is_active: 1, expires_at: expiresAt, created_at: now };
+  const createdCoupon = { id: result.lastID, code: code.toUpperCase().trim(), discount_percent: parseFloat(discountPercent), max_uses: parseInt(maxUses, 10), used_count: 0, is_active: 1, expires_at: expiresAt, created_at: now };
+  try {
+    CloudSyncService.saveCoupon(createdCoupon).catch(() => {});
+  } catch (_) {}
+  return createdCoupon;
 }
 
 export async function getCouponByCode(code) {
@@ -790,10 +901,23 @@ export async function markCouponUsed(code, userEmail, orderCode, discountAmount)
      VALUES (?, ?, ?, ?, ?)`,
     [code.toUpperCase().trim(), userEmail, orderCode, discountAmount, Date.now()]
   );
+  try {
+    const updatedCoupon = await query.get('SELECT * FROM coupons WHERE code = ?', [code.toUpperCase().trim()]);
+    if (updatedCoupon) {
+      CloudSyncService.saveCoupon(updatedCoupon).catch(() => {});
+    }
+  } catch (_) {}
 }
 
 export async function deleteCoupon(id) {
-  return await query.run('UPDATE coupons SET is_active = 0 WHERE id = ?', [id]);
+  const coupon = await query.get('SELECT * FROM coupons WHERE id = ?', [id]);
+  const res = await query.run('UPDATE coupons SET is_active = 0 WHERE id = ?', [id]);
+  try {
+    if (coupon && coupon.code) {
+      CloudSyncService.deleteCoupon(coupon.code).catch(() => {});
+    }
+  } catch (_) {}
+  return res;
 }
 
 // ─── Plan Price Overrides ────────────────────────────────────────────────────
@@ -815,21 +939,33 @@ export async function setPlanPriceOverride(planId, customPrice) {
      ON CONFLICT(plan_id) DO UPDATE SET custom_price = excluded.custom_price, updated_at = excluded.updated_at`,
     [planId.toUpperCase(), parseFloat(customPrice), now]
   );
+  try {
+    getPlanPriceOverrides().then(map => CloudSyncService.savePlanPrices(map)).catch(() => {});
+  } catch (_) {}
 }
 
 export async function deletePlanPriceOverride(planId) {
-  return await query.run('DELETE FROM plan_price_overrides WHERE plan_id = ?', [planId.toUpperCase()]);
+  const res = await query.run('DELETE FROM plan_price_overrides WHERE plan_id = ?', [planId.toUpperCase()]);
+  try {
+    getPlanPriceOverrides().then(map => CloudSyncService.savePlanPrices(map)).catch(() => {});
+  } catch (_) {}
+  return res;
 }
 
 export async function updateUserCheckoutBranding(email, { defaultBrandName = '', defaultBrandLogoUrl = '', defaultTheme = 'tiranga', defaultRedirectUrl = '', defaultCustomNote = '' }) {
   const normalizedEmail = (email || '').toLowerCase().trim();
   const now = Date.now();
-  return await query.run(
+  const res = await query.run(
     `UPDATE users 
      SET default_brand_name = ?, default_brand_logo_url = ?, default_theme = ?, default_redirect_url = ?, default_custom_note = ?, updated_at = ?
      WHERE lower(email) = ?`,
     [defaultBrandName, defaultBrandLogoUrl, defaultTheme, defaultRedirectUrl, defaultCustomNote, now, normalizedEmail]
   );
+  const updatedUser = await getUserByEmail(normalizedEmail);
+  if (updatedUser) {
+    CloudSyncService.saveUser(updatedUser).catch(() => {});
+  }
+  return res;
 }
 
 export function closeDatabase() {

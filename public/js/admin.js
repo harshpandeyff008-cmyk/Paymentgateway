@@ -248,7 +248,11 @@ async function loadStats() {
     metricConversion.innerText = `${rate}% Success Rate`;
 
     // IMAP Status
+    window.latestImapStatus = stats.imapStatus || {};
     updateImapPill(stats.imapStatus);
+    if (Array.isArray(adminUsersList) && adminUsersList.length > 0) {
+      renderActiveBankingMonitors(adminUsersList);
+    }
 
     // Populate Frontend Configurator and IMAP fields
     const vpa = stats.merchantVpa || '';
@@ -766,7 +770,11 @@ function initSocket() {
   });
 
   socket.on('imap_status', (status) => {
+    window.latestImapStatus = status || {};
     updateImapPill(status);
+    if (Array.isArray(adminUsersList) && adminUsersList.length > 0) {
+      renderActiveBankingMonitors(adminUsersList);
+    }
   });
 
   socket.on('api_log', () => {
@@ -1715,6 +1723,7 @@ async function loadAdminUsers() {
     if (tbFree) tbFree.innerText = freeUsers;
     if (badgeTotal) badgeTotal.innerText = totalUsers;
 
+    renderActiveBankingMonitors(adminUsersList);
     filterAdminUsersTable();
   } catch (err) {
     console.error('Failed to load admin users:', err);
@@ -1722,6 +1731,57 @@ async function loadAdminUsers() {
   }
 }
 window.loadAdminUsers = loadAdminUsers;
+
+function renderActiveBankingMonitors(users) {
+  const tbody = document.getElementById('activeBankingMonitorsBody');
+  const countEl = document.getElementById('activeBankingMonitorCount');
+  const listenerEl = document.getElementById('activeBankingListenerStatus');
+  if (!tbody) return;
+
+  const connectedUsers = (users || []).filter(user => Boolean(user.gmail_connected) && user.gmail_email);
+  if (countEl) countEl.innerText = `${connectedUsers.length} connected`;
+
+  // The platform IMAP socket only represents the gateway inbox; merchant links are
+  // independently recorded below, so admins can clearly distinguish both states.
+  const platformStatus = window.latestImapStatus || {};
+  if (listenerEl) {
+    if (!platformStatus.enabled) {
+      listenerEl.innerText = 'Platform IMAP: disabled';
+      listenerEl.style.color = '#94a3b8';
+    } else if (platformStatus.connected && platformStatus.listening) {
+      listenerEl.innerText = 'Platform IMAP: live';
+      listenerEl.style.color = '#34d399';
+    } else if (platformStatus.lastError) {
+      listenerEl.innerText = 'Platform IMAP: error';
+      listenerEl.style.color = '#f87171';
+    } else {
+      listenerEl.innerText = 'Platform IMAP: connecting';
+      listenerEl.style.color = '#fbbf24';
+    }
+  }
+
+  if (connectedUsers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 22px;">No merchant has linked a banking email yet.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = connectedUsers.map(user => {
+    const isImap = String(user.settlement_type || '').toUpperCase() === 'IMAP';
+    const monitorType = isImap
+      ? '<span class="badge" style="background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3);">IMAP</span>'
+      : '<span class="badge" style="background: rgba(52,211,153,0.12); color: #34d399; border: 1px solid rgba(52,211,153,0.3);">GOOGLE GMAIL</span>';
+    const host = isImap ? `${user.imap_host || 'imap.gmail.com'}${user.imap_port ? `:${user.imap_port}` : ''}` : 'Google OAuth API';
+    const plan = user.plan && user.plan !== 'NONE' ? escapeHtml(user.plan) : 'No plan';
+    return `<tr>
+      <td><div style="font-weight: 600; color: #fff;">${escapeHtml(user.name || 'Merchant')}</div><div style="font-size: 11px; color: var(--text-dim);">${escapeHtml(user.email || '')}</div></td>
+      <td><span style="color: #34d399; font-weight: 600;">● Connected</span><div style="font-size: 11px; color: var(--text-dim); margin-top: 3px;">${escapeHtml(user.gmail_email)}</div></td>
+      <td>${monitorType}</td>
+      <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);">${escapeHtml(host)}</td>
+      <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--primary);">${escapeHtml(user.upi_vpa || 'Not configured')}</td>
+      <td><span style="font-size: 11px; color: ${user.plan && user.plan !== 'NONE' ? '#c084fc' : 'var(--text-dim)'};">${plan}</span></td>
+    </tr>`;
+  }).join('');
+}
 
 function filterAdminUsersTable() {
   const searchInput = document.getElementById('adminUsersSearchInput');

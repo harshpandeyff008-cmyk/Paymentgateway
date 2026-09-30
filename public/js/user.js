@@ -79,17 +79,30 @@ try {
 
 // On Page Load
 document.addEventListener('DOMContentLoaded', () => {
+  const cachedUserStr = localStorage.getItem('gateway_user') || sessionStorage.getItem('gateway_user');
+  if (cachedUserStr) {
+    try {
+      const parsed = JSON.parse(cachedUserStr);
+      if (parsed && parsed.email) {
+        currentUser = parsed;
+        renderDashboard();
+        hideLoginOverlay();
+      }
+    } catch (_) {}
+  }
+
   if (fbAuth) {
     fbAuth.onAuthStateChanged((user) => {
       if (user) {
         onFirebaseUserAuthenticated(user);
       } else {
-        const sessionUser = sessionStorage.getItem('gateway_user');
+        const sessionUser = localStorage.getItem('gateway_user') || sessionStorage.getItem('gateway_user');
         if (sessionUser) {
           try {
             currentUser = JSON.parse(sessionUser);
             renderDashboard();
             loadUserOrders();
+            hideLoginOverlay();
             return;
           } catch (_) {}
         }
@@ -97,11 +110,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   } else {
-    const sessionUser = sessionStorage.getItem('gateway_user');
+    const sessionUser = localStorage.getItem('gateway_user') || sessionStorage.getItem('gateway_user');
     if (sessionUser) {
-      currentUser = JSON.parse(sessionUser);
-      renderDashboard();
-      loadUserOrders();
+      try {
+        currentUser = JSON.parse(sessionUser);
+        renderDashboard();
+        loadUserOrders();
+        hideLoginOverlay();
+      } catch (_) {
+        showLoginOverlay();
+      }
     } else {
       showLoginOverlay();
     }
@@ -138,6 +156,19 @@ async function onFirebaseUserAuthenticated(user) {
     return;
   }
 
+  // Pre-load from cache if available to prevent UI flashing
+  const cached = localStorage.getItem('gateway_user') || sessionStorage.getItem('gateway_user');
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (parsed && (parsed.email || '').toLowerCase() === email) {
+        currentUser = { ...currentUser, ...parsed };
+        renderDashboard();
+        hideLoginOverlay();
+      }
+    } catch (_) {}
+  }
+
   // Sync user with backend
   try {
     const res = await fetch('/api/v1/user/sync', {
@@ -154,6 +185,7 @@ async function onFirebaseUserAuthenticated(user) {
     if (data.success && data.user) {
       currentUser = data.user;
       sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      localStorage.setItem('gateway_user', JSON.stringify(currentUser));
       hideLoginOverlay();
 
       if (socket && socket.connected) {
@@ -162,25 +194,68 @@ async function onFirebaseUserAuthenticated(user) {
 
       renderDashboard();
       loadUserOrders();
-    } else {
-      alert('Could not sync user profile with backend.');
+      return;
     }
   } catch (err) {
-    console.error('User sync error:', err);
-    currentUser = {
-      email,
-      name: user.displayName || 'User',
-      photoUrl: user.photoURL || '',
-      role: email === REQUIRED_ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user',
-      plan: 'NONE',
-      qrCredits: 0,
-      apiKey: 'pg_live_demo12345',
-      hasActivePlan: false,
-      isWebsiteLocked: false,
-      websiteUrl: ''
-    };
-    renderDashboard();
+    console.warn('Backend sync warning, checking Firebase Realtime DB direct fallback:', err);
   }
+
+  // Direct Firebase Realtime Database Fallback if backend was slow or restarting
+  try {
+    const encKey = encodeURIComponent(email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+    const rtdbRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${encKey}.json`);
+    if (rtdbRes.ok) {
+      const cloudUser = await rtdbRes.json();
+      if (cloudUser) {
+        currentUser = {
+          email,
+          name: cloudUser.name || user.displayName || 'User',
+          photoUrl: cloudUser.photo_url || user.photoURL || '',
+          role: cloudUser.role || 'user',
+          plan: cloudUser.plan || 'NONE',
+          qrCredits: cloudUser.qr_credits !== undefined ? cloudUser.qr_credits : 0,
+          apiKey: cloudUser.api_key || (currentUser?.apiKey || ('pg_live_' + Math.random().toString(36).substring(2, 15))),
+          gmailConnected: !!cloudUser.gmail_connected,
+          gmailEmail: cloudUser.gmail_email || '',
+          websiteUrl: cloudUser.website_url || '',
+          isWebsiteLocked: !!cloudUser.is_website_locked,
+          hasActivePlan: cloudUser.plan && cloudUser.plan !== 'NONE'
+        };
+        sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+        localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+        hideLoginOverlay();
+        renderDashboard();
+        return;
+      }
+    }
+  } catch (cloudErr) {
+    console.warn('Firebase RTDB fallback check error:', cloudErr);
+  }
+
+  // If already had an active plan in cache, preserve it!
+  if (currentUser && currentUser.plan && currentUser.plan !== 'NONE') {
+    hideLoginOverlay();
+    renderDashboard();
+    return;
+  }
+
+  // Final fallback for completely new user
+  currentUser = {
+    email,
+    name: user.displayName || 'User',
+    photoUrl: user.photoURL || '',
+    role: 'user',
+    plan: 'NONE',
+    qrCredits: 0,
+    apiKey: 'pg_live_' + Math.random().toString(36).substring(2, 15),
+    hasActivePlan: false,
+    isWebsiteLocked: false,
+    websiteUrl: ''
+  };
+  sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+  localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+  hideLoginOverlay();
+  renderDashboard();
 }
 
 function handleSignOut() {
@@ -188,6 +263,7 @@ function handleSignOut() {
     fbAuth.signOut();
   }
   sessionStorage.removeItem('gateway_user');
+  localStorage.removeItem('gateway_user');
   sessionStorage.removeItem('gateway_admin_auth');
   currentUser = null;
   window.location.href = '/';
@@ -978,6 +1054,7 @@ function handlePaymentSuccess(update, order) {
     currentUser.apiKey = update.user.api_key;
   }
   sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+  localStorage.setItem('gateway_user', JSON.stringify(currentUser));
 
   renderDashboard();
   loadUserOrders();
@@ -994,6 +1071,7 @@ function handleRealtimeActivation(data) {
     currentUser.apiKey = data.user.api_key;
   }
   sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+  localStorage.setItem('gateway_user', JSON.stringify(currentUser));
   renderDashboard();
   loadUserOrders();
   alert(`🎉 Payment Verified! Your ${data.plan} plan is now active with ♾️ UNLIMITED QR Credits!`);

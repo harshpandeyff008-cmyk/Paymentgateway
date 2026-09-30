@@ -1,4 +1,5 @@
 import { query, logActivity, updateUserPlanAndCredits, getUserByEmail } from '../db/database.js';
+import { CloudSyncService } from '../src/services/cloudSync.service.js';
 
 let ioInstance = null;
 
@@ -162,6 +163,9 @@ export async function processIncomingPayment({
       utr,
       sender_info: sender
     };
+
+    // Immediately persist paid order to Firebase RTDB
+    CloudSyncService.saveOrder(updatedOrder).catch(err => console.error('[MatchingEngine] CloudSync order error:', err.message));
 
     // Log Activity
     const orderOrigin = matchingOrder.webhook_url ? (matchingOrder.webhook_url.startsWith('http') ? new URL(matchingOrder.webhook_url).origin : '') : '';
@@ -337,7 +341,31 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
       [order.id, payment.id]
     );
 
-    const updatedOrder = { ...order, status: 'PAID', paid_at: payment.received_at, utr: cleanUtr };
+    const updatedOrder = { 
+      ...order, 
+      status: 'PAID', 
+      paid_at: payment.received_at, 
+      utr: cleanUtr,
+      sender_info: payment.sender 
+    };
+
+    // Automatic User Plan Activation & Credit Allocation if plan purchase
+    let activatedUser = null;
+    if (order.user_email && order.plan_id) {
+      try {
+        activatedUser = await updateUserPlanAndCredits(
+          order.user_email,
+          order.plan_id,
+          order.credits_to_add || 0
+        );
+        console.log(`[MatchingEngine] Plan activated via UTR claim for user: ${order.user_email}. Plan: ${order.plan_id}`);
+      } catch (userErr) {
+        console.error('[MatchingEngine] Failed to auto-activate plan for user:', userErr.message);
+      }
+    }
+
+    // Persist paid order to Firebase RTDB
+    CloudSyncService.saveOrder(updatedOrder).catch(err => console.error('[MatchingEngine] CloudSync order error:', err.message));
 
     if (ioInstance) {
       ioInstance.to(`order_${order.order_code}`).emit('order_status_update', {
@@ -345,9 +373,25 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
         status: 'PAID',
         amount: order.amount,
         utr: cleanUtr,
-        paidAt: payment.received_at
+        paidAt: payment.received_at,
+        planActivated: !!activatedUser,
+        user: activatedUser
       });
+
+      if (order.user_email) {
+        ioInstance.to(`user_${order.user_email}`).emit('user_plan_activated', {
+          orderCode: order.order_code,
+          plan: order.plan_id,
+          creditsAdded: order.credits_to_add,
+          user: activatedUser
+        });
+      }
+
       ioInstance.to('admin_room').emit('payment_event', { type: 'ORDER_PAID', order: updatedOrder });
+    }
+
+    if (order.webhook_url) {
+      triggerWebhook(order.webhook_url, updatedOrder);
     }
 
     return { success: true, message: 'Payment verified successfully via UTR!', order: updatedOrder };

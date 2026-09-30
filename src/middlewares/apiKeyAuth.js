@@ -1,6 +1,7 @@
 import { config } from '../../config.js';
 import logger from '../utils/logger.js';
-import { logActivity, findDomainApiKey, updateDomainKeyLastUsed, getUserByApiKey, parseUserWebsites } from '../../db/database.js';
+import { logActivity, findDomainApiKey, updateDomainKeyLastUsed, getUserByApiKey, parseUserWebsites, updateUserPlanAndCredits, lockUserWebsite } from '../../db/database.js';
+import { CloudSyncService } from '../services/cloudSync.service.js';
 
 // Helper to normalize domain strings (strips http://, https://, ports, paths, www.)
 function normalizeDomain(input) {
@@ -67,7 +68,18 @@ export async function apiKeyAuth(req, res, next) {
 
   // 2. Check in domain_api_keys table or users table
   const domainKeyRecord = await findDomainApiKey(clientKey);
-  const userRecord = await getUserByApiKey(clientKey);
+  let userRecord = await getUserByApiKey(clientKey);
+
+  // If user not found locally by api_key, check cloud users
+  if (!userRecord) {
+    try {
+      const allCloud = await CloudSyncService.getAllUsers();
+      const matched = allCloud.find(u => u.api_key === clientKey);
+      if (matched) {
+        userRecord = matched;
+      }
+    } catch (_) {}
+  }
 
   if (!isGlobalMatch && !domainKeyRecord && !userRecord) {
     logger.warn(`[Auth] Blocked request to ${req.method} ${req.originalUrl}: Invalid API Key supplied`);
@@ -85,8 +97,23 @@ export async function apiKeyAuth(req, res, next) {
     });
   }
 
-  // 2.1 If user key, enforce Active Plan and 1-Website Lock
+  // 2.1 If user key, enforce Active Plan and Domain permissions
   if (userRecord && userRecord.role !== 'admin') {
+    // If local user has no plan, check Firebase RTDB in real time
+    if (!userRecord.plan || userRecord.plan === 'NONE') {
+      try {
+        const cloudUser = await CloudSyncService.getUser(userRecord.email);
+        if (cloudUser && cloudUser.plan && cloudUser.plan !== 'NONE') {
+          userRecord.plan = cloudUser.plan;
+          userRecord.qr_credits = cloudUser.qr_credits || 999999;
+          userRecord.is_website_locked = cloudUser.is_website_locked || 0;
+          userRecord.website_url = cloudUser.website_url || '';
+          userRecord.website_urls = cloudUser.website_urls || '';
+          updateUserPlanAndCredits(userRecord.email, cloudUser.plan, 0).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
     if (!userRecord.plan || userRecord.plan === 'NONE') {
       return res.status(403).json({
         success: false,
@@ -94,30 +121,29 @@ export async function apiKeyAuth(req, res, next) {
       });
     }
 
-    // Enforce Strict Website Lock: API Key will NOT work until website domain is registered & locked
-    if (!userRecord.is_website_locked || !userRecord.website_url) {
-      logger.warn(`[Auth] Blocked request from ${userRecord.email}: Website domain not registered/locked`);
-      logActivity({
-        eventType: 'API_AUTH_FAILED',
-        status: 'FAILED',
-        title: 'API Authentication Rejected: Website Domain Not Locked',
-        details: `Merchant ${userRecord.email} has not locked their website domain yet. API calls are blocked until website is bound.`,
-        clientIp,
-        origin: rawOrigin
-      });
-      return res.status(403).json({
-        success: false,
-        error: "Forbidden: API Key is INACTIVE. You must register and permanently lock your authorized website domain in your Merchant Dashboard before this key can process payments."
-      });
-    }
+    const hostDomain = normalizeDomain(req.headers.host || '');
+    const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || 
+                              originDomain.includes('paypendicular') || 
+                              originDomain.includes('upigateway') ||
+                              originDomain.includes('localhost') ||
+                              originDomain.includes('127.0.0.1') ||
+                              originDomain === hostDomain;
 
-    if (userRecord.is_website_locked === 1) {
+    // If website is not locked yet:
+    // If request comes from an actual merchant store domain, auto-bind/lock it!
+    if (!userRecord.is_website_locked || !userRecord.website_url) {
+      if (originDomain && !isAdminConsoleTest) {
+        try {
+          await lockUserWebsite(userRecord.email, originDomain);
+          const reloaded = await getUserByApiKey(clientKey);
+          if (reloaded) userRecord = reloaded;
+        } catch (_) {}
+      }
+      // If server-to-server (no origin) or test, allow order creation!
+    } else {
+      // Website is locked, enforce domain security when origin is provided and not internal test
       const websites = parseUserWebsites(userRecord);
       const allowedDomains = websites.map(w => normalizeDomain(w.url || w.domain || w)).filter(Boolean);
-      const hostDomain = normalizeDomain(req.headers.host || '');
-      const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || 
-                                originDomain.includes('paypendicular') || 
-                                originDomain === hostDomain;
 
       if (allowedDomains.length > 0 && originDomain && !isAdminConsoleTest) {
         const isDomainMatch = allowedDomains.some(d => originDomain === d || originDomain.endsWith('.' + d));
