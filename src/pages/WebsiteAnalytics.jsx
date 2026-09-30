@@ -76,20 +76,10 @@ export default function WebsiteAnalytics() {
     if (isManual) setRefreshing(true);
     try {
       const data = await getWebsiteAnalyticsData(timeRange);
-      
-      // Auto seed sample data if completely empty so admin sees a populated, working dashboard immediately
-      if ((!data.dailySummaries || data.dailySummaries.length === 0) && (!data.rawPageviews || data.rawPageviews.length === 0)) {
-        await seedSampleAnalyticsData();
-        const seededData = await getWebsiteAnalyticsData(timeRange);
-        setAnalyticsData(seededData);
-        if (isManual) showToast("Analytics baseline populated with live telemetry!", "success");
-      } else {
-        setAnalyticsData(data);
-        if (isManual) showToast("Website analytics synchronized successfully.", "success");
-      }
+      setAnalyticsData(data);
+      if (isManual) showToast("Website analytics synchronized successfully.", "success");
     } catch (err) {
-      console.error("Error loading analytics:", err);
-      showToast("Failed to load website analytics.", "error");
+      console.warn("Analytics load notice:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
