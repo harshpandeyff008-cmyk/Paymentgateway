@@ -206,6 +206,22 @@
         </button>
       </div>
 
+      <!-- URGENT BANKING LISTENER WARNING BANNER -->
+      <div id="urgentBankingBanner" class="urgent-banner" style="display: none; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.4);">
+        <div class="urgent-banner-text">
+          <span style="font-size: 24px;">📡</span>
+          <div>
+            <strong id="urgentBankingTitle" style="color: #f87171;">Banking Listener Paused / Not Connected:</strong>
+            <span id="urgentBankingDesc" style="color: #fca5a5;">Customer UPI payments will NOT verify automatically. Connect your 24/7 Gmail App Password to enable instant 1-second auto-verification.</span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="urgent-banner-btn" style="background: linear-gradient(135deg, #10b981, #059669); border: none;" onclick="switchSidebarView('settlement')">
+            <span>⭐ Setup 24/7 App Password ➔</span>
+          </button>
+        </div>
+      </div>
+
       <!-- MAIN CONTENT BODY (DYNAMIC VIEWS) -->
       <main class="content-body">
 
@@ -367,22 +383,42 @@
           <!-- API Key Status Card -->
           <div class="gmail-card" style="margin-bottom: 24px;">
             
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
-              <h3 style="font-size: 18px; font-weight: 800; color: #fff; margin: 0;">Production API Key</h3>
+            <div class="api-card-header">
+              <div>
+                <h3 class="api-card-title">Production API Key</h3>
+                <div class="api-card-subtitle">Keep this secret key secure. Never expose it in client-side HTML or public repositories.</div>
+              </div>
               <span id="apiKeyStatusBadge" class="sidebar-item-badge warning">🔴 INACTIVE (WEBSITE LOCK REQUIRED)</span>
             </div>
 
-            <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px;">
+            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 12px 0 16px;">
               Pass this key in your server requests in the <code>x-api-key</code> HTTP header or as <code>Authorization: Bearer &lt;key&gt;</code>.
             </p>
 
-            <div style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); padding: 12px 16px; border-radius: 10px; margin-bottom: 14px;">
-              <span id="displayApiKey" style="font-family: 'JetBrains Mono', monospace; font-size: 14.5px; color: var(--accent-cyan); font-weight: 700; flex: 1; word-break: break-all;">pg_live_...</span>
-              <button type="button" class="btn-primary" style="padding: 7px 12px; font-size: 12px;" onclick="copyToClipboard(currentUser?.apiKey || '')">📋 Copy</button>
-              <button type="button" class="nav-btn" style="padding: 7px 12px; font-size: 12px;" onclick="handleRegenerateKey()">🔄 Regenerate</button>
+            <!-- Responsive Key Display Container -->
+            <div class="api-key-display-box">
+              <div class="api-key-string-wrap">
+                <span class="api-key-prefix-tag">MERCHANT LIVE SECRET KEY</span>
+                <div id="displayApiKey" class="api-key-text">pg_live_...</div>
+              </div>
+
+              <div class="api-key-btn-group">
+                <button type="button" class="api-action-btn primary" onclick="copyApiKeyWithFeedback(this)" title="Copy API Key to clipboard">
+                  <span class="btn-icon">📋</span>
+                  <span class="btn-text">Copy Key</span>
+                </button>
+                <button type="button" class="api-action-btn secondary" onclick="toggleApiKeyVisibility(this)" title="Show/Hide API Key">
+                  <span class="btn-icon">👁️</span>
+                  <span class="btn-text">Hide</span>
+                </button>
+                <button type="button" class="api-action-btn danger" onclick="handleRegenerateKey()" title="Revoke and generate new key">
+                  <span class="btn-icon">🔄</span>
+                  <span class="btn-text">Regenerate</span>
+                </button>
+              </div>
             </div>
 
-            <div id="apiKeyLockNotice" style="font-size: 12.5px; color: #fbbf24; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 10px 14px;">
+            <div id="apiKeyLockNotice" style="font-size: 12.5px; color: #fbbf24; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 12px 14px; margin-top: 14px;">
               ⚠️ <strong>Action Required:</strong> Enter your website URL below to activate this API Key. Until locked, any payment creation request will be rejected automatically.
             </div>
 
@@ -421,7 +457,7 @@
 
                 <div id="websiteLockFeedback" style="display: none; font-size: 13.5px; margin-bottom: 16px;"></div>
 
-                <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #0284c7, #0369a1); border: none;">
+                <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #0284c7, #0369a1); border: none; width: 100%; min-height: 46px; justify-content: center;">
                   <span>🔒 Permanently Lock Website Domain</span>
                   <span>➔</span>
                 </button>
@@ -457,16 +493,16 @@
               Test order creation with your API key. If your website is unlocked, it will demonstrate that payment creation is blocked. Once locked, it will create real test orders!
             </p>
 
-            <form onsubmit="handleTestApiCall(event)" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: flex-end;">
+            <form onsubmit="handleTestApiCall(event)" class="api-sim-form">
               <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label">Test Amount (₹)</label>
-                <input type="number" id="testApiAmount" class="form-input" value="10.00" min="1" step="0.01" required>
+                <input type="number" id="simApiAmount" class="form-input" value="10.00" min="1" step="0.01" required>
               </div>
               <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label">Customer Name</label>
-                <input type="text" id="testApiCustomer" class="form-input" value="Demo Customer" required>
+                <input type="text" id="simApiCustomer" class="form-input" value="Demo Customer" required>
               </div>
-              <button type="submit" class="btn-primary" style="height: 46px; white-space: nowrap;">
+              <button type="submit" class="btn-primary" style="height: 46px; white-space: nowrap; justify-content: center;">
                 <span>⚡ Test API Request</span>
               </button>
             </form>
@@ -927,7 +963,7 @@ echo "Order: " . $data['order']['orderCode'] . " | Amount: " . $data['order']['a
               <div style="font-size: 13px; font-weight: 800; color: #38bdf8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
                 Step 1: Your Direct Collection UPI ID &amp; Store Name
               </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px;">
+              <div class="grid-2col-responsive" style="margin-bottom: 14px;">
                 <div class="form-group" style="margin-bottom: 0;">
                   <label class="form-label">
                     <span>1. Your Merchant UPI ID (VPA)</span>
@@ -1027,7 +1063,7 @@ echo "Order: " . $data['order']['orderCode'] . " | Amount: " . $data['order']['a
                   </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="grid-2col-responsive" style="margin-bottom: 16px;">
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Bank Alert Email Address</label>
                     <input type="email" id="inputImapEmail" class="form-input" placeholder="e.g. yourbankemail@gmail.com" required>
@@ -1038,7 +1074,7 @@ echo "Order: " . $data['order']['orderCode'] . " | Amount: " . $data['order']['a
                   </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px;">
+                <div class="grid-host-port-responsive" style="margin-bottom: 20px;">
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">IMAP Server Host</label>
                     <input type="text" id="inputImapHost" class="form-input" value="imap.gmail.com" placeholder="imap.gmail.com">

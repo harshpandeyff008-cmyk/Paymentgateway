@@ -1783,7 +1783,6 @@ body {
     font-size: 12px;
     gap: 4px;
   }
-  }
 
   .topbar-quick-stats {
     width: 100%;
@@ -1850,6 +1849,179 @@ body {
 
   .intent-btn {
     width: 100% !important;
+  }
+}
+
+/* Responsive Grid Utilities */
+.grid-2col-responsive {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.grid-host-port-responsive {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.api-sim-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+/* API Key Card & Mobile Ergonomics */
+.api-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.api-card-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+}
+
+.api-card-subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+.api-key-display-box {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.api-key-string-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(13, 18, 29, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.api-key-prefix-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--accent-cyan);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.api-key-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #38bdf8;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  user-select: all;
+  letter-spacing: 0.3px;
+  line-height: 1.5;
+}
+
+.api-key-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.api-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  min-height: 42px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.api-action-btn.primary {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #fff;
+  border-color: rgba(56, 189, 248, 0.4);
+  flex: 1;
+}
+
+.api-action-btn.primary:hover {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
+}
+
+.api-action-btn.secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+  border-color: var(--border-subtle);
+  padding: 8px 14px;
+}
+
+.api-action-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.api-action-btn.danger {
+  background: rgba(244, 63, 94, 0.1);
+  color: #fb7185;
+  border-color: rgba(244, 63, 94, 0.25);
+  padding: 8px 14px;
+}
+
+.api-action-btn.danger:hover {
+  background: rgba(244, 63, 94, 0.2);
+}
+
+@media (max-width: 640px) {
+  .grid-2col-responsive,
+  .grid-host-port-responsive {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .api-sim-form {
+    grid-template-columns: 1fr !important;
+  }
+  .api-sim-form button {
+    width: 100% !important;
+  }
+  .api-key-btn-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+  .api-action-btn.primary {
+    grid-column: span 2;
+    min-height: 44px;
+    font-size: 14px;
+  }
+  .api-action-btn.secondary,
+  .api-action-btn.danger {
+    min-height: 42px;
+    width: 100%;
+  }
+  .gmail-card {
+    padding: 16px 14px !important;
   }
 }
 

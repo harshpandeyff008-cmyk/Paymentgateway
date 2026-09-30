@@ -317,14 +317,34 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
   }
 
   // Check if this UTR exists in unmatched payments
-  const payment = await query.get(
+  let payment = await query.get(
     'SELECT * FROM payments WHERE utr = ? AND is_matched = 0',
     [cleanUtr]
   );
 
+  // If not found in cache, trigger immediate on-demand check of merchant IMAP and Google alerts
+  if (!payment) {
+    try {
+      const { scanAndProcessMerchantEmails, scanAndProcessRecentEmails } = await import('./imapListener.js');
+      const { scanGoogleBankingAccounts } = await import('./gmailWatcher.service.js');
+      await Promise.allSettled([
+        scanAndProcessMerchantEmails(),
+        scanAndProcessRecentEmails(),
+        scanGoogleBankingAccounts()
+      ]);
+    } catch (_) {}
+
+    payment = await query.get(
+      'SELECT * FROM payments WHERE utr = ? AND is_matched = 0',
+      [cleanUtr]
+    );
+  }
+
   if (payment) {
-    // Validate amount matches
-    if (Math.abs(payment.amount - order.amount) > 0.01) {
+    // Validate amount matches either exact payable or base amount
+    const baseAmt = Number(order.base_amount) || Number(order.amount);
+    const matchesAmount = Math.abs(payment.amount - order.amount) <= 0.01 || Math.abs(payment.amount - baseAmt) <= 0.01;
+    if (!matchesAmount) {
       return {
         success: false,
         message: `Payment amount (₹${payment.amount}) does not match order amount (₹${order.amount})`

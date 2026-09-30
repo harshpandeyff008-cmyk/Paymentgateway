@@ -413,12 +413,31 @@ function renderDashboard() {
     }
   }
 
-  // 3. Urgent Website Lock Banner (Warning shown if plan is active but website not locked)
+  // 3. Urgent Banners (Website lock & Banking listener health)
   const urgentBanner = document.getElementById('urgentWebsiteBanner');
+  const urgentBankingBanner = document.getElementById('urgentBankingBanner');
+  const urgentBankingTitle = document.getElementById('urgentBankingTitle');
+  const urgentBankingDesc = document.getElementById('urgentBankingDesc');
   const sidebarApiBadge = document.getElementById('sidebarApiBadge');
+
   if (urgentBanner) {
     urgentBanner.style.display = (hasActivePlan && !isLocked) ? 'flex' : 'none';
   }
+
+  if (urgentBankingBanner) {
+    if (!currentUser.gmailConnected) {
+      urgentBankingBanner.style.display = 'flex';
+      if (urgentBankingTitle) urgentBankingTitle.innerText = '📡 Banking Listener Not Connected:';
+      if (urgentBankingDesc) urgentBankingDesc.innerText = 'Customer UPI payments will NOT verify automatically. Connect your 24/7 Gmail App Password to enable instant 1-second auto-verification.';
+    } else if (currentUser.gmailTokenExpired) {
+      urgentBankingBanner.style.display = 'flex';
+      if (urgentBankingTitle) urgentBankingTitle.innerText = '⚠️ Banking Listener Paused (Google Token Expired):';
+      if (urgentBankingDesc) urgentBankingDesc.innerText = 'Google 1-Click sessions expire every 60 minutes. Click Re-Authorize in Settlement Engine or connect your 24/7 Gmail App Password for permanent sync.';
+    } else {
+      urgentBankingBanner.style.display = 'none';
+    }
+  }
+
   if (sidebarApiBadge) {
     sidebarApiBadge.style.display = 'inline-block';
     if (!hasActivePlan) {
@@ -452,7 +471,16 @@ function renderDashboard() {
     }
   }
   if (dashEngine) {
-    dashEngine.innerText = currentUser.gmailConnected ? 'ACTIVE (1-SEC SYNC)' : 'READY (1-SEC)';
+    if (!currentUser.gmailConnected) {
+      dashEngine.innerText = 'NOT CONNECTED';
+      dashEngine.style.color = 'var(--accent-rose)';
+    } else if (currentUser.gmailTokenExpired) {
+      dashEngine.innerText = 'PAUSED (EXPIRED)';
+      dashEngine.style.color = 'var(--accent-rose)';
+    } else {
+      dashEngine.innerText = currentUser.settlementType === 'IMAP' ? 'ACTIVE (24/7 IMAP)' : 'ACTIVE (1-SEC SYNC)';
+      dashEngine.style.color = 'var(--accent-emerald)';
+    }
   }
 
   // 5. API Key & Website Lock View State
@@ -493,14 +521,14 @@ function renderDashboard() {
     if (websiteLockedBox) websiteLockedBox.style.display = 'block';
     if (lockedWebsitesContainer) {
       lockedWebsitesContainer.innerHTML = lockedWebsites.map((site, idx) => `
-        <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); padding: 12px 16px; border-radius: 8px; margin-bottom: 8px;">
-          <div>
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); padding: 12px 16px; border-radius: 8px; margin-bottom: 8px;">
+          <div style="min-width: 0; flex: 1;">
             <div style="font-size: 11px; color: var(--text-dim); font-weight: 700;">SLOT #${idx + 1} (PERMANENTLY LOCKED)</div>
-            <div style="color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 14.5px; font-weight: 700; margin-top: 2px;">
+            <div style="color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; margin-top: 3px; word-break: break-all; overflow-wrap: anywhere;">
               ${site.url || site.domain || site}
             </div>
           </div>
-          <span style="font-size: 12px; color: #34d399; font-weight: 700; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 10px; border-radius: 6px;">
+          <span style="font-size: 12px; color: #34d399; font-weight: 700; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 10px; border-radius: 6px; white-space: nowrap; align-self: flex-start;">
             🔒 LOCKED
           </span>
         </div>
@@ -1282,8 +1310,8 @@ async function handleTestApiCall(event) {
   event.preventDefault();
   if (!currentUser) return;
 
-  const amount = document.getElementById('testApiAmount').value;
-  const customerName = document.getElementById('testApiCustomer').value;
+  const amount = (document.getElementById('simApiAmount')?.value || document.getElementById('testApiAmount')?.value || '10.00');
+  const customerName = (document.getElementById('simApiCustomer')?.value || document.getElementById('testApiCustomer')?.value || 'Demo Customer');
   const resultBox = document.getElementById('testApiResult');
 
   if (resultBox) {
@@ -1778,6 +1806,41 @@ function copyToClipboard(text) {
     alert('Copied to clipboard: ' + text);
   }).catch(() => {
     prompt('Copy to clipboard:', text);
+  });
+}
+
+let isApiKeyVisible = true;
+function toggleApiKeyVisibility(btn) {
+  const displayApiKey = document.getElementById('displayApiKey');
+  if (!displayApiKey) return;
+  isApiKeyVisible = !isApiKeyVisible;
+  const rawKey = currentUser?.apiKey || 'pg_live_demo12345';
+  if (isApiKeyVisible) {
+    displayApiKey.innerText = rawKey;
+    if (btn) btn.innerHTML = '<span class="btn-icon">👁️</span><span class="btn-text">Hide</span>';
+  } else {
+    const masked = rawKey.length > 14 
+      ? rawKey.slice(0, 10) + '••••••••••••••••' + rawKey.slice(-4)
+      : '••••••••••••••••••••';
+    displayApiKey.innerText = masked;
+    if (btn) btn.innerHTML = '<span class="btn-icon">👁️‍🗨️</span><span class="btn-text">Show</span>';
+  }
+}
+
+function copyApiKeyWithFeedback(btn) {
+  const key = currentUser?.apiKey || '';
+  if (!key) {
+    alert('API Key not loaded yet. Please refresh the page.');
+    return;
+  }
+  navigator.clipboard.writeText(key).then(() => {
+    if (btn) {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<span class="btn-icon">✅</span><span class="btn-text">Copied!</span>';
+      setTimeout(() => { btn.innerHTML = orig; }, 2000);
+    }
+  }).catch(() => {
+    copyToClipboard(key);
   });
 }
 

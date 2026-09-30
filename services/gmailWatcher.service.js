@@ -57,9 +57,9 @@ export async function checkGoogleBankingAlerts(accessToken, targetEmail, isMerch
       }
     });
 
-    if (listRes.status === 401) {
-      console.warn(`[GmailWatcher] Access token expired or revoked for ${targetEmail}.`);
-      return { success: false, expired: true, error: 'Google session token expired. Please re-link in dashboard.' };
+    if (listRes.status === 401 || listRes.status === 403) {
+      console.warn(`[GmailWatcher] Access token invalid, expired, or unauthorized for ${targetEmail} (HTTP ${listRes.status}).`);
+      return { success: false, expired: true, error: 'Google session token expired or unauthorized. Please re-link or connect via 24/7 Gmail App Password.' };
     }
 
     if (!listRes.ok) {
@@ -165,10 +165,16 @@ export async function scanGoogleBankingAccounts() {
         if (scanRes && scanRes.expired) {
           try {
             await query.run('UPDATE users SET gmail_token_expired = 1 WHERE email = ?', [m.email]);
+            import('../src/services/cloudSync.service.js').then(({ CloudSyncService }) => {
+              CloudSyncService.saveUser({ email: m.email, gmail_token_expired: 1, gmail_connected: 1 });
+            }).catch(() => {});
           } catch (_) {}
         } else if (scanRes && scanRes.success) {
           try {
             await query.run('UPDATE users SET gmail_token_expired = 0 WHERE email = ?', [m.email]);
+            import('../src/services/cloudSync.service.js').then(({ CloudSyncService }) => {
+              CloudSyncService.saveUser({ email: m.email, gmail_token_expired: 0, gmail_connected: 1 });
+            }).catch(() => {});
           } catch (_) {}
         }
       }
