@@ -50,4 +50,4 @@ Allow: /
 User-agent: Applebot-Extended
 Allow: /
 
-Sitemap: https://dealsbyshiv.web.app/sitemap.xml
+Sitemap: https://www.freefireofficial.in/sitemap.xml
