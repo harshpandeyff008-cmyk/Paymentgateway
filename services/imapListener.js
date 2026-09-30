@@ -622,11 +622,15 @@ export async function startImapListener(io = null) {
     // Run immediate scan on startup
     scanAndProcessRecentEmails().catch(() => {});
     scanAndProcessMerchantEmails().catch(() => {});
+    let reconcileTick = 0;
     if (pollerInterval) clearInterval(pollerInterval);
     pollerInterval = setInterval(() => {
       scanAndProcessRecentEmails().catch(() => {});
       scanAndProcessMerchantEmails().catch(() => {});
-      reconcileUnmatchedPayments().catch(() => {});
+      reconcileTick++;
+      if (reconcileTick % 5 === 0) {
+        reconcileUnmatchedPayments().catch(() => {});
+      }
     }, 3000);
 
     client.on('exists', async (data) => {

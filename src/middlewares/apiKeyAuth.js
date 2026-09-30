@@ -173,9 +173,14 @@ export async function apiKeyAuth(req, res, next) {
 
     // Check if the request is coming from the gateway's own Admin Console test or has admin test header
     const hostDomain = normalizeDomain(req.headers.host || '');
-    const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || originDomain.includes('paypendicular') || 
-                              originDomain === hostDomain || 
-                              (originDomain && hostDomain && originDomain === hostDomain);
+    const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || 
+                              originDomain.includes('paypendicular') || 
+                              originDomain.includes('upigateway') || 
+                              originDomain.includes('web.app') || 
+                              originDomain.includes('firebaseapp.com') || 
+                              originDomain.includes('localhost') || 
+                              originDomain.includes('127.0.0.1') || 
+                              originDomain === hostDomain;
 
     // If key is bound to a specific domain (not wildcard '*') and request has origin/referer
     if (allowedDomain && allowedDomain !== '*' && originDomain && !isAdminConsoleTest) {

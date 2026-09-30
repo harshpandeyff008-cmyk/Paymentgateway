@@ -258,34 +258,35 @@ export async function processIncomingPayment({
         [utr, amount, sender, receivedTimestamp, source, rawSnippet]
       );
       paymentId = paymentResult.lastID;
-    }
 
-    await logActivity({
-      eventType: 'UNMATCHED_PAYMENT',
-      status: 'WARNING',
-      title: `Unmatched Payment: ₹${amount}`,
-      details: `Received ₹${amount} (UTR: ${utr}) from ${sender}. No matching order open.`
-    });
-
-    if (ioInstance) {
-      ioInstance.to('admin_room').emit('payment_event', {
-        type: 'UNMATCHED_PAYMENT',
-        payment: {
-          id: paymentId,
-          utr,
-          amount,
-          sender,
-          received_at: receivedTimestamp,
-          source
-        }
-      });
-      ioInstance.to('admin_room').emit('api_log', {
-        event_type: 'UNMATCHED_PAYMENT',
+      // Log activity and notify admin only ONCE when payment is first discovered
+      await logActivity({
+        eventType: 'UNMATCHED_PAYMENT',
         status: 'WARNING',
         title: `Unmatched Payment: ₹${amount}`,
-        details: `UTR: ${utr} (${sender})`,
-        created_at: Date.now()
+        details: `Received ₹${amount} (UTR: ${utr}) from ${sender}. No matching order open.`
       });
+
+      if (ioInstance) {
+        ioInstance.to('admin_room').emit('payment_event', {
+          type: 'UNMATCHED_PAYMENT',
+          payment: {
+            id: paymentId,
+            utr,
+            amount,
+            sender,
+            received_at: receivedTimestamp,
+            source
+          }
+        });
+        ioInstance.to('admin_room').emit('api_log', {
+          event_type: 'UNMATCHED_PAYMENT',
+          status: 'WARNING',
+          title: `Unmatched Payment: ₹${amount}`,
+          details: `UTR: ${utr} (${sender})`,
+          created_at: Date.now()
+        });
+      }
     }
 
     return {

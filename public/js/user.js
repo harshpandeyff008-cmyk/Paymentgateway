@@ -504,7 +504,11 @@ function renderDashboard() {
     if (websiteLockedBox) websiteLockedBox.style.display = 'none';
   }
 
-  // 6. Inject user's API Key into SDK snippets
+  // 6. Inject user's API Key and live API Base URL into SDK snippets
+  const liveApiUrl = API_BASE || window.location.origin;
+  document.querySelectorAll('.inject-api-url').forEach(el => {
+    el.innerText = liveApiUrl;
+  });
   document.querySelectorAll('.inject-api-key').forEach(el => {
     el.innerText = currentUser.apiKey || 'pg_live_your_key';
   });
@@ -2016,5 +2020,110 @@ function submitUserConsent() {
   const modal = document.getElementById('modalDpdpConsent');
   if (modal) modal.style.display = 'none';
 }
+
+// ==========================================
+// LIVE API INTERACTIVE SANDBOX TESTER
+// ==========================================
+window.runLiveApiTester = async function () {
+  const btn = document.getElementById('btnRunApiTest');
+  const spinner = document.getElementById('testApiSpinner');
+  const resultBox = document.getElementById('testApiResultBox');
+  const codeEl = document.getElementById('testResultOrderCode');
+  const linkEl = document.getElementById('testResultCheckoutLink');
+  const qrImg = document.getElementById('testResultQrImg');
+  const amtText = document.getElementById('testResultAmountText');
+  const jsonEl = document.getElementById('testResultJson');
+
+  if (!currentUser) {
+    alert('Please sign in first to test the API.');
+    return;
+  }
+
+  const apiKey = currentUser.apiKey;
+  if (!apiKey) {
+    alert('No API key found. Please make sure your account is initialized.');
+    return;
+  }
+
+  const amountInput = document.getElementById('testApiAmount');
+  const amount = parseFloat(amountInput?.value || '10');
+  if (isNaN(amount) || amount <= 0) {
+    alert('Please enter a valid amount greater than 0.');
+    return;
+  }
+
+  const customerName = document.getElementById('testApiCustomer')?.value || 'Rahul Verma';
+  const customerPhone = document.getElementById('testApiPhone')?.value || '';
+  const customNote = document.getElementById('testApiNote')?.value || '';
+
+  if (btn) btn.disabled = true;
+  if (spinner) spinner.style.display = 'inline-block';
+
+  try {
+    const targetUrl = (API_BASE || '') + '/api/v1/orders';
+    const res = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey
+      },
+      body: JSON.stringify({
+        amount,
+        customerName,
+        customerPhone,
+        customNote
+      })
+    });
+
+    const data = await res.json();
+
+    if (spinner) spinner.style.display = 'none';
+    if (btn) btn.disabled = false;
+
+    if (res.ok && data.success && data.order) {
+      const order = data.order;
+      if (resultBox) resultBox.style.display = 'block';
+      if (codeEl) codeEl.innerText = order.orderCode;
+      
+      const checkoutUrl = order.fullCheckoutUrl || order.checkoutUrl || `/checkout/${order.orderCode}`;
+      if (linkEl) {
+        linkEl.href = checkoutUrl;
+        linkEl.innerText = 'Open Customer Checkout Page (' + order.orderCode + ') ➔';
+      }
+
+      if (qrImg) {
+        qrImg.src = order.qrDataUrl || order.qrImage || `${API_BASE || ''}/api/v1/orders/qr?data=${encodeURIComponent(order.upiUri)}`;
+      }
+
+      if (amtText) {
+        amtText.innerText = '₹' + parseFloat(order.amount).toFixed(2);
+      }
+
+      if (jsonEl) {
+        jsonEl.style.color = '#34d399';
+        jsonEl.innerText = JSON.stringify(data, null, 2);
+      }
+
+      // Also reload user orders if payments/dashboard view is opened
+      if (typeof loadUserOrders === 'function') {
+        loadUserOrders();
+      }
+
+      resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      if (resultBox) resultBox.style.display = 'block';
+      if (jsonEl) {
+        jsonEl.style.color = '#f43f5e';
+        jsonEl.innerText = JSON.stringify(data, null, 2);
+      }
+      alert('API Request returned: ' + (data.error || res.statusText || 'Unknown error'));
+    }
+  } catch (err) {
+    if (spinner) spinner.style.display = 'none';
+    if (btn) btn.disabled = false;
+    alert('Failed to connect to API Gateway: ' + err.message);
+  }
+};
+
 
 
