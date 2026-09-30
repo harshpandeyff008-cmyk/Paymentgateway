@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, User, LogOut, X, Mail, CreditCard, Crown, KeyRound, Key, Store, Boxes, ShieldAlert, Send, FileText, ShieldBan, Users, QrCode } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, X, Mail, CreditCard, Crown, KeyRound, Key, Store, Boxes, ShieldAlert, Send, FileText, ShieldBan, Users, QrCode, Activity } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { logoutUser } from '../firebase/auth';
 import { useToast } from '../context/ToastContext';
@@ -24,6 +24,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
   const adminLinks = [
     { to: '/admin-dashboard', label: 'Admin Panel', icon: LayoutDashboard },
+    { to: '/admin/analytics', label: 'Website Analytics', icon: Activity },
     { to: '/admin/upi-gateway', label: 'UPI Gateway & Audit', icon: QrCode },
     { to: '/admin/users', label: 'Users Directory', icon: Users },
     { to: '/admin/premium-dashboard', label: 'Premium Dashboard', icon: Crown },

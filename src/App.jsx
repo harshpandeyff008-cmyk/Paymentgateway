@@ -32,8 +32,10 @@ import SuspiciousLogs from './pages/SuspiciousLogs';
 import UserDashboard from './pages/UserDashboard';
 import AdminUsers from './pages/AdminUsers';
 import UpiGatewayManager from './pages/UpiGatewayManager';
+import WebsiteAnalytics from './pages/WebsiteAnalytics';
 import GarenaSplashLoader from './components/GarenaSplashLoader';
 import CookieConsentBanner from './components/CookieConsentBanner';
+import AnalyticsTracker from './components/AnalyticsTracker';
 import { AdminGuard, ClientGuard, AuthGuard, StoreStaffGuard } from './components/RouteGuard';
 import { subscribeToMaintenanceMode } from './firebase/firestore';
 import { Wrench } from 'lucide-react';
@@ -176,6 +178,7 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <BrowserRouter>
+            <AnalyticsTracker />
             <MaintenanceWrapper>
               <Routes>
                 {/* Domain-Aware Root Route */}
@@ -203,6 +206,22 @@ function App() {
                   element={
                     <AdminGuard>
                       <AdminDashboard />
+                    </AdminGuard>
+                  } 
+                />
+                <Route 
+                  path="/admin/analytics" 
+                  element={
+                    <AdminGuard>
+                      <WebsiteAnalytics />
+                    </AdminGuard>
+                  } 
+                />
+                <Route 
+                  path="/admin/website-analytics" 
+                  element={
+                    <AdminGuard>
+                      <WebsiteAnalytics />
                     </AdminGuard>
                   } 
                 />

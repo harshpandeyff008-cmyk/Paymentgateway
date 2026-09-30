@@ -10,7 +10,10 @@ import {
   orderBy, 
   onSnapshot,
   serverTimestamp,
-  addDoc
+  addDoc,
+  limit,
+  where,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -1466,3 +1469,410 @@ export const requestDataDeletion = async (uid, userEmail, userName, reason = '')
 
   return docRef.id;
 };
+
+// ==========================================
+// WEBSITE ANALYTICS & VISITOR TELEMETRY API
+// ==========================================
+
+/**
+ * Record a pageview in Firestore with daily rollup aggregation.
+ */
+export const recordPageViewInFirestore = async (pageData) => {
+  try {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const hour = now.getHours();
+
+    // 1. Add record into analytics_pageviews
+    const pageviewsCol = collection(db, 'analytics_pageviews');
+    await addDoc(pageviewsCol, {
+      ...pageData,
+      createdAt: serverTimestamp(),
+      dateStr: todayStr,
+      hour
+    });
+
+    // 2. Update/create daily summary rollup in analytics_daily_summary
+    const summaryRef = doc(db, 'analytics_daily_summary', todayStr);
+    const summarySnap = await getDoc(summaryRef);
+    
+    const pathKey = (pageData.path || '/').replace(/[./#$[\]]/g, '_');
+    const deviceKey = pageData.device || 'Desktop';
+    const browserKey = pageData.browser || 'Other';
+    const osKey = pageData.os || 'Other';
+    const referrerKey = (pageData.referrer || 'Direct').replace(/[./#$[\]]/g, '_');
+
+    if (summarySnap.exists()) {
+      const data = summarySnap.data();
+      const currentHourly = data.hourlyViews || new Array(24).fill(0);
+      currentHourly[hour] = (currentHourly[hour] || 0) + 1;
+
+      const pageMap = data.pageBreakdown || {};
+      pageMap[pathKey] = (pageMap[pathKey] || 0) + 1;
+
+      const deviceMap = data.deviceBreakdown || {};
+      deviceMap[deviceKey] = (deviceMap[deviceKey] || 0) + 1;
+
+      const browserMap = data.browserBreakdown || {};
+      browserMap[browserKey] = (browserMap[browserKey] || 0) + 1;
+
+      const osMap = data.osBreakdown || {};
+      osMap[osKey] = (osMap[osKey] || 0) + 1;
+
+      const refMap = data.referrerBreakdown || {};
+      refMap[referrerKey] = (refMap[referrerKey] || 0) + 1;
+
+      const uniqueVisitors = new Set(data.uniqueVisitorsList || []);
+      if (pageData.visitorId) uniqueVisitors.add(pageData.visitorId);
+
+      await updateDoc(summaryRef, {
+        totalViews: (data.totalViews || 0) + 1,
+        uniqueCount: uniqueVisitors.size,
+        uniqueVisitorsList: Array.from(uniqueVisitors).slice(-2000),
+        hourlyViews: currentHourly,
+        pageBreakdown: pageMap,
+        deviceBreakdown: deviceMap,
+        browserBreakdown: browserMap,
+        osBreakdown: osMap,
+        referrerBreakdown: refMap,
+        lastUpdated: serverTimestamp()
+      });
+    } else {
+      const initialHourly = new Array(24).fill(0);
+      initialHourly[hour] = 1;
+
+      await setDoc(summaryRef, {
+        date: todayStr,
+        totalViews: 1,
+        uniqueCount: 1,
+        uniqueVisitorsList: pageData.visitorId ? [pageData.visitorId] : [],
+        hourlyViews: initialHourly,
+        pageBreakdown: { [pathKey]: 1 },
+        deviceBreakdown: { [deviceKey]: 1 },
+        browserBreakdown: { [browserKey]: 1 },
+        osBreakdown: { [osKey]: 1 },
+        referrerBreakdown: { [referrerKey]: 1 },
+        lastUpdated: serverTimestamp()
+      });
+    }
+  } catch (err) {
+    console.warn("Firestore recordPageView error:", err?.message);
+  }
+};
+
+/**
+ * Record a custom conversion or interaction event.
+ */
+export const recordEventInFirestore = async (eventData) => {
+  try {
+    const eventsCol = collection(db, 'analytics_events');
+    await addDoc(eventsCol, {
+      ...eventData,
+      createdAt: serverTimestamp()
+    });
+  } catch (err) {
+    console.warn("Firestore recordEvent error:", err?.message);
+  }
+};
+
+/**
+ * Record a live visitor heartbeat in analytics_live_sessions.
+ */
+export const recordLiveHeartbeatInFirestore = async (sessionData) => {
+  try {
+    if (!sessionData.sessionId) return;
+    const sessionRef = doc(db, 'analytics_live_sessions', sessionData.sessionId);
+    await setDoc(sessionRef, {
+      ...sessionData,
+      lastPing: Date.now(),
+      lastUpdated: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.warn("Firestore live heartbeat error:", err?.message);
+  }
+};
+
+/**
+ * Real-time listener for currently active live visitors.
+ */
+export const subscribeToLiveVisitors = (callback) => {
+  const sessionsCol = collection(db, 'analytics_live_sessions');
+  return onSnapshot(sessionsCol, (snapshot) => {
+    const activeCutoff = Date.now() - 3 * 60 * 1000; // Active within last 3 minutes
+    const liveList = [];
+    snapshot.forEach((d) => {
+      const data = d.data();
+      if (data.lastPing && data.lastPing >= activeCutoff) {
+        liveList.push({ id: d.id, ...data });
+      }
+    });
+    callback(liveList);
+  }, (err) => {
+    console.warn("Live visitors subscription error:", err?.message);
+    callback([]);
+  });
+};
+
+/**
+ * Fetch and aggregate comprehensive website analytics for specified timeframe.
+ */
+export const getWebsiteAnalyticsData = async (timeRange = '30d') => {
+  try {
+    // 1. Fetch recent raw pageviews (up to 150 records for live feed & recent inspection)
+    const pageviewsCol = collection(db, 'analytics_pageviews');
+    const recentPvQuery = query(pageviewsCol, orderBy('createdAt', 'desc'), limit(150));
+    
+    let rawPageviews = [];
+    try {
+      const pvSnap = await getDocs(recentPvQuery);
+      pvSnap.forEach(d => {
+        rawPageviews.push({ id: d.id, ...d.data() });
+      });
+    } catch (e) {
+      console.warn("Error fetching recent pageviews:", e?.message);
+    }
+
+    // 2. Fetch daily summaries
+    const summariesCol = collection(db, 'analytics_daily_summary');
+    const summarySnap = await getDocs(summariesCol);
+    const dailySummaries = [];
+    summarySnap.forEach(d => {
+      dailySummaries.push({ id: d.id, ...d.data() });
+    });
+
+    // 3. Fetch custom events
+    const eventsCol = collection(db, 'analytics_events');
+    const eventsQuery = query(eventsCol, orderBy('createdAt', 'desc'), limit(100));
+    const rawEvents = [];
+    try {
+      const eventsSnap = await getDocs(eventsQuery);
+      eventsSnap.forEach(d => {
+        rawEvents.push({ id: d.id, ...d.data() });
+      });
+    } catch (e) {
+      console.warn("Error fetching analytics events:", e?.message);
+    }
+
+    // If no data exists yet, return empty structure or trigger baseline seed
+    return {
+      rawPageviews,
+      dailySummaries,
+      rawEvents
+    };
+  } catch (err) {
+    console.error("Failed to load website analytics data:", err);
+    return { rawPageviews: [], dailySummaries: [], rawEvents: [] };
+  }
+};
+
+/**
+ * Seed high-fidelity, realistic baseline historical website analytics data.
+ * Useful for establishing rich analytics charts immediately.
+ */
+export const seedSampleAnalyticsData = async () => {
+  const batch = writeBatch(db);
+  const now = new Date();
+  
+  const pages = [
+    { path: '/store', title: 'FF Store & Marketplace', weight: 0.42 },
+    { path: '/', title: 'Home Storefront', weight: 0.22 },
+    { path: '/ff-store-upload', title: 'Upload FF Account', weight: 0.12 },
+    { path: '/pricing', title: 'License & Pricing Plans', weight: 0.08 },
+    { path: '/login', title: 'Login & Staff Portal', weight: 0.06 },
+    { path: '/terms-and-conditions', title: 'Terms & Conditions', weight: 0.04 },
+    { path: '/privacy-policy', title: 'DPDP Privacy Policy', weight: 0.03 },
+    { path: '/contact-us', title: 'Contact Support Team', weight: 0.03 }
+  ];
+
+  const referrers = [
+    { name: 'Direct', weight: 0.35 },
+    { name: 'Telegram', weight: 0.30 },
+    { name: 'Google Search', weight: 0.15 },
+    { name: 'YouTube', weight: 0.10 },
+    { name: 'Instagram', weight: 0.06 },
+    { name: 'WhatsApp', weight: 0.04 }
+  ];
+
+  const devices = [
+    { name: 'Mobile', weight: 0.68 },
+    { name: 'Desktop', weight: 0.28 },
+    { name: 'Tablet', weight: 0.04 }
+  ];
+
+  const browsers = [
+    { name: 'Chrome', weight: 0.62 },
+    { name: 'Safari', weight: 0.18 },
+    { name: 'Edge', weight: 0.08 },
+    { name: 'Firefox', weight: 0.05 },
+    { name: 'Samsung Internet', weight: 0.05 },
+    { name: 'Opera', weight: 0.02 }
+  ];
+
+  const oss = [
+    { name: 'Android', weight: 0.60 },
+    { name: 'Windows', weight: 0.24 },
+    { name: 'iOS', weight: 0.12 },
+    { name: 'macOS', weight: 0.03 },
+    { name: 'Linux', weight: 0.01 }
+  ];
+
+  const states = [
+    'Maharashtra', 'Uttar Pradesh', 'Delhi', 'West Bengal', 'Bihar', 
+    'Gujarat', 'Rajasthan', 'Karnataka', 'Madhya Pradesh', 'Tamil Nadu'
+  ];
+
+  // Helper to pick weighted item
+  const pickWeighted = (items) => {
+    let r = Math.random();
+    let sum = 0;
+    for (const item of items) {
+      sum += item.weight;
+      if (r <= sum) return item.name || item.path;
+    }
+    return items[0].name || items[0].path;
+  };
+
+  // Generate for past 30 days
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dateStr = d.toISOString().split('T')[0];
+    
+    // Daily views range from 120 to 380 with upward growth trend
+    const baseViews = 140 + Math.floor((30 - i) * 5.5) + Math.floor(Math.random() * 80);
+    const uniqueCount = Math.floor(baseViews * (0.65 + Math.random() * 0.15));
+
+    const hourlyViews = new Array(24).fill(0);
+    for (let h = 0; h < 24; h++) {
+      // Natural traffic curve (peak in evening 14:00 - 23:00)
+      const hourMultiplier = (h >= 14 && h <= 23) ? 1.8 : (h >= 8 && h < 14) ? 1.0 : 0.3;
+      hourlyViews[h] = Math.max(1, Math.floor((baseViews / 24) * hourMultiplier * (0.8 + Math.random() * 0.4)));
+    }
+
+    const pageBreakdown = {};
+    pages.forEach(p => {
+      const key = p.path.replace(/[./#$[\]]/g, '_');
+      pageBreakdown[key] = Math.floor(baseViews * p.weight * (0.9 + Math.random() * 0.2));
+    });
+
+    const deviceBreakdown = {};
+    devices.forEach(dev => {
+      deviceBreakdown[dev.name] = Math.floor(baseViews * dev.weight);
+    });
+
+    const browserBreakdown = {};
+    browsers.forEach(b => {
+      browserBreakdown[b.name] = Math.floor(baseViews * b.weight);
+    });
+
+    const osBreakdown = {};
+    oss.forEach(o => {
+      osBreakdown[o.name] = Math.floor(baseViews * o.weight);
+    });
+
+    const referrerBreakdown = {};
+    referrers.forEach(r => {
+      const key = r.name.replace(/[./#$[\]]/g, '_');
+      referrerBreakdown[key] = Math.floor(baseViews * r.weight);
+    });
+
+    const summaryRef = doc(db, 'analytics_daily_summary', dateStr);
+    batch.set(summaryRef, {
+      date: dateStr,
+      totalViews: baseViews,
+      uniqueCount,
+      hourlyViews,
+      pageBreakdown,
+      deviceBreakdown,
+      browserBreakdown,
+      osBreakdown,
+      referrerBreakdown,
+      lastUpdated: serverTimestamp()
+    });
+  }
+
+  // Generate 25 recent live feed pageviews
+  for (let j = 0; j < 25; j++) {
+    const pvRef = doc(collection(db, 'analytics_pageviews'));
+    const pageObj = pages[Math.floor(Math.random() * pages.length)];
+    const chosenDevice = pickWeighted(devices);
+    const chosenBrowser = pickWeighted(browsers);
+    const chosenOS = pickWeighted(oss);
+    const chosenRef = pickWeighted(referrers);
+    const chosenState = states[Math.floor(Math.random() * states.length)];
+    const pvTime = new Date(now.getTime() - j * (3 + Math.floor(Math.random() * 7)) * 60 * 1000);
+
+    batch.set(pvRef, {
+      path: pageObj.path,
+      title: pageObj.title,
+      visitorId: 'vid_sim_' + Math.random().toString(36).substring(2, 9),
+      sessionId: 'sid_sim_' + Math.random().toString(36).substring(2, 9),
+      device: chosenDevice,
+      browser: chosenBrowser,
+      os: chosenOS,
+      referrer: chosenRef,
+      country: 'India',
+      region: chosenState,
+      screen: chosenDevice === 'Mobile' ? '390x844' : '1920x1080',
+      language: 'en-US',
+      timezone: 'Asia/Kolkata',
+      createdAt: pvTime,
+      timestamp: pvTime.toISOString()
+    });
+  }
+
+  // Generate 4 active live sessions
+  for (let k = 0; k < 4; k++) {
+    const liveRef = doc(db, 'analytics_live_sessions', `live_session_${k + 1}`);
+    const pageObj = pages[k % pages.length];
+    batch.set(liveRef, {
+      visitorId: `vid_active_${k + 1}`,
+      sessionId: `live_session_${k + 1}`,
+      currentPath: pageObj.path,
+      device: k % 2 === 0 ? 'Mobile' : 'Desktop',
+      browser: k % 2 === 0 ? 'Chrome' : 'Safari',
+      os: k % 2 === 0 ? 'Android' : 'Windows',
+      country: 'India',
+      region: states[k % states.length],
+      lastPing: Date.now() - k * 30000,
+      lastUpdated: serverTimestamp()
+    });
+  }
+
+  await batch.commit();
+};
+
+/**
+ * Super Admin tool to clear / purge all analytics collections.
+ */
+export const clearWebsiteAnalyticsData = async (adminInfo) => {
+  // Purge daily summaries
+  const dailySnap = await getDocs(collection(db, 'analytics_daily_summary'));
+  const batch1 = writeBatch(db);
+  dailySnap.forEach(d => batch1.delete(d.ref));
+  await batch1.commit();
+
+  // Purge raw pageviews
+  const pvSnap = await getDocs(collection(db, 'analytics_pageviews'));
+  const batch2 = writeBatch(db);
+  pvSnap.forEach(d => batch2.delete(d.ref));
+  await batch2.commit();
+
+  // Purge live sessions
+  const liveSnap = await getDocs(collection(db, 'analytics_live_sessions'));
+  const batch3 = writeBatch(db);
+  liveSnap.forEach(d => batch3.delete(d.ref));
+  await batch3.commit();
+
+  // Log in audit logs
+  await addAuditLog({
+    adminUid: adminInfo.uid,
+    adminEmail: adminInfo.email,
+    action: 'PURGE_ANALYTICS_DATA',
+    targetUid: 'system',
+    targetName: 'Website Analytics Database',
+    changes: {
+      recordsPurged: { old: 'populated', new: 'cleared' }
+    }
+  });
+};
+

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 import StatCard from '../components/StatCard';
@@ -45,7 +46,8 @@ import {
   Headphones,
   Map,
   Shield,
-  Edit2
+  Edit2,
+  Activity
 } from 'lucide-react';
 
 const INDIAN_STATES = [
@@ -390,6 +392,14 @@ export default function AdminDashboard() {
                   </span>
                 )}
               </button>
+
+              <Link
+                to="/admin/analytics"
+                className="glass-card btn-tactile hover-lift flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl focus-ring"
+              >
+                <Activity className="w-4 h-4 text-emerald-500" />
+                <span>Website Analytics</span>
+              </Link>
 
               <button
                 onClick={() => setLogsModalOpen(true)}
