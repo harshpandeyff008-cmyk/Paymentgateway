@@ -202,37 +202,53 @@ async function onFirebaseUserAuthenticated(user) {
 
   // Direct Firebase Realtime Database Fallback if backend was slow or restarting
   try {
-    const encKey = encodeURIComponent(email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
-    const rtdbRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${encKey}.json`);
-    if (rtdbRes.ok) {
-      const cloudUser = await rtdbRes.json();
-      if (cloudUser) {
-        currentUser = {
-          email,
-          name: cloudUser.name || user.displayName || 'User',
-          photoUrl: cloudUser.photo_url || user.photoURL || '',
-          role: cloudUser.role || 'user',
-          plan: cloudUser.plan || 'NONE',
-          qrCredits: cloudUser.qr_credits !== undefined ? cloudUser.qr_credits : 0,
-          apiKey: cloudUser.api_key || (currentUser?.apiKey || ('pg_live_' + Math.random().toString(36).substring(2, 15))),
-          gmailConnected: !!cloudUser.gmail_connected,
-          gmailEmail: cloudUser.gmail_email || '',
-          websiteUrl: cloudUser.website_url || '',
-          isWebsiteLocked: !!cloudUser.is_website_locked,
-          hasActivePlan: cloudUser.plan && cloudUser.plan !== 'NONE',
-          upiVpa: cloudUser.upi_vpa || currentUser?.upiVpa || '',
-          businessName: cloudUser.business_name || currentUser?.businessName || '',
-          upiProvider: cloudUser.upi_provider || currentUser?.upiProvider || 'AUTO',
-          settlementType: cloudUser.settlement_type || currentUser?.settlementType || 'GOOGLE_OAUTH',
-          imapHost: cloudUser.imap_host || currentUser?.imapHost || 'imap.gmail.com',
-          imapPort: Number(cloudUser.imap_port) || currentUser?.imapPort || 993
-        };
-        sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
-        localStorage.setItem('gateway_user', JSON.stringify(currentUser));
-        hideLoginOverlay();
-        renderDashboard();
-        return;
-      }
+    const dotKey = String(email).trim().toLowerCase().replace(/\./g, '_dot_').replace(/[#$\[\]]/g, '_');
+    const legacyKey = encodeURIComponent(email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+    let cloudUser = null;
+
+    try {
+      const rtdbRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${dotKey}.json`);
+      if (rtdbRes.ok) cloudUser = await rtdbRes.json();
+    } catch (_) {}
+
+    if (!cloudUser && legacyKey !== dotKey) {
+      try {
+        const legRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${legacyKey}.json`);
+        if (legRes.ok) cloudUser = await legRes.json();
+      } catch (_) {}
+    }
+
+    if (cloudUser) {
+      currentUser = {
+        email,
+        name: cloudUser.name || user.displayName || 'User',
+        photoUrl: cloudUser.photo_url || user.photoURL || '',
+        role: cloudUser.role || 'user',
+        plan: cloudUser.plan || 'NONE',
+        qrCredits: cloudUser.qr_credits !== undefined ? cloudUser.qr_credits : 0,
+        apiKey: cloudUser.api_key || (currentUser?.apiKey || ('pg_live_' + Math.random().toString(36).substring(2, 15))),
+        gmailConnected: !!cloudUser.gmail_connected,
+        gmailEmail: cloudUser.gmail_email || '',
+        websiteUrl: cloudUser.website_url || '',
+        isWebsiteLocked: !!cloudUser.is_website_locked,
+        hasActivePlan: cloudUser.plan && cloudUser.plan !== 'NONE',
+        upiVpa: cloudUser.upi_vpa || currentUser?.upiVpa || '',
+        businessName: cloudUser.business_name || currentUser?.businessName || '',
+        upiProvider: cloudUser.upi_provider || currentUser?.upiProvider || 'AUTO',
+        settlementType: cloudUser.settlement_type || currentUser?.settlementType || 'GOOGLE_OAUTH',
+        imapHost: cloudUser.imap_host || currentUser?.imapHost || 'imap.gmail.com',
+        imapPort: Number(cloudUser.imap_port) || currentUser?.imapPort || 993,
+        defaultBrandName: cloudUser.default_brand_name || '',
+        defaultBrandLogoUrl: cloudUser.default_brand_logo_url || '',
+        defaultTheme: cloudUser.default_theme || 'tiranga',
+        defaultRedirectUrl: cloudUser.default_redirect_url || '',
+        defaultCustomNote: cloudUser.default_custom_note || ''
+      };
+      sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      hideLoginOverlay();
+      renderDashboard();
+      return;
     }
   } catch (cloudErr) {
     console.warn('Firebase RTDB fallback check error:', cloudErr);
@@ -318,9 +334,11 @@ function switchSidebarView(viewId) {
     titleEl.innerText = titles[viewId] || 'Merchant Portal';
   }
 
-  // If mobile, close sidebar
+  // If mobile, close sidebar & backdrop
   const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
   if (sidebar) sidebar.classList.remove('mobile-open');
+  if (backdrop) backdrop.classList.remove('active');
 
   // Trigger loads
   if (viewId === 'payments' || viewId === 'dashboard') {
@@ -332,7 +350,14 @@ function switchSidebarView(viewId) {
 
 function toggleMobileSidebar() {
   const sidebar = document.getElementById('sidebar');
-  if (sidebar) sidebar.classList.toggle('mobile-open');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (sidebar) {
+    const isOpen = sidebar.classList.toggle('mobile-open');
+    if (backdrop) {
+      if (isOpen) backdrop.classList.add('active');
+      else backdrop.classList.remove('active');
+    }
+  }
 }
 
 // Render Dashboard based on current user state
@@ -548,16 +573,32 @@ function renderDashboard() {
   const googleLinkStatusBadge = document.getElementById('googleLinkStatusBadge');
   const googleLinkedEmailText = document.getElementById('googleLinkedEmailText');
 
+  const googleTokenExpiredAlert = document.getElementById('googleTokenExpiredAlert');
+  const imapEmailInput = document.getElementById('inputImapEmail');
+  if (imapEmailInput && !imapEmailInput.value && currentUser.gmailEmail) {
+    imapEmailInput.value = currentUser.gmailEmail;
+  }
+
   if (currentUser.gmailConnected) {
     if (googleConnectedCard) googleConnectedCard.style.display = 'block';
     if (googleConnectActionBox) googleConnectActionBox.style.display = 'none';
     if (googleLinkedEmailText) googleLinkedEmailText.innerText = currentUser.gmailEmail || currentUser.email;
-    if (googleLinkStatusBadge) {
-      googleLinkStatusBadge.innerHTML = `<span style="color: #34d399;">🟢 Active (${currentUser.settlementType === 'IMAP' ? 'IMAP' : 'Google Link'})</span>`;
+
+    if (currentUser.gmailTokenExpired) {
+      if (googleTokenExpiredAlert) googleTokenExpiredAlert.style.display = 'block';
+      if (googleLinkStatusBadge) {
+        googleLinkStatusBadge.innerHTML = `<span style="color: #fb7185; font-weight: 800;">⚠️ Token Expired (Click Re-Authorize)</span>`;
+      }
+    } else {
+      if (googleTokenExpiredAlert) googleTokenExpiredAlert.style.display = 'none';
+      if (googleLinkStatusBadge) {
+        googleLinkStatusBadge.innerHTML = `<span style="color: #34d399;">🟢 Active (${currentUser.settlementType === 'IMAP' ? 'IMAP 24/7' : 'Google Link'})</span>`;
+      }
     }
   } else {
     if (googleConnectedCard) googleConnectedCard.style.display = 'none';
     if (googleConnectActionBox) googleConnectActionBox.style.display = 'block';
+    if (googleTokenExpiredAlert) googleTokenExpiredAlert.style.display = 'none';
     if (googleLinkStatusBadge) {
       googleLinkStatusBadge.innerHTML = `<span style="color: #94a3b8;">⚪ Not Linked</span>`;
     }
@@ -1197,6 +1238,24 @@ async function handleBindWebsite(event) {
       currentUser.remainingWebsiteSlots = data.user.remainingWebsiteSlots;
 
       sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+
+      // Direct Firebase RTDB sync for absolute permanent memory
+      try {
+        const dotKey = String(currentUser.email).trim().toLowerCase().replace(/\./g, '_dot_').replace(/[#$\[\]]/g, '_');
+        fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${dotKey}.json`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            website_url: currentUser.websiteUrl,
+            website_urls: JSON.stringify(currentUser.lockedWebsites || [{ url: currentUser.websiteUrl }]),
+            is_website_locked: 1,
+            website_locked_at: Date.now(),
+            updated_at: Date.now()
+          })
+        }).catch(() => {});
+      } catch (_) {}
+
       renderDashboard();
 
       if (feedback) {
@@ -1491,21 +1550,31 @@ async function linkGoogleBankingGmail() {
 
       // Direct Firebase RTDB sync for absolute permanent memory across backend restarts
       try {
-        const encKey = encodeURIComponent(currentUser.email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
-        fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${encKey}.json`, {
+        const dotKey = String(currentUser.email).trim().toLowerCase().replace(/\./g, '_dot_').replace(/[#$\[\]]/g, '_');
+        const legacyKey = encodeURIComponent(currentUser.email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+        const payload = JSON.stringify({
+          email: currentUser.email.toLowerCase().trim(),
+          upi_vpa: currentUser.upiVpa,
+          business_name: currentUser.businessName,
+          upi_provider: currentUser.upiProvider,
+          gmail_connected: 1,
+          gmail_email: currentUser.gmailEmail,
+          gmail_access_token: accessToken,
+          settlement_type: 'GOOGLE_OAUTH',
+          updated_at: Date.now()
+        });
+        fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${dotKey}.json`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            upi_vpa: currentUser.upiVpa,
-            business_name: currentUser.businessName,
-            upi_provider: currentUser.upiProvider,
-            gmail_connected: 1,
-            gmail_email: currentUser.gmailEmail,
-            gmail_access_token: accessToken,
-            settlement_type: 'GOOGLE_OAUTH',
-            updated_at: Date.now()
-          })
+          body: payload
         }).catch(() => {});
+        if (legacyKey !== dotKey) {
+          fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${legacyKey}.json`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload
+          }).catch(() => {});
+        }
       } catch (_) {}
 
       renderDashboard();
@@ -1585,24 +1654,34 @@ async function saveImapSettlementConfig(event) {
 
       // Direct Firebase RTDB sync for absolute permanent memory across backend restarts
       try {
-        const encKey = encodeURIComponent(currentUser.email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
-        fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${encKey}.json`, {
+        const dotKey = String(currentUser.email).trim().toLowerCase().replace(/\./g, '_dot_').replace(/[#$\[\]]/g, '_');
+        const legacyKey = encodeURIComponent(currentUser.email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+        const payload = JSON.stringify({
+          email: currentUser.email.toLowerCase().trim(),
+          upi_vpa: currentUser.upiVpa,
+          business_name: currentUser.businessName,
+          upi_provider: currentUser.upiProvider,
+          gmail_connected: 1,
+          gmail_email: currentUser.gmailEmail,
+          gmail_app_pass: passInput,
+          settlement_type: 'IMAP',
+          imap_host: hostInput,
+          imap_port: Number(portInput) || 993,
+          imap_secure: 1,
+          updated_at: Date.now()
+        });
+        fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${dotKey}.json`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            upi_vpa: currentUser.upiVpa,
-            business_name: currentUser.businessName,
-            upi_provider: currentUser.upiProvider,
-            gmail_connected: 1,
-            gmail_email: currentUser.gmailEmail,
-            gmail_app_pass: passInput,
-            settlement_type: 'IMAP',
-            imap_host: hostInput,
-            imap_port: Number(portInput) || 993,
-            imap_secure: 1,
-            updated_at: Date.now()
-          })
+          body: payload
         }).catch(() => {});
+        if (legacyKey !== dotKey) {
+          fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${legacyKey}.json`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload
+          }).catch(() => {});
+        }
       } catch (_) {}
 
       renderDashboard();

@@ -161,7 +161,16 @@ export async function scanGoogleBankingAccounts() {
     if (merchants && merchants.length > 0) {
       for (const m of merchants) {
         if (!m.gmail_access_token) continue;
-        await checkGoogleBankingAlerts(m.gmail_access_token, m.email, true);
+        const scanRes = await checkGoogleBankingAlerts(m.gmail_access_token, m.email, true);
+        if (scanRes && scanRes.expired) {
+          try {
+            await query.run('UPDATE users SET gmail_token_expired = 1 WHERE email = ?', [m.email]);
+          } catch (_) {}
+        } else if (scanRes && scanRes.success) {
+          try {
+            await query.run('UPDATE users SET gmail_token_expired = 0 WHERE email = ?', [m.email]);
+          } catch (_) {}
+        }
       }
     }
   } catch (err) {

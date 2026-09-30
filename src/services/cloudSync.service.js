@@ -67,6 +67,25 @@ export const CloudSyncService = {
         ...(existingCloud || {}),
         ...user,
         email: user.email.toLowerCase().trim(),
+        // Plan & Credits protection
+        plan: (user.plan && user.plan !== 'NONE') ? user.plan : (existingCloud?.plan || user.plan || 'NONE'),
+        qr_credits: (user.qr_credits !== undefined && Number(user.qr_credits) > 0) ? Number(user.qr_credits) : (existingCloud?.qr_credits !== undefined ? Number(existingCloud.qr_credits) : (Number(user.qr_credits) || 0)),
+        api_key: user.api_key || existingCloud?.api_key || '',
+
+        // Strict Website Lock & Domain bindings protection
+        website_url: (user.website_url !== undefined && user.website_url !== '') ? user.website_url : (existingCloud?.website_url || ''),
+        website_urls: (user.website_urls !== undefined && user.website_urls !== '') ? user.website_urls : (existingCloud?.website_urls || ''),
+        is_website_locked: (user.is_website_locked !== undefined && user.is_website_locked) ? 1 : (existingCloud?.is_website_locked ? 1 : 0),
+        website_locked_at: user.website_locked_at || existingCloud?.website_locked_at || null,
+        max_websites: Math.max(user.max_websites || 1, existingCloud?.max_websites || 1),
+
+        // Checkout branding & customization protection
+        default_brand_name: (user.default_brand_name !== undefined && user.default_brand_name !== '') ? user.default_brand_name : (existingCloud?.default_brand_name || ''),
+        default_brand_logo_url: (user.default_brand_logo_url !== undefined && user.default_brand_logo_url !== '') ? user.default_brand_logo_url : (existingCloud?.default_brand_logo_url || ''),
+        default_theme: user.default_theme || existingCloud?.default_theme || 'tiranga',
+        default_redirect_url: (user.default_redirect_url !== undefined && user.default_redirect_url !== '') ? user.default_redirect_url : (existingCloud?.default_redirect_url || ''),
+        default_custom_note: (user.default_custom_note !== undefined && user.default_custom_note !== '') ? user.default_custom_note : (existingCloud?.default_custom_note || ''),
+
         // Ensure banking email & auth tokens are never overwritten with empty values
         gmail_email: (user.gmail_email !== undefined && user.gmail_email !== '') ? user.gmail_email : (existingCloud?.gmail_email || ''),
         gmail_app_pass: (user.gmail_app_pass !== undefined && user.gmail_app_pass !== '') ? user.gmail_app_pass : (existingCloud?.gmail_app_pass || ''),
@@ -88,7 +107,7 @@ export const CloudSyncService = {
         body: JSON.stringify(merged)
       });
       if (res.ok) {
-        logger.info(`[CloudSync] Saved user ${user.email} to Firebase RTDB (Plan: ${merged.plan || 'NONE'}, Banking: ${merged.gmail_connected ? 'Connected (' + (merged.gmail_email || merged.settlement_type) + ')' : 'Disconnected'})`);
+        logger.info(`[CloudSync] Saved user ${user.email} to Firebase RTDB (Plan: ${merged.plan || 'NONE'}, Site: ${merged.website_url || 'None'}, Banking: ${merged.gmail_connected ? 'Connected' : 'Disconnected'})`);
         return true;
       }
     } catch (e) {
@@ -102,10 +121,22 @@ export const CloudSyncService = {
     try {
       const key = encodeKey(email);
       const res = await fetch(`${RTDB_BASE}/users/${key}.json`);
-      if (res.ok) {
-        const user = await res.json();
-        return user;
+      let user = res.ok ? await res.json() : null;
+
+      // Legacy key fallback check (_ instead of _dot_)
+      const legacyKey = String(email).trim().toLowerCase().replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+      if (legacyKey !== key) {
+        try {
+          const legRes = await fetch(`${RTDB_BASE}/users/${legacyKey}.json`);
+          if (legRes.ok) {
+            const legUser = await legRes.json();
+            if (legUser) {
+              user = { ...legUser, ...(user || {}), email: email.toLowerCase().trim() };
+            }
+          }
+        } catch (_) {}
       }
+      return user;
     } catch (e) {
       logger.warn(`[CloudSync] Failed to fetch user ${email}: ${e.message}`);
     }
@@ -118,7 +149,23 @@ export const CloudSyncService = {
       if (res.ok) {
         const usersObj = await res.json();
         if (usersObj) {
-          return Object.values(usersObj);
+          const mergedByEmail = {};
+          for (const [k, u] of Object.entries(usersObj)) {
+            if (!u) continue;
+            let em = u.email;
+            if (!em) {
+              // Try reconstructing email from key: test@gmail_dot_com or test@gmail_com
+              em = k.replace(/_dot_/g, '.').replace(/_com$/, '.com').replace(/_in$/, '.in');
+            }
+            if (!em || !em.includes('@')) continue;
+            em = em.toLowerCase().trim();
+            mergedByEmail[em] = {
+              ...(mergedByEmail[em] || {}),
+              ...u,
+              email: em
+            };
+          }
+          return Object.values(mergedByEmail);
         }
       }
     } catch (e) {

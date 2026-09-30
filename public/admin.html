@@ -30,6 +30,7 @@
           <div style="font-size: 15px; font-weight: 800; color: #fff; letter-spacing: -0.3px;">One UPI <span style="font-size: 10px; color: #FF8C38; background: rgba(255, 103, 31, 0.15); border: 1px solid rgba(255, 103, 31, 0.35); padding: 1px 5px; border-radius: 999px; margin-left: 3px;">V2</span></div>
           <div style="font-size: 11px; color: #ff9933; font-weight: 700; text-transform: uppercase;">🇮🇳 Master Terminal • ADMIN</div>
         </div>
+        <button type="button" class="mobile-sidebar-close-btn" onclick="toggleAdminMobileSidebar()" aria-label="Close Sidebar" title="Close Sidebar" style="margin-left: auto;">✕</button>
       </div>
 
       <!-- Admin Profile Card -->
@@ -165,14 +166,23 @@
 
     </aside>
 
+    <!-- Mobile Drawer Backdrop Overlay -->
+    <div id="adminSidebarBackdrop" class="sidebar-backdrop" onclick="toggleAdminMobileSidebar()"></div>
+
     <!-- RIGHT MAIN CONTENT AREA -->
     <div class="main-content-area">
       
       <!-- Content Topbar -->
       <header class="content-topbar">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <button type="button" id="adminMobileMenuBtn" class="btn btn-secondary mobile-menu-toggle" onclick="toggleAdminMobileSidebar()" style="display: none; padding: 6px 10px; font-size: 16px;">☰</button>
-          <h1 class="topbar-page-title" id="adminViewTitle">👥 Registered Users &amp; Subscription Tracking</h1>
+        <div class="topbar-row-main" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button type="button" id="adminMobileMenuBtn" class="btn btn-secondary mobile-menu-toggle" onclick="toggleAdminMobileSidebar()" aria-label="Open Menu" style="padding: 6px 10px; font-size: 16px;">☰</button>
+            <h1 class="topbar-page-title" id="adminViewTitle">👥 Registered Users &amp; Subscription Tracking</h1>
+          </div>
+          <button type="button" class="btn-topbar-logout" onclick="lockAdminDashboard()" title="Lock / Logout from Admin Terminal">
+            <span>🔒</span>
+            <span>Lock Terminal</span>
+          </button>
         </div>
 
         <div class="topbar-quick-stats">

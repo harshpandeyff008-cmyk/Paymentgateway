@@ -60,11 +60,11 @@ export async function processIncomingPayment({
        WHERE user_email = ? 
          AND status = 'PENDING'
          AND (plan_id IS NULL OR plan_id = '')
-         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
          AND ABS(created_at - ?) <= 30 * 60 * 1000
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
-      [merchantEmail, amount, receivedTimestamp, receivedTimestamp]
+      [merchantEmail, amount, amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
@@ -74,11 +74,11 @@ export async function processIncomingPayment({
       `SELECT * FROM orders 
        WHERE (plan_id IS NOT NULL OR order_code LIKE 'PLAN-%')
          AND status = 'PENDING'
-         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
          AND ABS(created_at - ?) <= 30 * 60 * 1000
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
-      [amount, receivedTimestamp, receivedTimestamp]
+      [amount, amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
@@ -87,11 +87,11 @@ export async function processIncomingPayment({
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE status = 'PENDING'
-         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
          AND ABS(created_at - ?) <= 30 * 60 * 1000
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
-      [amount, receivedTimestamp, receivedTimestamp]
+      [amount, amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
@@ -100,11 +100,11 @@ export async function processIncomingPayment({
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE status = 'EXPIRED'
-         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
          AND ABS(created_at - ?) <= 120 * 60 * 1000
        ORDER BY created_at DESC 
        LIMIT 1`,
-      [amount, receivedTimestamp]
+      [amount, amount, receivedTimestamp]
     );
     if (matchingOrder) {
       console.log(`[MatchingEngine] Auto-revived expired order ${matchingOrder.order_code} for payment!`);
@@ -116,11 +116,11 @@ export async function processIncomingPayment({
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE status != 'PAID'
-         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
          AND ABS(created_at - ?) <= 120 * 60 * 1000
        ORDER BY id DESC 
        LIMIT 1`,
-      [amount, receivedTimestamp]
+      [amount, amount, receivedTimestamp]
     );
     if (matchingOrder) {
       console.log(`[MatchingEngine] Fallback matched unpaid order ${matchingOrder.order_code} for payment!`);

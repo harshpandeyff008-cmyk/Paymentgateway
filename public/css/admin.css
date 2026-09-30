@@ -849,6 +849,71 @@ tr:hover td {
 @keyframes fadeInView {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+.btn-topbar-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(244, 63, 94, 0.14);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  padding: 7px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.15);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-topbar-logout:hover {
+  background: rgba(244, 63, 94, 0.25);
+  color: #fff;
+  border-color: rgba(244, 63, 94, 0.6);
+  transform: translateY(-1px);
+}
+
+.mobile-sidebar-close-btn {
+  display: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  margin-left: auto;
+  transition: all 0.2s;
+}
+
+.mobile-sidebar-close-btn:hover {
+  background: rgba(244, 63, 94, 0.25);
+  color: #fb7185;
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.sidebar-backdrop.active {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* ======================================================== */

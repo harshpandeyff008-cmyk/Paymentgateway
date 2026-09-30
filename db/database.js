@@ -253,6 +253,9 @@ export async function initDatabase() {
   try {
     await query.run('ALTER TABLE users ADD COLUMN default_custom_note TEXT DEFAULT ""');
   } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN gmail_token_expired INTEGER DEFAULT 0');
+  } catch (_) {}
 
   // 2. Payments table
   await query.run(`
@@ -519,8 +522,8 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
     try {
       const cloudUser = await CloudSyncService.getUser(normalizedEmail);
       if (cloudUser) {
-        const updatePlan = (cloudUser.plan && cloudUser.plan !== 'NONE' && (!user.plan || user.plan === 'NONE')) ? cloudUser.plan : user.plan;
-        const updateCredits = cloudUser.qr_credits !== undefined && user.qr_credits === 0 ? cloudUser.qr_credits : user.qr_credits;
+        const updatePlan = (cloudUser.plan && cloudUser.plan !== 'NONE') ? cloudUser.plan : user.plan;
+        const updateCredits = cloudUser.qr_credits !== undefined && Number(cloudUser.qr_credits) > (Number(user.qr_credits) || 0) ? Number(cloudUser.qr_credits) : user.qr_credits;
         const updateGmailConnected = cloudUser.gmail_connected ? 1 : (user.gmail_connected ? 1 : 0);
         const updateGmailEmail = user.gmail_email || cloudUser.gmail_email || '';
         const updateGmailAppPass = user.gmail_app_pass || cloudUser.gmail_app_pass || '';
@@ -532,17 +535,35 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
         const updateImapPort = Number(user.imap_port) || Number(cloudUser.imap_port) || 993;
         const updateImapSecure = user.imap_secure !== undefined ? (user.imap_secure ? 1 : 0) : (cloudUser.imap_secure !== undefined ? (cloudUser.imap_secure ? 1 : 0) : 1);
         const updateUpiProvider = user.upi_provider || cloudUser.upi_provider || 'AUTO';
+        const updateWebsiteUrl = user.website_url || cloudUser.website_url || '';
+        const updateWebsiteUrls = user.website_urls || cloudUser.website_urls || '';
+        const updateIsWebsiteLocked = (user.is_website_locked || cloudUser.is_website_locked) ? 1 : 0;
+        const updateWebsiteLockedAt = user.website_locked_at || cloudUser.website_locked_at || null;
+        const updateMaxWebsites = Math.max(Number(user.max_websites) || 1, Number(cloudUser.max_websites) || 1);
+        const updateBrandName = user.default_brand_name || cloudUser.default_brand_name || '';
+        const updateBrandLogoUrl = user.default_brand_logo_url || cloudUser.default_brand_logo_url || '';
+        const updateTheme = user.default_theme || cloudUser.default_theme || 'tiranga';
+        const updateRedirectUrl = user.default_redirect_url || cloudUser.default_redirect_url || '';
+        const updateCustomNote = user.default_custom_note || cloudUser.default_custom_note || '';
 
         await query.run(
           `UPDATE users SET 
              plan = ?, qr_credits = ?, gmail_connected = ?, gmail_email = ?, gmail_app_pass = ?,
              gmail_access_token = ?, settlement_type = ?, upi_vpa = ?, business_name = ?,
-             imap_host = ?, imap_port = ?, imap_secure = ?, upi_provider = ?, updated_at = ?
+             imap_host = ?, imap_port = ?, imap_secure = ?, upi_provider = ?,
+             website_url = ?, website_urls = ?, is_website_locked = ?, website_locked_at = ?,
+             max_websites = ?, default_brand_name = ?, default_brand_logo_url = ?,
+             default_theme = ?, default_redirect_url = ?, default_custom_note = ?,
+             updated_at = ?
            WHERE email = ?`,
           [
             updatePlan, updateCredits, updateGmailConnected, updateGmailEmail, updateGmailAppPass,
             updateGmailAccessToken, updateSettlementType, updateUpiVpa, updateBusinessName,
-            updateImapHost, updateImapPort, updateImapSecure, updateUpiProvider, now, normalizedEmail
+            updateImapHost, updateImapPort, updateImapSecure, updateUpiProvider,
+            updateWebsiteUrl, updateWebsiteUrls, updateIsWebsiteLocked, updateWebsiteLockedAt,
+            updateMaxWebsites, updateBrandName, updateBrandLogoUrl,
+            updateTheme, updateRedirectUrl, updateCustomNote,
+            now, normalizedEmail
           ]
         );
       }

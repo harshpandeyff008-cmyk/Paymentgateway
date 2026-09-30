@@ -145,7 +145,9 @@ function switchAdminSidebar(viewId) {
 
   // Close mobile sidebar if open
   const sidebar = document.getElementById('adminSidebar');
+  const backdrop = document.getElementById('adminSidebarBackdrop');
   if (sidebar) sidebar.classList.remove('mobile-open');
+  if (backdrop) backdrop.classList.remove('active');
 
   // Update topbar title
   const titleEl = document.getElementById('adminViewTitle');
@@ -2439,7 +2441,14 @@ window.resetPlanPrice = resetPlanPrice;
 
 function toggleAdminMobileSidebar() {
   const sidebar = document.getElementById('adminSidebar');
-  if (sidebar) sidebar.classList.toggle('mobile-open');
+  const backdrop = document.getElementById('adminSidebarBackdrop');
+  if (sidebar) {
+    const isOpen = sidebar.classList.toggle('mobile-open');
+    if (backdrop) {
+      if (isOpen) backdrop.classList.add('active');
+      else backdrop.classList.remove('active');
+    }
+  }
 }
 window.toggleAdminMobileSidebar = toggleAdminMobileSidebar;
 
