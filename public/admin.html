@@ -976,6 +976,106 @@
           <button type="button" onclick="loadImapStatus()" class="btn btn-secondary" style="font-size: 11px; padding: 5px 12px;">🔄 Refresh Status</button>
         </div>
 
+        <!-- ============================================ -->
+        <!-- 🧪 LIVE PAYMENT TEST PLAYGROUND              -->
+        <!-- ============================================ -->
+        <div class="panel-card" style="margin-top: 24px; border-left: 4px solid #fbbf24; background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(56, 189, 248, 0.05));">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+            <span style="font-size: 24px;">🧪</span>
+            <div>
+              <h3 style="font-size: 17px; font-weight: 800; color: #fff; margin: 0;">Live Payment Test — End-to-End Listener Verification</h3>
+              <div style="font-size: 12px; color: var(--text-muted);">
+                Generate a real test payment QR → Pay ₹1 from your UPI app → Watch the listener auto-detect &amp; verify it in real-time.
+              </div>
+            </div>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700; padding: 4px 10px; margin-left: auto;">🔬 LIVE TEST</span>
+          </div>
+
+          <!-- Step 1: Enter Amount & Generate QR -->
+          <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 18px; margin-bottom: 16px;">
+            <div style="font-size: 13px; font-weight: 700; color: #fbbf24; margin-bottom: 10px;">Step 1️⃣ — Generate Test Payment QR</div>
+            <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 140px;">
+                <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Test Amount (₹)</label>
+                <input type="number" id="testPaymentAmount" class="form-control" value="1" min="1" max="100" step="1" style="margin-top: 4px; font-weight: 800; font-size: 16px; color: #fbbf24;">
+              </div>
+              <div style="flex: 1; min-width: 180px;">
+                <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Customer Name (Test)</label>
+                <input type="text" id="testPaymentName" class="form-control" value="Admin Test" style="margin-top: 4px;">
+              </div>
+              <div>
+                <button type="button" class="btn btn-primary" id="btnGenerateTestPayment" onclick="generateTestPayment()" style="padding: 10px 20px; font-weight: 800; font-size: 13px; background: linear-gradient(135deg, #f59e0b, #ef4444);">
+                  ⚡ Generate Live Test QR
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: QR Code Display + Payment Status (hidden until generated) -->
+          <div id="testPaymentResultBox" style="display: none;">
+            <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 18px; margin-bottom: 16px;">
+              <div style="font-size: 13px; font-weight: 700; color: #38bdf8; margin-bottom: 12px;">Step 2️⃣ — Scan QR &amp; Pay from any UPI App</div>
+              <div style="display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: start;">
+                
+                <!-- QR Code -->
+                <div style="text-align: center;">
+                  <div style="background: #fff; padding: 10px; border-radius: 10px; display: inline-block;">
+                    <img id="testPaymentQrImg" src="" alt="Test QR Code" style="width: 160px; height: 160px; display: block;">
+                  </div>
+                  <div id="testPaymentAmountLabel" style="font-weight: 800; font-size: 18px; color: #fbbf24; margin-top: 8px;">₹1.00</div>
+                  <div id="testPaymentOrderCode" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); margin-top: 3px;">ORD-XXXXXX</div>
+                </div>
+
+                <!-- Payment Details & Live Status -->
+                <div>
+                  <div style="margin-bottom: 12px;">
+                    <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Payment UPI VPA</div>
+                    <div id="testPaymentUpiVpa" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #38bdf8;">-</div>
+                  </div>
+                  <div style="margin-bottom: 12px;">
+                    <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">UPI Deep Link</div>
+                    <a id="testPaymentUpiLink" href="#" style="font-size: 12px; color: #c084fc; text-decoration: underline;">Open in UPI App ➔</a>
+                  </div>
+                  <div style="margin-bottom: 12px;">
+                    <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Checkout Page</div>
+                    <a id="testPaymentCheckoutLink" href="#" target="_blank" style="font-size: 12px; color: #38bdf8; text-decoration: underline;">Open Customer Checkout ➔</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3: Live Listener Verification -->
+            <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 18px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                <div style="font-size: 13px; font-weight: 700; color: #34d399;">Step 3️⃣ — Listener Verification (Auto-Polling)</div>
+                <button type="button" class="btn btn-secondary" onclick="checkTestPaymentStatus()" style="padding: 4px 12px; font-size: 11px;">🔄 Check Status Now</button>
+              </div>
+              
+              <!-- Live status indicator -->
+              <div id="testPaymentStatusBox" style="padding: 14px; border-radius: 8px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div id="testPaymentStatusDot" style="width: 12px; height: 12px; border-radius: 50%; background: #fbbf24; animation: pulse 1.5s infinite;"></div>
+                  <div>
+                    <div id="testPaymentStatusText" style="font-size: 14px; font-weight: 700; color: #fbbf24;">⏳ Waiting for payment...</div>
+                    <div id="testPaymentStatusSub" style="font-size: 11px; color: var(--text-dim);">Pay the QR above and the listener will auto-detect it. Polling every 5 seconds...</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Result details (shown after payment detected) -->
+              <div id="testPaymentResultDetails" style="display: none; margin-top: 14px; padding: 14px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px;">
+                <div style="font-size: 13px; font-weight: 800; color: #34d399; margin-bottom: 8px;">🎉 Payment Successfully Verified!</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+                  <div><span style="color: var(--text-dim);">UTR:</span> <span id="testResultUtr" style="color: #fff; font-weight: 700; font-family: monospace;">-</span></div>
+                  <div><span style="color: var(--text-dim);">Amount:</span> <span id="testResultAmount" style="color: #34d399; font-weight: 700;">-</span></div>
+                  <div><span style="color: var(--text-dim);">Sender:</span> <span id="testResultSender" style="color: #fff;">-</span></div>
+                  <div><span style="color: var(--text-dim);">Detected At:</span> <span id="testResultTime" style="color: #fff;">-</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <!-- ======================================================== -->

@@ -2742,3 +2742,167 @@ async function triggerScanAllInboxes() {
   }
 }
 window.triggerScanAllInboxes = triggerScanAllInboxes;
+
+// ==========================================
+// 🧪 LIVE PAYMENT TEST FLOW (E2E LISTENER VERIFICATION)
+// ==========================================
+let testPaymentOrderCode = null;
+let testPaymentPollTimer = null;
+let testPaymentPollCount = 0;
+
+async function generateTestPayment() {
+  const btn = document.getElementById('btnGenerateTestPayment');
+  const amountInput = document.getElementById('testPaymentAmount');
+  const nameInput = document.getElementById('testPaymentName');
+  const resultBox = document.getElementById('testPaymentResultBox');
+  
+  const amount = parseFloat(amountInput?.value) || 1;
+  const customerName = nameInput?.value?.trim() || 'Admin Test';
+
+  if (amount < 1 || amount > 100) {
+    alert('Test amount should be between ₹1 and ₹100');
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.innerText = '⏳ Generating...'; }
+
+  // Clear previous test
+  if (testPaymentPollTimer) { clearInterval(testPaymentPollTimer); testPaymentPollTimer = null; }
+  testPaymentOrderCode = null;
+  testPaymentPollCount = 0;
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (currentApiKey) headers['x-api-key'] = currentApiKey;
+
+    const res = await fetch(API_BASE + '/api/orders/create', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        amount: amount,
+        customerName: customerName,
+        customerPhone: '9999999999',
+        webhookUrl: ''
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.order) {
+      testPaymentOrderCode = data.order.orderCode;
+
+      // Populate UI
+      const qrImg = document.getElementById('testPaymentQrImg');
+      const amountLabel = document.getElementById('testPaymentAmountLabel');
+      const orderCodeEl = document.getElementById('testPaymentOrderCode');
+      const upiVpaEl = document.getElementById('testPaymentUpiVpa');
+      const upiLinkEl = document.getElementById('testPaymentUpiLink');
+      const checkoutLinkEl = document.getElementById('testPaymentCheckoutLink');
+
+      if (qrImg) qrImg.src = data.order.qrDataUrl || '';
+      if (amountLabel) amountLabel.innerText = `₹${data.order.amount.toFixed(2)}`;
+      if (orderCodeEl) orderCodeEl.innerText = data.order.orderCode;
+      if (upiVpaEl) upiVpaEl.innerText = data.order.upiUri ? data.order.upiUri.split('pa=')[1]?.split('&')[0] || '-' : '-';
+      if (upiLinkEl) { upiLinkEl.href = data.order.upiUri || '#'; }
+      if (checkoutLinkEl) { checkoutLinkEl.href = data.order.checkoutUrl || '#'; checkoutLinkEl.innerText = data.order.checkoutUrl || '#'; }
+
+      // Reset status UI
+      const statusBox = document.getElementById('testPaymentStatusBox');
+      const statusText = document.getElementById('testPaymentStatusText');
+      const statusSub = document.getElementById('testPaymentStatusSub');
+      const statusDot = document.getElementById('testPaymentStatusDot');
+      const resultDetails = document.getElementById('testPaymentResultDetails');
+
+      if (statusBox) { statusBox.style.background = 'rgba(245, 158, 11, 0.1)'; statusBox.style.borderColor = 'rgba(245, 158, 11, 0.3)'; }
+      if (statusDot) { statusDot.style.background = '#fbbf24'; }
+      if (statusText) statusText.innerText = '⏳ Waiting for payment...';
+      if (statusSub) statusSub.innerText = 'Pay the QR above and the listener will auto-detect it. Polling every 5 seconds...';
+      if (resultDetails) resultDetails.style.display = 'none';
+
+      // Show result box
+      if (resultBox) resultBox.style.display = 'block';
+
+      // Start auto-polling every 5 seconds
+      testPaymentPollTimer = setInterval(() => {
+        testPaymentPollCount++;
+        checkTestPaymentStatus();
+        // Stop after 2 minutes (24 polls)
+        if (testPaymentPollCount >= 24) {
+          clearInterval(testPaymentPollTimer);
+          testPaymentPollTimer = null;
+          if (statusText) statusText.innerText = '⏰ Polling timeout — use manual Check Status';
+          if (statusSub) statusSub.innerText = 'Auto-polling stopped after 2 minutes. Click Check Status to continue manually.';
+        }
+      }, 5000);
+
+    } else {
+      alert('Failed to create test order: ' + (data.error || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Network error creating test order: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = '⚡ Generate Live Test QR'; }
+  }
+}
+window.generateTestPayment = generateTestPayment;
+
+async function checkTestPaymentStatus() {
+  if (!testPaymentOrderCode) return;
+
+  const statusBox = document.getElementById('testPaymentStatusBox');
+  const statusText = document.getElementById('testPaymentStatusText');
+  const statusSub = document.getElementById('testPaymentStatusSub');
+  const statusDot = document.getElementById('testPaymentStatusDot');
+  const resultDetails = document.getElementById('testPaymentResultDetails');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/orders/${testPaymentOrderCode}/status`);
+    const data = await res.json();
+
+    if (data.success && data.order) {
+      const order = data.order;
+
+      if (order.status === 'PAID') {
+        // SUCCESS! Payment verified by listener
+        if (testPaymentPollTimer) { clearInterval(testPaymentPollTimer); testPaymentPollTimer = null; }
+
+        if (statusBox) { statusBox.style.background = 'rgba(16, 185, 129, 0.1)'; statusBox.style.borderColor = 'rgba(16, 185, 129, 0.3)'; }
+        if (statusDot) { statusDot.style.background = '#34d399'; statusDot.style.animation = 'none'; }
+        if (statusText) { statusText.style.color = '#34d399'; statusText.innerText = '✅ PAYMENT VERIFIED BY LISTENER!'; }
+        if (statusSub) statusSub.innerText = 'The IMAP/Gmail listener successfully detected and matched this payment automatically.';
+
+        // Show result details
+        if (resultDetails) {
+          resultDetails.style.display = 'block';
+          const utrEl = document.getElementById('testResultUtr');
+          const amtEl = document.getElementById('testResultAmount');
+          const senderEl = document.getElementById('testResultSender');
+          const timeEl = document.getElementById('testResultTime');
+          if (utrEl) utrEl.innerText = order.utr || '-';
+          if (amtEl) amtEl.innerText = `₹${parseFloat(order.amount).toFixed(2)}`;
+          if (senderEl) senderEl.innerText = order.sender_info || order.senderInfo || '-';
+          if (timeEl) timeEl.innerText = order.paid_at ? new Date(order.paid_at).toLocaleString('en-IN') : new Date().toLocaleString('en-IN');
+        }
+
+        // Refresh orders & stats
+        loadStats();
+        loadOrders(currentFilter);
+        loadPayments();
+
+      } else if (order.status === 'EXPIRED') {
+        if (testPaymentPollTimer) { clearInterval(testPaymentPollTimer); testPaymentPollTimer = null; }
+        if (statusBox) { statusBox.style.background = 'rgba(239, 68, 68, 0.1)'; statusBox.style.borderColor = 'rgba(239, 68, 68, 0.3)'; }
+        if (statusDot) { statusDot.style.background = '#f87171'; statusDot.style.animation = 'none'; }
+        if (statusText) { statusText.style.color = '#f87171'; statusText.innerText = '❌ Order Expired — Payment window closed'; }
+        if (statusSub) statusSub.innerText = 'Generate a new test to try again.';
+      } else {
+        // Still PENDING
+        if (statusSub) statusSub.innerText = `Still waiting... (poll #${testPaymentPollCount}) Status: ${order.status}`;
+      }
+    }
+  } catch (err) {
+    console.warn('[TestPayment] Status check error:', err.message);
+    if (statusSub) statusSub.innerText = `Poll error: ${err.message}. Will retry...`;
+  }
+}
+window.checkTestPaymentStatus = checkTestPaymentStatus;
