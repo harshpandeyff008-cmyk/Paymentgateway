@@ -24,6 +24,7 @@ export default function FFStorePublicUpload() {
   const tokenParam = searchParams.get('token') || '';
   const emailParam = searchParams.get('email') || '';
   const priceParam = searchParams.get('price') || '';
+  const uidParam = searchParams.get('uid') || '';
 
   // Configured states
   const [tokenData, setTokenData] = useState(null);
@@ -31,7 +32,8 @@ export default function FFStorePublicUpload() {
   const [tokenError, setTokenError] = useState('');
 
   // Form states
-  const [targetEmail, setTargetEmail] = useState(emailParam);
+  const [targetEmail, setTargetEmail] = useState(emailParam || '');
+  const [accountUid, setAccountUid] = useState(uidParam || '');
   const [price, setPrice] = useState(priceParam ? Number(priceParam) : 0);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -61,12 +63,9 @@ export default function FFStorePublicUpload() {
   useEffect(() => {
     async function verifyToken() {
       if (!tokenParam) {
-        if (!emailParam) {
-          setTokenError('No valid access token or email specified in this URL. Please request a new upload link from the administrator.');
-        } else {
-          setTargetEmail(emailParam);
-          if (priceParam) setPrice(Number(priceParam));
-        }
+        if (emailParam) setTargetEmail(emailParam);
+        if (priceParam) setPrice(Number(priceParam));
+        if (uidParam) setAccountUid(uidParam);
         setLoadingToken(false);
         return;
       }
@@ -82,6 +81,7 @@ export default function FFStorePublicUpload() {
           } else {
             setTokenData(data);
             setTargetEmail(data.email || emailParam || '');
+            if (data.uid) setAccountUid(data.uid);
             if (data.price !== undefined && data.price !== null) {
               setPrice(Number(data.price));
             } else if (priceParam) {
@@ -90,28 +90,22 @@ export default function FFStorePublicUpload() {
           }
         } else {
           // Fallback to URL query params if token doc is not yet in db
-          if (emailParam) {
-            setTargetEmail(emailParam);
-            if (priceParam) setPrice(Number(priceParam));
-          } else {
-            setTokenError('Invalid or expired upload link. Please check with the administrator.');
-          }
+          if (emailParam) setTargetEmail(emailParam);
+          if (priceParam) setPrice(Number(priceParam));
+          if (uidParam) setAccountUid(uidParam);
         }
       } catch (err) {
         console.warn('Error reading token from Firestore:', err);
-        if (emailParam) {
-          setTargetEmail(emailParam);
-          if (priceParam) setPrice(Number(priceParam));
-        } else {
-          setTokenError('Unable to verify upload link credentials.');
-        }
+        if (emailParam) setTargetEmail(emailParam);
+        if (priceParam) setPrice(Number(priceParam));
+        if (uidParam) setAccountUid(uidParam);
       } finally {
         setLoadingToken(false);
       }
     }
 
     verifyToken();
-  }, [tokenParam, emailParam, priceParam]);
+  }, [tokenParam, emailParam, priceParam, uidParam]);
 
   // Handle Multi-file selection
   const handleFilesSelected = (e) => {
@@ -493,6 +487,35 @@ export default function FFStorePublicUpload() {
               <Sparkles className="w-4 h-4" />
               <span>1. Account Information</span>
             </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                  Contact / Seller Email *
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="your-email@gmail.com"
+                  value={targetEmail}
+                  onChange={(e) => setTargetEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                  Free Fire Game UID (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 192837465"
+                  value={accountUid}
+                  onChange={(e) => setAccountUid(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                />
+              </div>
+            </div>
 
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
