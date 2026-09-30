@@ -460,14 +460,17 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
     } catch (_) {}
 
     if (cloudUser) {
-      // Restore user with their active plan, credits, and keys from Firebase!
+      // Restore user with full active plan, credits, keys, and BANKING credentials from Firebase!
       const initialApiKey = cloudUser.api_key || generateApiKey();
       await query.run(
         `INSERT INTO users (
           email, name, photo_url, role, plan, qr_credits, api_key,
-          gmail_connected, website_url, website_urls, is_website_locked,
-          upi_vpa, business_name, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          gmail_connected, gmail_email, gmail_app_pass, gmail_access_token,
+          settlement_type, imap_host, imap_port, imap_secure, upi_provider,
+          website_url, website_urls, is_website_locked, website_locked_at, max_websites,
+          upi_vpa, business_name, default_brand_name, default_brand_logo_url, default_theme,
+          default_redirect_url, default_custom_note, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           normalizedEmail,
           name || cloudUser.name || 'User',
@@ -477,11 +480,26 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
           cloudUser.qr_credits !== undefined ? cloudUser.qr_credits : 0,
           initialApiKey,
           cloudUser.gmail_connected ? 1 : 0,
+          cloudUser.gmail_email || '',
+          cloudUser.gmail_app_pass || '',
+          cloudUser.gmail_access_token || '',
+          cloudUser.settlement_type || 'GOOGLE_OAUTH',
+          cloudUser.imap_host || 'imap.gmail.com',
+          Number(cloudUser.imap_port) || 993,
+          cloudUser.imap_secure !== undefined ? (cloudUser.imap_secure ? 1 : 0) : 1,
+          cloudUser.upi_provider || 'AUTO',
           cloudUser.website_url || '',
           cloudUser.website_urls || '',
           cloudUser.is_website_locked ? 1 : 0,
+          cloudUser.website_locked_at || null,
+          cloudUser.max_websites || 1,
           cloudUser.upi_vpa || '',
           cloudUser.business_name || '',
+          cloudUser.default_brand_name || '',
+          cloudUser.default_brand_logo_url || '',
+          cloudUser.default_theme || 'tiranga',
+          cloudUser.default_redirect_url || '',
+          cloudUser.default_custom_note || '',
           cloudUser.created_at || now,
           now
         ]
@@ -497,18 +515,38 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
       user = await query.get('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
     }
   } else {
-    // If local user has NO active plan, check if cloud has an active plan
-    if (!user.plan || user.plan === 'NONE') {
-      try {
-        const cloudUser = await CloudSyncService.getUser(normalizedEmail);
-        if (cloudUser && cloudUser.plan && cloudUser.plan !== 'NONE') {
-          await query.run(
-            `UPDATE users SET plan = ?, qr_credits = ?, max_websites = ?, is_website_locked = ?, website_url = ?, website_urls = ?, updated_at = ? WHERE email = ?`,
-            [cloudUser.plan, cloudUser.qr_credits || 999999, cloudUser.max_websites || 1, cloudUser.is_website_locked ? 1 : 0, cloudUser.website_url || '', cloudUser.website_urls || '', now, normalizedEmail]
-          );
-        }
-      } catch (_) {}
-    }
+    // If local user has NO active plan or missing banking credentials, check Cloud RTDB
+    try {
+      const cloudUser = await CloudSyncService.getUser(normalizedEmail);
+      if (cloudUser) {
+        const updatePlan = (cloudUser.plan && cloudUser.plan !== 'NONE' && (!user.plan || user.plan === 'NONE')) ? cloudUser.plan : user.plan;
+        const updateCredits = cloudUser.qr_credits !== undefined && user.qr_credits === 0 ? cloudUser.qr_credits : user.qr_credits;
+        const updateGmailConnected = cloudUser.gmail_connected ? 1 : (user.gmail_connected ? 1 : 0);
+        const updateGmailEmail = user.gmail_email || cloudUser.gmail_email || '';
+        const updateGmailAppPass = user.gmail_app_pass || cloudUser.gmail_app_pass || '';
+        const updateGmailAccessToken = user.gmail_access_token || cloudUser.gmail_access_token || '';
+        const updateSettlementType = user.settlement_type || cloudUser.settlement_type || 'GOOGLE_OAUTH';
+        const updateUpiVpa = user.upi_vpa || cloudUser.upi_vpa || '';
+        const updateBusinessName = user.business_name || cloudUser.business_name || '';
+        const updateImapHost = user.imap_host || cloudUser.imap_host || 'imap.gmail.com';
+        const updateImapPort = Number(user.imap_port) || Number(cloudUser.imap_port) || 993;
+        const updateImapSecure = user.imap_secure !== undefined ? (user.imap_secure ? 1 : 0) : (cloudUser.imap_secure !== undefined ? (cloudUser.imap_secure ? 1 : 0) : 1);
+        const updateUpiProvider = user.upi_provider || cloudUser.upi_provider || 'AUTO';
+
+        await query.run(
+          `UPDATE users SET 
+             plan = ?, qr_credits = ?, gmail_connected = ?, gmail_email = ?, gmail_app_pass = ?,
+             gmail_access_token = ?, settlement_type = ?, upi_vpa = ?, business_name = ?,
+             imap_host = ?, imap_port = ?, imap_secure = ?, upi_provider = ?, updated_at = ?
+           WHERE email = ?`,
+          [
+            updatePlan, updateCredits, updateGmailConnected, updateGmailEmail, updateGmailAppPass,
+            updateGmailAccessToken, updateSettlementType, updateUpiVpa, updateBusinessName,
+            updateImapHost, updateImapPort, updateImapSecure, updateUpiProvider, now, normalizedEmail
+          ]
+        );
+      }
+    } catch (_) {}
     await query.run(
       `UPDATE users SET name = COALESCE(?, name), photo_url = COALESCE(?, photo_url), updated_at = ? WHERE email = ?`,
       [name, photoUrl, now, normalizedEmail]
@@ -593,7 +631,7 @@ export async function updateUserGmailConfig(email, { gmailEmail = '', gmailConne
     [gmailEmail, gmailConnected ? 1 : 0, gmailAppPass, now, email.trim().toLowerCase()]
   );
   const updated = await getUserByEmail(email);
-  if (updated) CloudSyncService.saveUser(updated).catch(() => {});
+  if (updated) await CloudSyncService.saveUser(updated).catch(() => {});
   return updated;
 }
 
@@ -614,7 +652,7 @@ export async function updateUserGoogleBankingLink(email, { upiVpa = '', business
     [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', googleEmail, accessToken, now, email.trim().toLowerCase()]
   );
   const updated = await getUserByEmail(email);
-  if (updated) CloudSyncService.saveUser(updated).catch(() => {});
+  if (updated) await CloudSyncService.saveUser(updated).catch(() => {});
   return updated;
 }
 
@@ -638,7 +676,7 @@ export async function updateUserImapBankingLink(email, { upiVpa = '', businessNa
     [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', imapEmail, imapAppPass, imapHost, Number(imapPort) || 993, imapSecure ? 1 : 0, now, email.trim().toLowerCase()]
   );
   const updated = await getUserByEmail(email);
-  if (updated) CloudSyncService.saveUser(updated).catch(() => {});
+  if (updated) await CloudSyncService.saveUser(updated).catch(() => {});
   return updated;
 }
 

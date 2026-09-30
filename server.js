@@ -7,7 +7,7 @@ import { setupSocketHandlers } from './src/sockets/socketHandler.js';
 import { startExpiryCleaner, stopExpiryCleaner } from './src/jobs/expiryCleaner.job.js';
 import { SettingModel } from './src/models/setting.model.js';
 import { setSocketIO } from './src/services/matchingEngine.service.js';
-import { syncPaymentMonitoring, stopImapListener } from './src/services/imapListener.service.js';
+import { syncPaymentMonitoring, stopImapListener, stopMerchantImapPoller } from './src/services/imapListener.service.js';
 import { stopGmailWatcher } from './services/gmailWatcher.service.js';
 import logger from './src/utils/logger.js';
 
@@ -78,6 +78,7 @@ async function handleShutdown(signal) {
   // Stop background jobs
   stopExpiryCleaner();
   stopGmailWatcher();
+  stopMerchantImapPoller();
 
   // Stop IMAP connection
   try {

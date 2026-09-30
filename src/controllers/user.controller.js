@@ -279,6 +279,8 @@ export const UserController = {
           businessName: user.business_name || '',
           upiProvider: user.upi_provider || 'AUTO',
           settlementType: user.settlement_type || 'GOOGLE_OAUTH',
+          imapHost: user.imap_host || 'imap.gmail.com',
+          imapPort: user.imap_port || 993,
           defaultBrandName: user.default_brand_name || '',
           defaultBrandLogoUrl: user.default_brand_logo_url || '',
           defaultTheme: user.default_theme || 'tiranga',
@@ -928,7 +930,7 @@ export const UserController = {
     });
   },
 
-  // 5.6 Create Custom Payment Link with Configurable Expiry (Up to 24 Hours)
+  // 5.6 Create Custom Payment Link with Configurable Expiry (Up to 24 Hours) - Gated by Membership
   async createPaymentLink(req, res) {
     try {
       const { userEmail, amount, customerName = 'Customer', customerPhone = '', expiryMinutes = 60, note = '' } = req.body;
@@ -938,9 +940,28 @@ export const UserController = {
         return res.status(400).json({ success: false, error: 'Valid positive amount is required' });
       }
 
-      let user = null;
-      if (userEmail) {
-        user = await getUserByEmail(userEmail);
+      if (!userEmail) {
+        return res.status(400).json({ success: false, error: 'User email is required' });
+      }
+
+      let user = await getUserByEmail(userEmail);
+      if (!user) {
+        try {
+          user = await CloudSyncService.getUser(userEmail);
+        } catch (_) {}
+      }
+
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'User account not found. Please sign in.' });
+      }
+
+      // Strictly lock with Active Membership Plan
+      const hasPlan = user.role === 'admin' || (user.plan && user.plan !== 'NONE');
+      if (!hasPlan) {
+        return res.status(403).json({
+          success: false,
+          error: '🔒 Membership Required: Create Payment Link is an exclusive feature for active members. Please activate a 1-Month (₹299/mo) or 1-Year (₹1999/yr) plan on your dashboard.'
+        });
       }
 
       // Link Expiration: 1 min to max 24 hours (1440 mins)
@@ -968,8 +989,21 @@ export const UserController = {
       await query.run(
         `INSERT INTO orders (order_code, amount, base_amount, customer_name, customer_phone, status, created_at, expires_at, user_email)
          VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)`,
-        [orderCode, payableAmount, baseAmount, customerName, customerPhone, createdAt, expiresAt, user ? user.email : '']
+        [orderCode, payableAmount, baseAmount, customerName, customerPhone, createdAt, expiresAt, user.email]
       );
+
+      const linkOrderObj = {
+        order_code: orderCode,
+        amount: payableAmount,
+        base_amount: baseAmount,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        status: 'PENDING',
+        created_at: createdAt,
+        expires_at: expiresAt,
+        user_email: user.email
+      };
+      CloudSyncService.saveOrder(linkOrderObj).catch(() => {});
 
       await syncPaymentMonitoring(req.io);
 

@@ -58,17 +58,37 @@ export const CloudSyncService = {
     if (!user || !user.email) return false;
     try {
       const key = encodeKey(user.email);
+      let existingCloud = null;
+      try {
+        existingCloud = await this.getUser(user.email);
+      } catch (_) {}
+
+      const merged = {
+        ...(existingCloud || {}),
+        ...user,
+        email: user.email.toLowerCase().trim(),
+        // Ensure banking email & auth tokens are never overwritten with empty values
+        gmail_email: (user.gmail_email !== undefined && user.gmail_email !== '') ? user.gmail_email : (existingCloud?.gmail_email || ''),
+        gmail_app_pass: (user.gmail_app_pass !== undefined && user.gmail_app_pass !== '') ? user.gmail_app_pass : (existingCloud?.gmail_app_pass || ''),
+        gmail_access_token: (user.gmail_access_token !== undefined && user.gmail_access_token !== '') ? user.gmail_access_token : (existingCloud?.gmail_access_token || ''),
+        settlement_type: user.settlement_type || existingCloud?.settlement_type || 'GOOGLE_OAUTH',
+        gmail_connected: user.gmail_connected !== undefined ? (user.gmail_connected ? 1 : 0) : (existingCloud?.gmail_connected ? 1 : 0),
+        imap_host: user.imap_host || existingCloud?.imap_host || 'imap.gmail.com',
+        imap_port: user.imap_port || existingCloud?.imap_port || 993,
+        imap_secure: user.imap_secure !== undefined ? (user.imap_secure ? 1 : 0) : (existingCloud?.imap_secure !== undefined ? existingCloud.imap_secure : 1),
+        upi_provider: user.upi_provider || existingCloud?.upi_provider || 'AUTO',
+        upi_vpa: user.upi_vpa || existingCloud?.upi_vpa || '',
+        business_name: user.business_name || existingCloud?.business_name || '',
+        updated_at: Date.now()
+      };
+
       const res = await fetch(`${RTDB_BASE}/users/${key}.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...user,
-          email: user.email.toLowerCase().trim(),
-          updated_at: Date.now()
-        })
+        body: JSON.stringify(merged)
       });
       if (res.ok) {
-        logger.info(`[CloudSync] Saved user ${user.email} to Firebase RTDB (Plan: ${user.plan || 'NONE'})`);
+        logger.info(`[CloudSync] Saved user ${user.email} to Firebase RTDB (Plan: ${merged.plan || 'NONE'}, Banking: ${merged.gmail_connected ? 'Connected (' + (merged.gmail_email || merged.settlement_type) + ')' : 'Disconnected'})`);
         return true;
       }
     } catch (e) {
@@ -273,12 +293,12 @@ export const CloudSyncService = {
             await query.run(
               `INSERT INTO users (
                 email, name, photo_url, role, plan, qr_credits, api_key,
-                gmail_connected, gmail_email, gmail_app_pass, website_url,
-                website_urls, is_website_locked, website_locked_at, max_websites,
-                upi_vpa, business_name, settlement_type, upi_provider,
-                default_brand_name, default_brand_logo_url, default_theme,
+                gmail_connected, gmail_email, gmail_app_pass, gmail_access_token,
+                settlement_type, imap_host, imap_port, imap_secure, upi_provider,
+                website_url, website_urls, is_website_locked, website_locked_at, max_websites,
+                upi_vpa, business_name, default_brand_name, default_brand_logo_url, default_theme,
                 default_redirect_url, default_custom_note, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 email,
                 u.name || 'User',
@@ -290,6 +310,12 @@ export const CloudSyncService = {
                 u.gmail_connected ? 1 : 0,
                 u.gmail_email || '',
                 u.gmail_app_pass || '',
+                u.gmail_access_token || '',
+                u.settlement_type || 'GOOGLE_OAUTH',
+                u.imap_host || 'imap.gmail.com',
+                Number(u.imap_port) || 993,
+                u.imap_secure !== undefined ? (u.imap_secure ? 1 : 0) : 1,
+                u.upi_provider || 'AUTO',
                 u.website_url || '',
                 u.website_urls || '',
                 u.is_website_locked ? 1 : 0,
@@ -297,8 +323,6 @@ export const CloudSyncService = {
                 u.max_websites || 1,
                 u.upi_vpa || '',
                 u.business_name || '',
-                u.settlement_type || 'GOOGLE_OAUTH',
-                u.upi_provider || 'AUTO',
                 u.default_brand_name || '',
                 u.default_brand_logo_url || '',
                 u.default_theme || 'tiranga',
@@ -309,13 +333,50 @@ export const CloudSyncService = {
               ]
             );
           } else {
-            // If cloud user has an active plan and local has NONE, upgrade local!
-            if (u.plan && u.plan !== 'NONE' && (!existing.plan || existing.plan === 'NONE')) {
-              await query.run(
-                `UPDATE users SET plan = ?, qr_credits = ?, max_websites = ?, is_website_locked = ?, website_url = ?, website_urls = ? WHERE email = ?`,
-                [u.plan, u.qr_credits || 999999, u.max_websites || 1, u.is_website_locked ? 1 : 0, u.website_url || '', u.website_urls || '', email]
-              );
-            }
+            // Restore active plan, credits, AND banking credentials from cloud
+            await query.run(
+              `UPDATE users SET 
+                 plan = CASE WHEN ? != 'NONE' THEN ? ELSE plan END,
+                 qr_credits = CASE WHEN ? > 0 THEN ? ELSE qr_credits END,
+                 gmail_connected = CASE WHEN ? = 1 THEN 1 ELSE gmail_connected END,
+                 gmail_email = CASE WHEN ? != '' THEN ? ELSE gmail_email END,
+                 gmail_app_pass = CASE WHEN ? != '' THEN ? ELSE gmail_app_pass END,
+                 gmail_access_token = CASE WHEN ? != '' THEN ? ELSE gmail_access_token END,
+                 settlement_type = CASE WHEN ? != '' THEN ? ELSE settlement_type END,
+                 imap_host = CASE WHEN ? != '' THEN ? ELSE imap_host END,
+                 imap_port = CASE WHEN ? > 0 THEN ? ELSE imap_port END,
+                 imap_secure = CASE WHEN ? >= 0 THEN ? ELSE imap_secure END,
+                 upi_provider = CASE WHEN ? != '' THEN ? ELSE upi_provider END,
+                 upi_vpa = CASE WHEN ? != '' THEN ? ELSE upi_vpa END,
+                 business_name = CASE WHEN ? != '' THEN ? ELSE business_name END,
+                 max_websites = CASE WHEN ? > 0 THEN ? ELSE max_websites END,
+                 is_website_locked = CASE WHEN ? = 1 THEN 1 ELSE is_website_locked END,
+                 website_url = CASE WHEN ? != '' THEN ? ELSE website_url END,
+                 website_urls = CASE WHEN ? != '' THEN ? ELSE website_urls END,
+                 updated_at = ?
+               WHERE email = ?`,
+              [
+                u.plan || 'NONE', u.plan || 'NONE',
+                u.qr_credits || 0, u.qr_credits || 0,
+                u.gmail_connected ? 1 : 0,
+                u.gmail_email || '', u.gmail_email || '',
+                u.gmail_app_pass || '', u.gmail_app_pass || '',
+                u.gmail_access_token || '', u.gmail_access_token || '',
+                u.settlement_type || '', u.settlement_type || '',
+                u.imap_host || '', u.imap_host || '',
+                Number(u.imap_port) || 0, Number(u.imap_port) || 0,
+                u.imap_secure !== undefined ? (u.imap_secure ? 1 : 0) : -1, u.imap_secure !== undefined ? (u.imap_secure ? 1 : 0) : -1,
+                u.upi_provider || '', u.upi_provider || '',
+                u.upi_vpa || '', u.upi_vpa || '',
+                u.business_name || '', u.business_name || '',
+                u.max_websites || 0, u.max_websites || 0,
+                u.is_website_locked ? 1 : 0,
+                u.website_url || '', u.website_url || '',
+                u.website_urls || '', u.website_urls || '',
+                Date.now(),
+                email
+              ]
+            );
           }
         }
       }

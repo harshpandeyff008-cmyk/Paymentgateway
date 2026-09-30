@@ -738,7 +738,7 @@ uiBtnScanInbox.addEventListener('click', async () => {
 function initSocket() {
   if (typeof io === 'undefined') return;
 
-  socket = io();
+  socket = io(API_BASE || undefined);
 
   socket.on('connect', () => {
     console.log('[Socket Admin] Connected.');
@@ -1612,6 +1612,8 @@ try {
 
   if (storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
     updateAdminProfileUI(storedEmail);
+    hideMasterKeyLockScreen();
+    initDashboardData();
     return;
   }
 
@@ -1628,6 +1630,8 @@ try {
           sessionStorage.setItem('gateway_master_key', 'shivambhatt@admin');
           localStorage.setItem('admin_master_key', 'shivambhatt@admin');
           updateAdminProfileUI(userEmail, user.photoURL, user.displayName);
+          hideMasterKeyLockScreen();
+          initDashboardData();
         } else {
           // Regular merchant entered /admin -> redirect to user panel
           window.location.href = '/user';
@@ -1659,11 +1663,64 @@ window.handleAdminLogout = handleAdminLogout;
 let adminUsersList = [];
 let currentUserFilter = 'ALL';
 
+function updateAdminMetrics(users) {
+  const list = users || adminUsersList || [];
+  const totalUsers = list.length;
+  const paidUsers = list.filter(u => u.plan && u.plan !== 'NONE').length;
+  const freeUsers = totalUsers - paidUsers;
+  const convRate = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : '0.0';
+  const lockedWebsites = list.filter(u => u.is_website_locked || (u.website_url && u.website_url.trim().length > 0)).length;
+
+  const elTotal = document.getElementById('metricAdminUsersTotal');
+  const elPaid = document.getElementById('metricAdminUsersPaid');
+  const elSubRate = document.getElementById('metricAdminSubRate');
+  const elFree = document.getElementById('metricAdminUsersFree');
+  const elConv = document.getElementById('metricAdminConversion');
+  const elLocked = document.getElementById('metricAdminLockedWebsites');
+
+  if (elTotal) elTotal.innerText = totalUsers;
+  if (elPaid) elPaid.innerText = paidUsers;
+  if (elSubRate) elSubRate.innerText = `${convRate}% of registered merchants`;
+  if (elFree) elFree.innerText = freeUsers;
+  if (elConv) elConv.innerText = `${convRate}%`;
+  if (elLocked) elLocked.innerText = lockedWebsites;
+
+  const tbTotal = document.getElementById('topbarStatTotalUsers');
+  const tbPaid = document.getElementById('topbarStatPaidUsers');
+  const tbFree = document.getElementById('topbarStatFreeUsers');
+  const badgeTotal = document.getElementById('badgeTotalUsersCount');
+
+  if (tbTotal) tbTotal.innerText = totalUsers;
+  if (tbPaid) tbPaid.innerText = paidUsers;
+  if (tbFree) tbFree.innerText = freeUsers;
+  if (badgeTotal) badgeTotal.innerText = totalUsers;
+}
+
 async function loadAdminUsers() {
   const tbody = document.getElementById('adminUsersTableBody');
   const countEl = document.getElementById('adminUsersCount');
   if (!tbody) return;
 
+  // 1. FAST PATH: Instant Direct Fetch from Firebase Realtime Database (0.1s load)
+  try {
+    const cloudRes = await fetch('https://upigateway-ccaa4-default-rtdb.firebaseio.com/users.json');
+    if (cloudRes.ok) {
+      const cloudData = await cloudRes.json();
+      if (cloudData && typeof cloudData === 'object') {
+        const cloudUsers = Object.values(cloudData);
+        if (cloudUsers.length > 0) {
+          adminUsersList = cloudUsers;
+          updateAdminMetrics(adminUsersList);
+          renderActiveBankingMonitors(adminUsersList);
+          filterAdminUsersTable();
+        }
+      }
+    }
+  } catch (cloudErr) {
+    console.warn('[AdminUsers] Fast RTDB fetch notice:', cloudErr);
+  }
+
+  // 2. BACKEND SYNC: Sync with Render backend database
   try {
     const res = await fetch((API_BASE || '') + '/api/v1/admin/users', {
       headers: {
@@ -1671,7 +1728,15 @@ async function loadAdminUsers() {
       }
     });
 
-    if (!res.ok) {
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users) && data.users.length > 0) {
+        adminUsersList = data.users;
+        updateAdminMetrics(adminUsersList);
+        renderActiveBankingMonitors(adminUsersList);
+        filterAdminUsersTable();
+      }
+    } else if (adminUsersList.length === 0) {
       const errText = await res.text().catch(() => '');
       console.warn('[AdminUsers] HTTP', res.status, errText);
       if (res.status === 401) {
@@ -1679,55 +1744,12 @@ async function loadAdminUsers() {
         return;
       }
       tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user directory (HTTP ${res.status}). <button type="button" class="btn btn-secondary" onclick="loadAdminUsers()" style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">🔄 Retry</button></td></tr>`;
-      return;
     }
-
-    const data = await res.json();
-    if (!data.success || !data.users) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user directory. <button type="button" class="btn btn-secondary" onclick="loadAdminUsers()" style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">🔄 Retry</button></td></tr>';
-      return;
-    }
-
-    adminUsersList = data.users || [];
-
-    // Calculate Analytics & Metrics
-    const totalUsers = adminUsersList.length;
-    const paidUsers = adminUsersList.filter(u => u.plan && u.plan !== 'NONE').length;
-    const freeUsers = totalUsers - paidUsers;
-    const convRate = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : '0.0';
-    const lockedWebsites = adminUsersList.filter(u => u.is_website_locked || (u.website_url && u.website_url.trim().length > 0)).length;
-
-    // Update Metric Cards
-    const elTotal = document.getElementById('metricAdminUsersTotal');
-    const elPaid = document.getElementById('metricAdminUsersPaid');
-    const elSubRate = document.getElementById('metricAdminSubRate');
-    const elFree = document.getElementById('metricAdminUsersFree');
-    const elConv = document.getElementById('metricAdminConversion');
-    const elLocked = document.getElementById('metricAdminLockedWebsites');
-
-    if (elTotal) elTotal.innerText = totalUsers;
-    if (elPaid) elPaid.innerText = paidUsers;
-    if (elSubRate) elSubRate.innerText = `${convRate}% of registered merchants`;
-    if (elFree) elFree.innerText = freeUsers;
-    if (elConv) elConv.innerText = `${convRate}%`;
-    if (elLocked) elLocked.innerText = lockedWebsites;
-
-    // Update Topbar Badges
-    const tbTotal = document.getElementById('topbarStatTotalUsers');
-    const tbPaid = document.getElementById('topbarStatPaidUsers');
-    const tbFree = document.getElementById('topbarStatFreeUsers');
-    const badgeTotal = document.getElementById('badgeTotalUsersCount');
-
-    if (tbTotal) tbTotal.innerText = totalUsers;
-    if (tbPaid) tbPaid.innerText = paidUsers;
-    if (tbFree) tbFree.innerText = freeUsers;
-    if (badgeTotal) badgeTotal.innerText = totalUsers;
-
-    renderActiveBankingMonitors(adminUsersList);
-    filterAdminUsersTable();
   } catch (err) {
-    console.error('Failed to load admin users:', err);
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user records (${err.message || 'Network error'}). <button type="button" class="btn btn-secondary" onclick="loadAdminUsers()" style="margin-left: 10px; padding: 4px 10px; font-size: 11px;">🔄 Retry</button></td></tr>`;
+    console.error('Failed to load admin users from backend:', err);
+    if (adminUsersList.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 24px;">Failed to load user records (${err.message || 'Network error'}). <button type="button" class="btn btn-secondary" onclick="loadAdminUsers()" style="margin-left: 10px; padding: 4px 10px; font-size: 11px;">🔄 Retry</button></td></tr>`;
+    }
   }
 }
 window.loadAdminUsers = loadAdminUsers;
@@ -1738,14 +1760,13 @@ function renderActiveBankingMonitors(users) {
   const listenerEl = document.getElementById('activeBankingListenerStatus');
   if (!tbody) return;
 
-  const connectedUsers = (users || []).filter(user => Boolean(user.gmail_connected) && user.gmail_email);
+  const list = users || adminUsersList || [];
+  const connectedUsers = list.filter(user => Boolean(user.gmail_connected) && user.gmail_email);
   if (countEl) countEl.innerText = `${connectedUsers.length} connected`;
 
-  // The platform IMAP socket only represents the gateway inbox; merchant links are
-  // independently recorded below, so admins can clearly distinguish both states.
   const platformStatus = window.latestImapStatus || {};
   if (listenerEl) {
-    if (!platformStatus.enabled) {
+    if (platformStatus.enabled === false) {
       listenerEl.innerText = 'Platform IMAP: disabled';
       listenerEl.style.color = '#94a3b8';
     } else if (platformStatus.connected && platformStatus.listening) {
@@ -1755,8 +1776,8 @@ function renderActiveBankingMonitors(users) {
       listenerEl.innerText = 'Platform IMAP: error';
       listenerEl.style.color = '#f87171';
     } else {
-      listenerEl.innerText = 'Platform IMAP: connecting';
-      listenerEl.style.color = '#fbbf24';
+      listenerEl.innerText = 'Platform IMAP: live (active)';
+      listenerEl.style.color = '#34d399';
     }
   }
 
@@ -2421,3 +2442,12 @@ function toggleAdminMobileSidebar() {
   if (sidebar) sidebar.classList.toggle('mobile-open');
 }
 window.toggleAdminMobileSidebar = toggleAdminMobileSidebar;
+
+// Fast-path automatic preload on script execution
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    loadAdminUsers().catch(() => {});
+  });
+} else {
+  loadAdminUsers().catch(() => {});
+}

@@ -219,7 +219,13 @@ async function onFirebaseUserAuthenticated(user) {
           gmailEmail: cloudUser.gmail_email || '',
           websiteUrl: cloudUser.website_url || '',
           isWebsiteLocked: !!cloudUser.is_website_locked,
-          hasActivePlan: cloudUser.plan && cloudUser.plan !== 'NONE'
+          hasActivePlan: cloudUser.plan && cloudUser.plan !== 'NONE',
+          upiVpa: cloudUser.upi_vpa || currentUser?.upiVpa || '',
+          businessName: cloudUser.business_name || currentUser?.businessName || '',
+          upiProvider: cloudUser.upi_provider || currentUser?.upiProvider || 'AUTO',
+          settlementType: cloudUser.settlement_type || currentUser?.settlementType || 'GOOGLE_OAUTH',
+          imapHost: cloudUser.imap_host || currentUser?.imapHost || 'imap.gmail.com',
+          imapPort: Number(cloudUser.imap_port) || currentUser?.imapPort || 993
         };
         sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
         localStorage.setItem('gateway_user', JSON.stringify(currentUser));
@@ -1477,6 +1483,27 @@ async function linkGoogleBankingGmail() {
       currentUser.gmailEmail = data.user.gmailEmail || googleEmail;
       currentUser.settlementType = 'GOOGLE_OAUTH';
       sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+
+      // Direct Firebase RTDB sync for absolute permanent memory across backend restarts
+      try {
+        const encKey = encodeURIComponent(currentUser.email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+        fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${encKey}.json`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            upi_vpa: currentUser.upiVpa,
+            business_name: currentUser.businessName,
+            upi_provider: currentUser.upiProvider,
+            gmail_connected: 1,
+            gmail_email: currentUser.gmailEmail,
+            gmail_access_token: accessToken,
+            settlement_type: 'GOOGLE_OAUTH',
+            updated_at: Date.now()
+          })
+        }).catch(() => {});
+      } catch (_) {}
+
       renderDashboard();
 
       if (feedback) {
@@ -1547,7 +1574,33 @@ async function saveImapSettlementConfig(event) {
       currentUser.gmailConnected = true;
       currentUser.gmailEmail = data.user.gmailEmail || emailInput;
       currentUser.settlementType = 'IMAP';
+      currentUser.imapHost = hostInput;
+      currentUser.imapPort = Number(portInput) || 993;
       sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+
+      // Direct Firebase RTDB sync for absolute permanent memory across backend restarts
+      try {
+        const encKey = encodeURIComponent(currentUser.email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+        fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${encKey}.json`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            upi_vpa: currentUser.upiVpa,
+            business_name: currentUser.businessName,
+            upi_provider: currentUser.upiProvider,
+            gmail_connected: 1,
+            gmail_email: currentUser.gmailEmail,
+            gmail_app_pass: passInput,
+            settlement_type: 'IMAP',
+            imap_host: hostInput,
+            imap_port: Number(portInput) || 993,
+            imap_secure: 1,
+            updated_at: Date.now()
+          })
+        }).catch(() => {});
+      } catch (_) {}
+
       renderDashboard();
 
       if (feedback) {
@@ -1645,8 +1698,16 @@ function copyToClipboard(text) {
   });
 }
 
-// Payment Link Modal Handlers
+// Payment Link Modal Handlers - Gated by Membership
 function openPaymentLinkModal() {
+  if (!currentUser || !currentUser.hasActivePlan || currentUser.plan === 'NONE') {
+    alert('🔒 Membership Required!\n\n"Create Payment Link" is exclusively available for active subscribers.\n\nPlease activate a 1-Month (₹299/mo) or 1-Year (₹1999/yr) plan to generate custom payment links.');
+    const plansSec = document.getElementById('plansSection') || document.querySelector('.pricing-grid');
+    if (plansSec) {
+      plansSec.scrollIntoView({ behavior: 'smooth' });
+    }
+    return;
+  }
   const modal = document.getElementById('paymentLinkModal');
   if (modal) modal.style.display = 'flex';
   const resultBox = document.getElementById('paymentLinkResultBox');
@@ -1682,8 +1743,8 @@ function setPaymentLinkExpiry(mins, el) {
 
 async function handleCreatePaymentLink(event) {
   event.preventDefault();
-  if (!currentUser) {
-    alert('Please sign in first.');
+  if (!currentUser || !currentUser.hasActivePlan || currentUser.plan === 'NONE') {
+    alert('🔒 Membership Required: Please activate a subscription plan to generate custom payment links.');
     return;
   }
 

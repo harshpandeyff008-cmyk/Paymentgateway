@@ -87,6 +87,24 @@ export async function scanAndProcessRecentEmails() {
   }
 }
 
+let merchantPollerInterval = null;
+
+export function startMerchantImapPoller() {
+  if (merchantPollerInterval) return;
+  scanAndProcessMerchantEmails().catch(() => {});
+  merchantPollerInterval = setInterval(() => {
+    scanAndProcessMerchantEmails().catch(() => {});
+  }, 3500);
+  console.log('[Merchant IMAP Poller] Initialized background merchant IMAP monitor (3.5s interval).');
+}
+
+export function stopMerchantImapPoller() {
+  if (merchantPollerInterval) {
+    clearInterval(merchantPollerInterval);
+    merchantPollerInterval = null;
+  }
+}
+
 /**
  * Connected Merchants IMAP Poller:
  * Checks registered merchants who activated their Bank Gmail in Settlement Engine.
@@ -98,7 +116,7 @@ export async function scanAndProcessMerchantEmails() {
 
   try {
     const merchants = await query.all(
-      `SELECT email, upi_vpa, business_name, gmail_email, gmail_app_pass 
+      `SELECT email, upi_vpa, business_name, gmail_email, gmail_app_pass, imap_host, imap_port, imap_secure 
        FROM users 
        WHERE gmail_connected = 1 
          AND gmail_email IS NOT NULL 
@@ -115,10 +133,14 @@ export async function scanAndProcessMerchantEmails() {
 
       if (!user || !pass) continue;
 
+      const merchantHost = (merchant.imap_host || config.imap.host || 'imap.gmail.com').trim();
+      const merchantPort = Number(merchant.imap_port) || config.imap.port || 993;
+      const merchantSecure = merchant.imap_secure !== 0;
+
       const merchantClient = new ImapFlow({
-        host: config.imap.host || 'imap.gmail.com',
-        port: config.imap.port || 993,
-        secure: true,
+        host: merchantHost,
+        port: merchantPort,
+        secure: merchantSecure,
         auth: { user, pass },
         logger: false
       });
@@ -217,18 +239,24 @@ export async function syncPaymentMonitoring(io = null) {
     );
     const pendingCount = Number(pending?.count || 0);
 
+    const merchantCredsRow = await query.get(
+      `SELECT COUNT(*) AS count FROM users WHERE gmail_connected = 1 AND ((gmail_email != '' AND gmail_app_pass != '') OR (gmail_access_token != ''))`
+    );
+    const hasMerchantCreds = Number(merchantCredsRow?.count || 0) > 0;
     const hasImapCreds = Boolean(config.imap.enabled && config.imap.user && config.imap.pass);
 
-    if (pendingCount === 0 && !hasImapCreds) {
-      const wasActive = isRunning || Boolean(pollerInterval) || Boolean(reconnectTimer);
+    if (pendingCount === 0 && !hasImapCreds && !hasMerchantCreds) {
+      const wasActive = isRunning || Boolean(pollerInterval) || Boolean(reconnectTimer) || Boolean(merchantPollerInterval);
       await stopImapListener(false);
       stopGmailWatcher();
-      if (wasActive) console.log('[Payment Monitoring] No active orders and no IMAP credentials configured; all email monitors are stopped.');
+      stopMerchantImapPoller();
+      if (wasActive) console.log('[Payment Monitoring] No active orders and no IMAP/banking credentials configured; all email monitors are stopped.');
       return { active: false, pendingCount: 0 };
     }
 
     startGmailWatcher();
-    if (config.imap.enabled && !isRunning) {
+    startMerchantImapPoller();
+    if (config.imap.enabled && !isRunning && hasImapCreds) {
       await startImapListener(globalIo);
     }
     return { active: true, pendingCount };
@@ -754,5 +782,7 @@ export default {
   syncHistoricalPayments,
   getImapStatus,
   syncPaymentMonitoring,
-  schedulePaymentMonitoringSync
+  schedulePaymentMonitoringSync,
+  startMerchantImapPoller,
+  stopMerchantImapPoller
 };
