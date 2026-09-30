@@ -79,8 +79,8 @@ export default function PublicStore({ isUserDashboard = false }) {
   const [buyModalItem, setBuyModalItem] = useState(null);
 
   // UPI Gateway Integration State (defaults to live Render gateway & official pg_live API key)
-  const defaultGatewayUrl = import.meta.env.VITE_UPI_GATEWAY_URL || 'https://payment-gateway-ydl1.onrender.com';
-  const defaultGatewayKey = import.meta.env.VITE_UPI_GATEWAY_API_KEY || 'pg_live_bb2fa0d24e1caa68ff36319b8447773c';
+  const defaultGatewayUrl = import.meta.env.VITE_UPI_GATEWAY_URL || 'https://personal-payment-gateway.onrender.com';
+  const defaultGatewayKey = import.meta.env.VITE_UPI_GATEWAY_API_KEY || 'pg_live_8bd7aeec3c650fd7370049101cb01da0';
   const [gatewayUrl, setGatewayUrl] = useState(defaultGatewayUrl);
   const [gatewayApiKey, setGatewayApiKey] = useState(defaultGatewayKey);
 
@@ -335,14 +335,27 @@ export default function PublicStore({ isUserDashboard = false }) {
         webhookUrl: window.location.origin + '/api/webhook'
       };
 
-      const res = await fetch(`${gatewayUrl}/api/orders/create`, {
+      const primaryEndpoint = `${gatewayUrl}/api/v1/orders`;
+      let res = await fetch(primaryEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': gatewayApiKey
         },
         body: JSON.stringify(payload)
-      });
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        // Fallback to legacy endpoint if v1 returned non-ok
+        res = await fetch(`${gatewayUrl}/api/orders/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': gatewayApiKey
+          },
+          body: JSON.stringify(payload)
+        });
+      }
 
       const data = await res.json();
       if (!res.ok || !data.success || !data.order) {
@@ -390,11 +403,15 @@ export default function PublicStore({ isUserDashboard = false }) {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${gatewayUrl}/api/orders/${currentOrder.orderCode}`, {
-          headers: {
-            'x-api-key': gatewayApiKey
-          }
-        });
+        let res = await fetch(`${gatewayUrl}/api/v1/orders/${currentOrder.orderCode}`, {
+          headers: { 'x-api-key': gatewayApiKey }
+        }).catch(() => null);
+
+        if (!res || !res.ok) {
+          res = await fetch(`${gatewayUrl}/api/orders/${currentOrder.orderCode}`, {
+            headers: { 'x-api-key': gatewayApiKey }
+          });
+        }
         const data = await res.json();
         if (data.success && data.order) {
           const st = (data.order.status || '').toUpperCase();
@@ -1256,7 +1273,7 @@ export default function PublicStore({ isUserDashboard = false }) {
                 {/* Direct Action Toolbar */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <a
-                    href={`${gatewayUrl}${currentOrder.checkoutUrl}`}
+                    href={currentOrder.fullCheckoutUrl || (currentOrder.checkoutUrl?.startsWith('http') ? currentOrder.checkoutUrl : `${gatewayUrl}${currentOrder.checkoutUrl || `/checkout/${currentOrder.orderCode}`}`)}
                     target="_blank"
                     rel="noreferrer"
                     className="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
@@ -1279,7 +1296,7 @@ export default function PublicStore({ isUserDashboard = false }) {
                 {/* Embedded Live Gateway Checkout Iframe */}
                 <div className="w-full h-[460px] rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-inner bg-white relative">
                   <iframe
-                    src={`${gatewayUrl}${currentOrder.checkoutUrl}`}
+                    src={currentOrder.fullCheckoutUrl || (currentOrder.checkoutUrl?.startsWith('http') ? currentOrder.checkoutUrl : `${gatewayUrl}${currentOrder.checkoutUrl || `/checkout/${currentOrder.orderCode}`}`)}
                     title="Personal UPI Gateway Checkout Frame"
                     className="w-full h-full border-none"
                     allow="payment"

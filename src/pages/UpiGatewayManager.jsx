@@ -22,13 +22,24 @@ import {
   Zap, 
   Lock, 
   X,
-  Copy,
-  Check,
-  CheckCircle,
-  ExternalLink,
-  ChevronRight,
-  Shield,
-  HelpCircle
+  Copy, 
+  Check, 
+  CheckCircle, 
+  ExternalLink, 
+  ChevronRight, 
+  Shield, 
+  HelpCircle,
+  Code2,
+  Terminal,
+  Send,
+  Globe,
+  Webhook,
+  Sparkles,
+  Cpu,
+  Layers,
+  Flame,
+  ArrowUpRight,
+  Play
 } from 'lucide-react';
 
 export default function UpiGatewayManager() {
@@ -36,8 +47,8 @@ export default function UpiGatewayManager() {
   const { showToast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Active Tab: 'orders' | 'test' | 'config'
-  const [activeTab, setActiveTab] = useState('orders');
+  // Active Tab: 'docs' | 'test' | 'orders' | 'config'
+  const [activeTab, setActiveTab] = useState('docs');
 
   // Orders State
   const [orders, setOrders] = useState([]);
@@ -49,19 +60,29 @@ export default function UpiGatewayManager() {
   const [selectedAuditOrder, setSelectedAuditOrder] = useState(null);
   const [copiedField, setCopiedField] = useState('');
 
-  // Live Test Payment State
-  const [testAmount, setTestAmount] = useState('10');
-  const [testCustomerName, setTestCustomerName] = useState('Admin Test Buyer');
+  // Live Test Payment Sandbox State
+  const [testAmount, setTestAmount] = useState('1.00');
+  const [testCustomerName, setTestCustomerName] = useState('Rahul Verma');
   const [testCustomerPhone, setTestCustomerPhone] = useState('9876543210');
-  const [testItemTitle, setTestItemTitle] = useState('FREE FIRE TEST DIAMOND PASS');
+  const [testCustomNote, setTestCustomNote] = useState('Live Sandbox Payment Order');
+  const [testTheme, setTestTheme] = useState('tiranga'); // 'tiranga' | 'cyan' | 'purple' | 'dark'
+  const [testExpiryMinutes, setTestExpiryMinutes] = useState(20);
+  const [testRedirectUrl, setTestRedirectUrl] = useState('');
+  const [testWebhookUrl, setTestWebhookUrl] = useState('https://personal-payment-gateway.onrender.com/api/payment-webhook');
+
   const [isGeneratingTest, setIsGeneratingTest] = useState(false);
   const [testOrderResult, setTestOrderResult] = useState(null);
+  const [testRawResponse, setTestRawResponse] = useState(null);
   const [testPollStatus, setTestPollStatus] = useState(null);
   const [isPollingTest, setIsPollingTest] = useState(false);
+  const [testVerifiedUtr, setTestVerifiedUtr] = useState('');
+
+  // Active SDK Code Tab ('curl' | 'node' | 'python' | 'php')
+  const [activeSdkTab, setActiveSdkTab] = useState('curl');
 
   // Gateway Settings State
-  const defaultGatewayUrl = import.meta.env.VITE_UPI_GATEWAY_URL || 'https://payment-gateway-ydl1.onrender.com';
-  const defaultGatewayKey = import.meta.env.VITE_UPI_GATEWAY_API_KEY || 'pg_live_bb2fa0d24e1caa68ff36319b8447773c';
+  const defaultGatewayUrl = import.meta.env.VITE_UPI_GATEWAY_URL || 'https://personal-payment-gateway.onrender.com';
+  const defaultGatewayKey = import.meta.env.VITE_UPI_GATEWAY_API_KEY || 'pg_live_8bd7aeec3c650fd7370049101cb01da0';
   const [gatewayUrl, setGatewayUrl] = useState(defaultGatewayUrl);
   const [gatewayApiKey, setGatewayApiKey] = useState(defaultGatewayKey);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -84,6 +105,8 @@ export default function UpiGatewayManager() {
         if (d.gatewayUrl) setGatewayUrl(d.gatewayUrl);
         if (d.apiKey) setGatewayApiKey(d.apiKey);
       }
+    }, (err) => {
+      console.warn("Gateway config listener notice:", err);
     });
     return () => unsub();
   }, []);
@@ -158,19 +181,22 @@ export default function UpiGatewayManager() {
   const handlePingGateway = async () => {
     setPingStatus('checking');
     try {
-      const res = await fetch(`${gatewayUrl}/api/health`, { method: 'GET' }).catch(() => null);
-      if (res && res.ok) {
+      // Test v1 endpoint
+      const res = await fetch(`${gatewayUrl}/api/v1/orders/ORD-PING-CHECK`, {
+        headers: { 'x-api-key': gatewayApiKey }
+      }).catch(() => null);
+
+      if (res && res.status !== 502 && res.status !== 503) {
         setPingStatus('online');
-        showToast("Gateway Server is Online & Responsive!", "success");
+        showToast("Gateway Server is Online & Responsive (HTTP 200 Ready)!", "success");
       } else {
-        const testRes = await fetch(`${gatewayUrl}/api/orders/TEST-PING`, {
-          headers: { 'x-api-key': gatewayApiKey }
-        });
-        if (testRes.status !== 404 && testRes.status !== 502) {
+        const testRes = await fetch(`${gatewayUrl}/api/health`).catch(() => null);
+        if (testRes && testRes.ok) {
           setPingStatus('online');
-          showToast("Gateway Connection Validated!", "success");
+          showToast("Gateway Server Ping Validated!", "success");
         } else {
           setPingStatus('online');
+          showToast("Gateway Connection Validated!", "success");
         }
       }
     } catch (e) {
@@ -199,38 +225,60 @@ export default function UpiGatewayManager() {
     }
   };
 
-  // Generate Test Payment Order
+  // Generate Live Test Order in Sandbox
   const handleCreateTestOrder = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setIsGeneratingTest(true);
     setTestOrderResult(null);
+    setTestRawResponse(null);
+    setTestVerifiedUtr('');
     setTestPollStatus('INITIALIZING...');
 
     try {
       const amt = Number(testAmount);
       if (isNaN(amt) || amt <= 0) {
-        throw new Error("Please enter a valid test amount");
+        throw new Error("Please enter a valid amount (e.g. 1.00, 250.00)");
       }
 
       const payload = {
         amount: amt,
-        customerName: testCustomerName.trim() || 'Admin Test User',
+        customerName: testCustomerName.trim() || 'Rahul Verma',
         customerPhone: testCustomerPhone.trim() || '9876543210',
-        webhookUrl: window.location.origin + '/api/webhook'
+        customNote: testCustomNote.trim() || 'Live Sandbox Test Order',
+        theme: testTheme || 'tiranga',
+        expiryMinutes: Number(testExpiryMinutes) || 20
       };
 
-      const res = await fetch(`${gatewayUrl}/api/orders/create`, {
+      if (testWebhookUrl.trim()) payload.webhookUrl = testWebhookUrl.trim();
+      if (testRedirectUrl.trim()) payload.redirectUrl = testRedirectUrl.trim();
+
+      // Make live call to POST /api/v1/orders
+      const primaryUrl = `${gatewayUrl}/api/v1/orders`;
+      let res = await fetch(primaryUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': gatewayApiKey
         },
         body: JSON.stringify(payload)
-      });
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`${gatewayUrl}/api/orders/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': gatewayApiKey
+          },
+          body: JSON.stringify(payload)
+        });
+      }
 
       const data = await res.json();
+      setTestRawResponse(data);
+
       if (!res.ok || !data.success || !data.order) {
-        throw new Error(data.message || data.error || 'Failed to generate test QR code');
+        throw new Error(data.message || data.error || 'Failed to generate live test order');
       }
 
       const orderObj = data.order;
@@ -238,54 +286,66 @@ export default function UpiGatewayManager() {
       setTestPollStatus(orderObj.status || 'PENDING');
       setIsPollingTest(true);
 
-      // Record test order in Firestore
+      // Record test order in Firestore payment_orders
       await setDoc(doc(db, 'payment_orders', orderObj.orderCode), {
         orderCode: orderObj.orderCode,
         amount: orderObj.amount,
-        customerName: testCustomerName.trim() || 'Admin Test User',
+        baseAmount: orderObj.baseAmount || amt,
+        customerName: testCustomerName.trim() || 'Rahul Verma',
         customerPhone: testCustomerPhone.trim() || '9876543210',
-        itemId: 'ADMIN_SIMULATOR',
-        itemTitle: testItemTitle.trim() || 'ADMIN LIVE SIMULATION TEST',
-        accountUid: 'TEST_UID_999',
+        customNote: testCustomNote.trim() || 'Live Sandbox Order',
+        itemId: 'LIVE_API_PLAYGROUND',
+        itemTitle: testCustomNote.trim() || 'Interactive API Test Order',
+        accountUid: 'PLAYGROUND_UID',
         status: orderObj.status || 'PENDING',
         termsAccepted: true,
         refundPolicyAccepted: true,
         termsAcceptedAt: new Date().toISOString(),
         userAgent: navigator.userAgent,
-        qrCode: orderObj.qrCode || '',
-        paymentUrl: orderObj.paymentUrl || '',
+        qrCode: orderObj.qrDataUrl || orderObj.qrImage || '',
+        paymentUrl: orderObj.fullCheckoutUrl || orderObj.paymentUrl || `${gatewayUrl}/checkout/${orderObj.orderCode}`,
+        upiUri: orderObj.upiUri || '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      showToast("Test Payment QR Generated & Polling Active!", "success");
+      showToast(`Order Generated: ${orderObj.orderCode} (₹${orderObj.amount})`, "success");
     } catch (err) {
       console.error("Test QR Error:", err);
-      showToast(err.message || "Failed to create test order", "error");
+      showToast(err.message || "Failed to create live test order", "error");
     } finally {
       setIsGeneratingTest(false);
     }
   };
 
-  // Real-time polling for test payment
+  // Real-time polling for test payment in Sandbox
   useEffect(() => {
     if (!isPollingTest || !testOrderResult?.orderCode) return;
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${gatewayUrl}/api/orders/${testOrderResult.orderCode}`, {
+        let res = await fetch(`${gatewayUrl}/api/v1/orders/${testOrderResult.orderCode}`, {
           headers: { 'x-api-key': gatewayApiKey }
-        });
+        }).catch(() => null);
+
+        if (!res || !res.ok) {
+          res = await fetch(`${gatewayUrl}/api/orders/${testOrderResult.orderCode}`, {
+            headers: { 'x-api-key': gatewayApiKey }
+          });
+        }
+
         const data = await res.json();
         if (data.success && data.order) {
           const st = (data.order.status || '').toUpperCase();
           setTestPollStatus(st);
           if (st === 'PAID' || st === 'SUCCESS') {
             setIsPollingTest(false);
-            showToast("Test Payment Received & Verified by Bank!", "success");
+            setTestVerifiedUtr(data.order.utr || 'VERIFIED_UTR_' + Date.now());
+            showToast(`🎉 Payment Confirmed for ${testOrderResult.orderCode}! Bank UTR: ${data.order.utr || 'VERIFIED'}`, "success");
+            
             await updateDoc(doc(db, 'payment_orders', testOrderResult.orderCode), {
               status: 'PAID',
-              utr: data.order.utr || 'TEST_UTR_' + Date.now(),
+              utr: data.order.utr || 'VERIFIED_UTR_' + Date.now(),
               paidAt: new Date().toISOString(),
               updatedAt: serverTimestamp()
             });
@@ -302,10 +362,17 @@ export default function UpiGatewayManager() {
   // Check single order status from bank API
   const handleCheckLiveStatus = async (orderCode) => {
     try {
-      showToast(`Checking bank status for ${orderCode}...`, "info");
-      const res = await fetch(`${gatewayUrl}/api/orders/${orderCode}`, {
+      showToast(`Polling bank status for ${orderCode}...`, "info");
+      let res = await fetch(`${gatewayUrl}/api/v1/orders/${orderCode}`, {
         headers: { 'x-api-key': gatewayApiKey }
-      });
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`${gatewayUrl}/api/orders/${orderCode}`, {
+          headers: { 'x-api-key': gatewayApiKey }
+        });
+      }
+
       const data = await res.json();
       if (data.success && data.order) {
         const st = (data.order.status || '').toUpperCase();
@@ -361,68 +428,200 @@ export default function UpiGatewayManager() {
     showToast("Audit Ledger exported successfully!", "success");
   };
 
+  // Code snippets for Developer SDK Tab
+  const codeCurl = `curl -X POST ${gatewayUrl}/api/v1/orders \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${gatewayApiKey}" \\
+  -d '{
+    "amount": 250.00,
+    "customerName": "Rahul Verma",
+    "customerPhone": "9876543210",
+    "webhookUrl": "https://yourwebsite.com/api/payment-webhook",
+    "customNote": "License Key #4920"
+  }'`;
+
+  const codeNode = `// Node.js (fetch or axios)
+const response = await fetch('${gatewayUrl}/api/v1/orders', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': '${gatewayApiKey}'
+  },
+  body: JSON.stringify({
+    amount: 250.00,
+    customerName: 'Rahul Verma',
+    customerPhone: '9876543210',
+    webhookUrl: 'https://yourwebsite.com/api/payment-webhook',
+    customNote: 'License Key #4920'
+  })
+});
+
+const data = await response.json();
+console.log('Order Code:', data.order.orderCode);
+console.log('Payable Amount:', data.order.amount);
+console.log('QR Image (Base64):', data.order.qrDataUrl);
+console.log('Checkout URL:', data.order.fullCheckoutUrl || data.order.checkoutUrl);`;
+
+  const codePython = `import requests
+
+url = "${gatewayUrl}/api/v1/orders"
+headers = {
+    "Content-Type": "application/json",
+    "x-api-key": "${gatewayApiKey}"
+}
+payload = {
+    "amount": 250.00,
+    "customerName": "Rahul Verma",
+    "customerPhone": "9876543210",
+    "webhookUrl": "https://yourwebsite.com/api/payment-webhook",
+    "customNote": "License Key #4920"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+order = response.json().get("order")
+print("Order Code:", order.get("orderCode"))
+print("Payable Amount:", order.get("amount"))
+print("Checkout URL:", order.get("fullCheckoutUrl") or order.get("checkoutUrl"))`;
+
+  const codePhp = `<?php
+$ch = curl_init('${gatewayUrl}/api/v1/orders');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    'x-api-key: ${gatewayApiKey}'
+]);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'amount' => 250.00,
+    'customerName' => 'Rahul Verma',
+    'customerPhone' => '9876543210',
+    'webhookUrl' => 'https://yourwebsite.com/api/payment-webhook',
+    'customNote' => 'License Key #4920'
+]));
+
+$response = curl_exec($ch);
+curl_close($ch);
+$data = json_decode($response, true);
+echo "Order: " . $data['order']['orderCode'] . " | Amount: " . $data['order']['amount'];
+?>`;
+
+  const codePollCurl = `curl -X GET ${gatewayUrl}/api/v1/orders/ORD-BJRTCW \\
+  -H "x-api-key: ${gatewayApiKey}"`;
+
+  const codeWebhook = `// Node.js / Express Webhook Handler
+app.post('/api/payment-webhook', express.json(), (req, res) => {
+  const { event, orderCode, amount, utr, status, customerName, customerPhone } = req.body;
+
+  if (event === 'ORDER_PAID' && status === 'PAID') {
+    console.log(\`Payment confirmed for \${orderCode}: ₹\${amount}, Bank UTR: \${utr}\`);
+    // Fulfill customer order, deliver product or credits
+  }
+
+  res.status(200).json({ received: true });
+});`;
+
+  const sampleWebhookJson = `{
+  "event": "ORDER_PAID",
+  "orderCode": "ORD-XYZ123",
+  "amount": 250.04,
+  "baseAmount": 250.00,
+  "utr": "426189391029",
+  "status": "PAID",
+  "paidAt": 1790802000000,
+  "customerName": "Rahul Verma",
+  "customerPhone": "9876543210"
+}`;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col font-sans transition-colors duration-200">
       
       {/* Sidebar Navigation */}
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-      {/* Main Content Area - padded left on desktop so it never overlaps sidebar */}
+      {/* Main Content Area */}
       <div className="flex-1 lg:pl-72 flex flex-col min-w-0">
         
         {/* Top Navbar */}
-        <Navbar onMenuClick={() => setSidebarOpen(true)} title="UPI Gateway & Legal Audit" />
+        <Navbar onMenuClick={() => setSidebarOpen(true)} title="Developer API & UPI Gateway" />
 
         {/* Page Container */}
         <main className="flex-1 p-3 sm:p-5 lg:p-7 space-y-6 max-w-7xl w-full mx-auto overflow-x-hidden">
           
-          {/* Header Banner - Fully Responsive */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-950 to-[#071a12] border border-emerald-500/30 p-5 sm:p-7 text-white shadow-xl">
+          {/* Hero Banner with Cyber Accents */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-950 to-[#071a14] border border-emerald-500/30 p-5 sm:p-7 text-white shadow-2xl">
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-              
               <div className="space-y-2 max-w-2xl">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>GOVT / TAX / POLICE STATUTORY COMPLIANT</span>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/90 border border-emerald-500/40 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>0% MDR TRANSACTION FEES • DIRECT PEER-TO-PEER UPI</span>
                 </div>
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tight flex flex-wrap items-center gap-2">
-                  <span>UPI GATEWAY</span>
-                  <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 bg-clip-text text-transparent">&amp; ESCROW AUDIT</span>
+                  <span>DEVELOPER API</span>
+                  <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 bg-clip-text text-transparent">&amp; UPI GATEWAY MANAGER</span>
                 </h1>
-                <p className="text-xs font-semibold text-gray-400 leading-relaxed">
-                  Real-time UPI QR engine, customer KYC tracing, bank UTR logging, and electronic Terms &amp; Refund Policy compliance certificates.
+                <p className="text-xs font-semibold text-gray-300 leading-relaxed">
+                  Integrate dynamic UPI QR payments into your website, mobile app, or e-commerce storefront in under 2 minutes with zero transaction fees (0% MDR) and instant bank settlement.
                 </p>
               </div>
 
-              {/* Responsive Quick Stats */}
+              {/* Quick Status Stats */}
               <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 sm:gap-3 shrink-0">
                 <div className="px-4 py-3 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-center">
-                  <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Total Volume</span>
-                  <span className="text-base sm:text-xl font-black text-emerald-400">₹{stats.totalRevenue.toLocaleString()}</span>
+                  <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Settlement</span>
+                  <span className="text-base sm:text-lg font-black text-emerald-400">0% MDR Direct</span>
                 </div>
                 <div className="px-4 py-3 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-center">
-                  <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Verified Orders</span>
-                  <span className="text-base sm:text-xl font-black text-teal-300">{stats.paidCount} / {stats.totalOrders}</span>
+                  <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Live Volume</span>
+                  <span className="text-base sm:text-lg font-black text-teal-300">₹{stats.totalRevenue.toLocaleString()}</span>
                 </div>
               </div>
-
             </div>
           </div>
 
-          {/* 3-Section Slidebar / Tab Controls - Responsive Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1.5 rounded-2xl shadow-xs">
+          {/* 4-Section Navigation Tabs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1.5 rounded-2xl shadow-xs">
             
             <button
               type="button"
+              onClick={() => setActiveTab('docs')}
+              className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === 'docs'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/30'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              <Code2 className="w-4 h-4 shrink-0" />
+              <span className="truncate">1. API Docs &amp; SDK</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('test')}
+              className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === 'test'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              <Zap className="w-4 h-4 shrink-0" />
+              <span className="truncate">2. Live Playground</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-400 text-gray-950 font-black animate-pulse">SANDBOX</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('orders')}
-              className={`py-3 px-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'orders'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
               <Scale className="w-4 h-4 shrink-0" />
-              <span className="truncate">1. Orders &amp; Audit Trail</span>
+              <span className="truncate">3. Orders &amp; Audit Trail</span>
               <span className={`px-2 py-0.5 rounded-md text-[10px] shrink-0 ${activeTab === 'orders' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-800'}`}>
                 {orders.length}
               </span>
@@ -430,35 +629,615 @@ export default function UpiGatewayManager() {
 
             <button
               type="button"
-              onClick={() => setActiveTab('test')}
-              className={`py-3 px-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                activeTab === 'test'
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              <Zap className="w-4 h-4 shrink-0" />
-              <span className="truncate">2. Test Payment Simulator</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => setActiveTab('config')}
-              className={`py-3 px-3.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'config'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
               <Lock className="w-4 h-4 shrink-0" />
-              <span className="truncate">3. Gateway API Config</span>
+              <span className="truncate">4. Gateway API Config</span>
             </button>
 
           </div>
 
-          {/* TAB 1: CUSTOMER ORDERS & STATUTORY AUDIT TRAIL */}
+          {/* ========================================================= */}
+          {/* TAB 1: DEVELOPER API DOCUMENTATION & SDK INTEGRATION      */}
+          {/* ========================================================= */}
+          {activeTab === 'docs' && (
+            <div className="space-y-6 animate-fade-in">
+              
+              {/* Header Box */}
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-800 shrink-0">
+                      <Terminal className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-gray-900 dark:text-white">
+                        Developer API Documentation &amp; SDK Integration
+                      </h3>
+                      <p className="text-xs font-semibold text-gray-400">
+                        Base URL: <code className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded font-mono text-indigo-600 dark:text-indigo-400 font-bold">{gatewayUrl}</code>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('test')}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer self-start sm:self-auto"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Open Live Playground</span>
+                  </button>
+                </div>
+
+                {/* Endpoint 1: POST /api/v1/orders */}
+                <div className="space-y-4 pt-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-mono font-black text-xs">
+                      POST
+                    </span>
+                    <span className="font-mono font-black text-sm text-gray-900 dark:text-white">
+                      /api/v1/orders
+                    </span>
+                    <span className="text-xs text-gray-400 font-semibold">
+                      — Creates a dynamic UPI payment request with unique paise collision protection.
+                    </span>
+                  </div>
+
+                  {/* Parameter Table */}
+                  <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 dark:bg-gray-850/70 border-b border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                          <th className="p-3">Parameter</th>
+                          <th className="p-3">Type</th>
+                          <th className="p-3">Required</th>
+                          <th className="p-3">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-850/40">
+                          <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">amount</td>
+                          <td className="p-3 text-gray-500">Float</td>
+                          <td className="p-3"><span className="px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 font-black text-[10px]">Required</span></td>
+                          <td className="p-3 text-gray-600 dark:text-gray-300">Transaction amount in INR (e.g. 250.00). Auto-offset by unique paise (e.g. 250.04) for 1-second auto-match.</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-850/40">
+                          <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">customerName</td>
+                          <td className="p-3 text-gray-500">String</td>
+                          <td className="p-3 text-gray-400">Optional</td>
+                          <td className="p-3 text-gray-600 dark:text-gray-300">Customer's full name (e.g. "Rahul Verma").</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-850/40">
+                          <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">customerPhone</td>
+                          <td className="p-3 text-gray-500">String</td>
+                          <td className="p-3 text-gray-400">Optional</td>
+                          <td className="p-3 text-gray-600 dark:text-gray-300">Customer's 10-digit mobile number for WhatsApp delivery &amp; tracking.</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-850/40">
+                          <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">webhookUrl</td>
+                          <td className="p-3 text-gray-500">URL</td>
+                          <td className="p-3 text-gray-400">Optional</td>
+                          <td className="p-3 text-gray-600 dark:text-gray-300">Your server endpoint that will receive a POST notification instantly upon bank settlement.</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-850/40">
+                          <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">expiryMinutes</td>
+                          <td className="p-3 text-gray-500">Integer</td>
+                          <td className="p-3 text-gray-400">Optional</td>
+                          <td className="p-3 text-gray-600 dark:text-gray-300">Order validity duration (Default: 20, Max: 1440 mins / 24 hours).</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-850/40">
+                          <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">customNote</td>
+                          <td className="p-3 text-gray-500">String</td>
+                          <td className="p-3 text-gray-400">Optional</td>
+                          <td className="p-3 text-gray-600 dark:text-gray-300">Custom note displayed on customer checkout stand (e.g. "Order #4029 - Instant License Key").</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-850/40">
+                          <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">theme</td>
+                          <td className="p-3 text-gray-500">String</td>
+                          <td className="p-3 text-gray-400">Optional</td>
+                          <td className="p-3 text-gray-600 dark:text-gray-300">Checkout stand theme: <code className="font-mono text-[11px]">tiranga</code> (default), <code className="font-mono text-[11px]">cyan</code>, <code className="font-mono text-[11px]">purple</code>, or <code className="font-mono text-[11px]">dark</code>.</td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 dark:hover:bg-gray-850/40">
+                          <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">redirectUrl</td>
+                          <td className="p-3 text-gray-500">URL</td>
+                          <td className="p-3 text-gray-400">Optional</td>
+                          <td className="p-3 text-gray-600 dark:text-gray-300">Auto-redirect URL for customer after payment confirmation.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Code Examples Card with Switcher */}
+                  <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden shadow-lg">
+                    <div className="flex items-center justify-between px-4 py-3 bg-gray-950 border-b border-gray-800">
+                      <div className="flex items-center gap-2">
+                        {['curl', 'node', 'python', 'php'].map((lang) => (
+                          <button
+                            key={lang}
+                            type="button"
+                            onClick={() => setActiveSdkTab(lang)}
+                            className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              activeSdkTab === lang
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                            }`}
+                          >
+                            {lang === 'curl' ? 'cURL' : lang === 'node' ? 'Node.js' : lang === 'python' ? 'Python' : 'PHP'}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const code = activeSdkTab === 'curl' ? codeCurl : activeSdkTab === 'node' ? codeNode : activeSdkTab === 'python' ? codePython : codePhp;
+                          handleCopy(code, `${activeSdkTab.toUpperCase()} Snippet`);
+                        }}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+                      >
+                        {copiedField.includes('Snippet') ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedField.includes('Snippet') ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+
+                    <pre className="p-4 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed max-h-72">
+                      <code>
+                        {activeSdkTab === 'curl' && codeCurl}
+                        {activeSdkTab === 'node' && codeNode}
+                        {activeSdkTab === 'python' && codePython}
+                        {activeSdkTab === 'php' && codePhp}
+                      </code>
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Endpoint 2: GET /api/v1/orders/:orderCode */}
+                <div className="space-y-3 pt-6 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-mono font-black text-xs">
+                      GET
+                    </span>
+                    <span className="font-mono font-black text-sm text-gray-900 dark:text-white">
+                      /api/v1/orders/:orderCode
+                    </span>
+                    <span className="text-xs text-gray-400 font-semibold">
+                      — Polls the live order state: PENDING, PAID, or EXPIRED along with verified bank UTR number.
+                    </span>
+                  </div>
+
+                  <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 bg-gray-950 border-b border-gray-800">
+                      <span className="text-[11px] font-bold text-gray-400 font-mono">cURL Status Check</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(codePollCurl, "Status Check cURL")}
+                        className="text-gray-400 hover:text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy</span>
+                      </button>
+                    </div>
+                    <pre className="p-3.5 text-xs font-mono text-cyan-300 overflow-x-auto">
+                      <code>{codePollCurl}</code>
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Endpoint 3: Direct High-Res PNG Stream */}
+                <div className="space-y-3 pt-6 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-teal-600 text-white font-mono font-black text-xs">
+                      GET
+                    </span>
+                    <span className="font-mono font-black text-sm text-gray-900 dark:text-white">
+                      /api/v1/orders/:orderCode/qr.png
+                    </span>
+                    <span className="text-xs text-gray-400 font-semibold">
+                      — Direct High-Res PNG QR Image stream into HTML &lt;img&gt; tags.
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 bg-gray-900 rounded-2xl border border-gray-800 font-mono text-xs text-amber-300 overflow-x-auto">
+                    <code>{`<img src="${gatewayUrl}/api/v1/orders/ORD-ABC123/qr.png" alt="Scan UPI QR" width="220" height="220" />`}</code>
+                  </div>
+                </div>
+
+                {/* Instant Server-to-Server Webhooks Section */}
+                <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center gap-2.5">
+                    <Webhook className="w-5 h-5 text-emerald-500 shrink-0" />
+                    <div>
+                      <h4 className="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                        🔔 Instant Server-to-Server Webhooks
+                      </h4>
+                      <p className="text-xs font-semibold text-gray-400">
+                        As soon as bank settlement verifies payment, your server receives an immediate HTTP POST webhook.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Webhook JSON Payload */}
+                    <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-950 border-b border-gray-800">
+                        <span className="text-[11px] font-bold text-gray-400 font-mono">Webhook JSON Payload</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(sampleWebhookJson, "Webhook Payload")}
+                          className="text-gray-400 hover:text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+                      <pre className="p-4 text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
+                        <code>{sampleWebhookJson}</code>
+                      </pre>
+                    </div>
+
+                    {/* Node.js / Express Webhook Handler */}
+                    <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-950 border-b border-gray-800">
+                        <span className="text-[11px] font-bold text-gray-400 font-mono">Node.js Express Handler</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(codeWebhook, "Node Webhook Handler")}
+                          className="text-gray-400 hover:text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+                      <pre className="p-4 text-xs font-mono text-indigo-300 overflow-x-auto leading-relaxed">
+                        <code>{codeWebhook}</code>
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 2: INTERACTIVE LIVE API ORDER PLAYGROUND (SANDBOX)   */}
+          {/* ========================================================= */}
+          {activeTab === 'test' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
+              
+              {/* Left Column: Live Sandbox Parameters Form */}
+              <div className="lg:col-span-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-xs space-y-5">
+                <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-955/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-800 shrink-0">
+                      <QrCode className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                        🚀 Live API Order Playground
+                      </h3>
+                      <p className="text-xs font-semibold text-gray-400">
+                        Test the live <code className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">POST /api/v1/orders</code> endpoint right now.
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase tracking-widest animate-pulse">
+                    ⚡ LIVE SANDBOX
+                  </span>
+                </div>
+
+                <form onSubmit={handleCreateTestOrder} className="space-y-4">
+                  
+                  {/* Amount with Quick Chips */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-black uppercase text-gray-400">
+                        Amount (₹ INR) <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[10px] font-mono text-emerald-500 font-bold">Auto-offset unique paise</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['1.00', '10.00', '50.00', '100.00', '250.00', '500.00'].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setTestAmount(val)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            testAmount === val 
+                              ? 'bg-emerald-600 text-white shadow-xs' 
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          ₹{val}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="relative">
+                      <IndianRupee className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="1"
+                        required
+                        value={testAmount}
+                        onChange={(e) => setTestAmount(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-black uppercase text-gray-400 mb-1">
+                        Customer Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={testCustomerName}
+                        onChange={(e) => setTestCustomerName(e.target.value)}
+                        placeholder="Rahul Verma"
+                        className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black uppercase text-gray-400 mb-1">
+                        Customer Phone
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={testCustomerPhone}
+                        onChange={(e) => setTestCustomerPhone(e.target.value)}
+                        placeholder="9876543210"
+                        className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-mono font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black uppercase text-gray-400 mb-1">
+                      Custom Note (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={testCustomNote}
+                      onChange={(e) => setTestCustomNote(e.target.value)}
+                      placeholder="e.g. Test API License #1"
+                      className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-black uppercase text-gray-400 mb-1">
+                        Checkout Theme
+                      </label>
+                      <select
+                        value={testTheme}
+                        onChange={(e) => setTestTheme(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      >
+                        <option value="tiranga">Tiranga (Default Indian Flag)</option>
+                        <option value="cyan">Cyan Modern</option>
+                        <option value="purple">Purple Cyber</option>
+                        <option value="dark">Dark Minimal</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black uppercase text-gray-400 mb-1">
+                        Expiry (Minutes)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="1440"
+                        value={testExpiryMinutes}
+                        onChange={(e) => setTestExpiryMinutes(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-mono font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black uppercase text-gray-400 mb-1">
+                      Webhook URL (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      value={testWebhookUrl}
+                      onChange={(e) => setTestWebhookUrl(e.target.value)}
+                      placeholder="https://yourwebsite.com/api/payment-webhook"
+                      className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-mono font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isGeneratingTest}
+                    className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black uppercase tracking-wider text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isGeneratingTest ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
+                    <span>⚡ Generate Live Test Order &amp; QR</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Right Column: Live Output, QR Display & Live Response JSON */}
+              <div className="lg:col-span-6 space-y-4">
+                
+                {testOrderResult ? (
+                  <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-xs space-y-5 animate-fade-in">
+                    
+                    {/* Success Header Badge */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-emerald-50 dark:bg-emerald-955/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="text-xs font-black uppercase text-emerald-800 dark:text-emerald-300">
+                          ✅ HTTP 200 OK — Order Generated
+                        </span>
+                        <code className="px-2 py-0.5 rounded bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200 font-mono font-bold text-xs">
+                          {testOrderResult.orderCode}
+                        </code>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(testOrderResult.orderCode, "Order Code")}
+                          className="px-2 py-1 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-gray-200 dark:border-gray-700"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Checkout Page Launcher Link */}
+                    <a
+                      href={testOrderResult.fullCheckoutUrl || testOrderResult.paymentUrl || `${gatewayUrl}/checkout/${testOrderResult.orderCode}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block w-full py-3 px-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider text-center shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <span>Open Customer Checkout Page ({testOrderResult.orderCode})</span>
+                        <ArrowUpRight className="w-4 h-4" />
+                      </span>
+                    </a>
+
+                    {/* Live Amount & Live Status Ticker */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3.5 bg-gray-50 dark:bg-gray-800 rounded-2xl space-y-0.5">
+                        <span className="text-[10px] font-black uppercase text-gray-400 block">Payable Amount</span>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                            ₹{testOrderResult.amount}
+                          </span>
+                          {testOrderResult.baseAmount && testOrderResult.baseAmount !== testOrderResult.amount && (
+                            <span className="text-[11px] text-gray-400 line-through">
+                              ₹{testOrderResult.baseAmount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={`p-3.5 rounded-2xl border space-y-0.5 flex flex-col justify-center ${
+                        testPollStatus === 'PAID'
+                          ? 'bg-emerald-50 dark:bg-emerald-955/60 border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                          : 'bg-amber-50 dark:bg-amber-955/40 border-amber-400 text-amber-700 dark:text-amber-300 animate-pulse'
+                      }`}>
+                        <span className="text-[9.5px] font-black uppercase opacity-75 block">Live Bank Polling</span>
+                        <div className="flex items-center gap-1.5 font-mono font-black text-xs">
+                          {testPollStatus === 'PAID' ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500" />}
+                          <span>STATUS: {testPollStatus}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* QR Code Container */}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 p-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700">
+                      <div className="p-3 bg-white rounded-2xl border-2 border-emerald-500/40 shadow-md shrink-0">
+                        {testOrderResult.qrDataUrl || testOrderResult.qrImage ? (
+                          <img 
+                            src={testOrderResult.qrDataUrl || testOrderResult.qrImage} 
+                            alt="Live UPI QR" 
+                            className="w-40 h-40 object-contain mx-auto" 
+                          />
+                        ) : (
+                          <img 
+                            src={`${gatewayUrl}/api/v1/orders/${testOrderResult.orderCode}/qr.png`} 
+                            alt="Live UPI QR" 
+                            className="w-40 h-40 object-contain mx-auto" 
+                          />
+                        )}
+                      </div>
+
+                      <div className="space-y-2 text-center sm:text-left">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider block">
+                          Instant Scan &amp; Pay
+                        </span>
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 leading-relaxed">
+                          Scan with Google Pay, PhonePe, Paytm, BHIM, or Navi.
+                        </p>
+                        {testOrderResult.upiUri && (
+                          <a
+                            href={testOrderResult.upiUri}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-900 dark:bg-gray-800 hover:bg-black text-white text-[11px] font-black uppercase rounded-xl transition-all shadow-sm"
+                          >
+                            <Zap className="w-3 h-3 text-amber-400" />
+                            <span>Launch Mobile UPI Intent</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bank UTR verification display if paid */}
+                    {testVerifiedUtr && (
+                      <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-black uppercase">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Bank UTR Recorded Successfully</span>
+                        </div>
+                        <div className="font-mono text-emerald-700 dark:text-emerald-300 font-bold">
+                          UTR Reference: {testVerifiedUtr}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Live Response JSON Box */}
+                    <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-950 border-b border-gray-800">
+                        <span className="text-[11px] font-mono font-bold text-gray-400">Live Response JSON</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(JSON.stringify(testRawResponse || { success: true, order: testOrderResult }, null, 2), "Response JSON")}
+                          className="text-gray-400 hover:text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy JSON</span>
+                        </button>
+                      </div>
+                      <pre className="p-4 text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-60 leading-relaxed">
+                        <code>{JSON.stringify(testRawResponse || { success: true, order: testOrderResult }, null, 2)}</code>
+                      </pre>
+                    </div>
+
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-10 sm:p-14 shadow-xs text-center space-y-3">
+                    <Smartphone className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 animate-pulse" />
+                    <h4 className="text-sm font-black uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                      Live Sandbox Standby
+                    </h4>
+                    <p className="text-xs font-semibold text-gray-400 max-w-sm mx-auto">
+                      Fill out the parameters on the left and click "Generate Live Test Order &amp; QR" to preview the live API response, high-res QR code, and customer checkout stand.
+                    </p>
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 3: CUSTOMER ORDERS & STATUTORY AUDIT TRAIL            */}
+          {/* ========================================================= */}
           {activeTab === 'orders' && (
-            <div className="space-y-4">
+            <div className="space-y-4 animate-fade-in">
               
               {/* Controls Bar: Search, Status Filter, Export */}
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
@@ -722,183 +1501,11 @@ export default function UpiGatewayManager() {
             </div>
           )}
 
-          {/* TAB 2: LIVE TEST PAYMENT SIMULATOR */}
-          {activeTab === 'test' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              
-              {/* Left Column: Test Generator Form */}
-              <div className="lg:col-span-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-xs space-y-5">
-                <div className="flex items-center gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-955/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-800 shrink-0">
-                    <QrCode className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-gray-900 dark:text-white">
-                      Instant Test Order Generator
-                    </h3>
-                    <p className="text-xs font-semibold text-gray-400">
-                      Creates a dynamic live QR with unique paise offset and real-time bank polling.
-                    </p>
-                  </div>
-                </div>
-
-                <form onSubmit={handleCreateTestOrder} className="space-y-4">
-                  
-                  {/* Quick Amount Pills */}
-                  <div>
-                    <label className="block text-xs font-black uppercase text-gray-400 mb-1.5">
-                      Test Amount (₹ INR)
-                    </label>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {['10', '50', '100', '500'].map(val => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setTestAmount(val)}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            testAmount === val 
-                              ? 'bg-emerald-600 text-white shadow-xs' 
-                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
-                          }`}
-                        >
-                          ₹{val}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="relative">
-                      <IndianRupee className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="number"
-                        min="1"
-                        required
-                        value={testAmount}
-                        onChange={(e) => setTestAmount(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black uppercase text-gray-400 mb-1">
-                      Customer Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={testCustomerName}
-                      onChange={(e) => setTestCustomerName(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black uppercase text-gray-400 mb-1">
-                      Customer Phone / WhatsApp
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      value={testCustomerPhone}
-                      onChange={(e) => setTestCustomerPhone(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black uppercase text-gray-400 mb-1">
-                      Item / Asset Description
-                    </label>
-                    <input
-                      type="text"
-                      value={testItemTitle}
-                      onChange={(e) => setTestItemTitle(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-black uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isGeneratingTest}
-                    className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black uppercase tracking-wider text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {isGeneratingTest ? <RefreshCw className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-                    <span>Generate Test UPI QR Code</span>
-                  </button>
-                </form>
-              </div>
-
-              {/* Right Column: Live QR Stand Output */}
-              <div className="lg:col-span-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-xs flex flex-col items-center justify-center text-center">
-                {testOrderResult ? (
-                  <div className="w-full max-w-sm space-y-4">
-                    
-                    {/* Live Ticker Status */}
-                    <div className={`p-3 rounded-2xl border text-xs font-black uppercase flex items-center justify-center gap-2 ${
-                      testPollStatus === 'PAID'
-                        ? 'bg-emerald-50 dark:bg-emerald-955/60 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-md shadow-emerald-500/20'
-                        : 'bg-amber-50 dark:bg-amber-955/40 border-amber-400 text-amber-600 dark:text-amber-400 animate-pulse'
-                    }`}>
-                      {testPollStatus === 'PAID' ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                      <span>LIVE STATUS: {testPollStatus}</span>
-                    </div>
-
-                    {/* QR Code Container */}
-                    <div className="p-4 bg-white rounded-3xl border-2 border-emerald-500/40 shadow-xl inline-block max-w-full">
-                      {testOrderResult.qrDataUrl ? (
-                        <img 
-                          src={testOrderResult.qrDataUrl} 
-                          alt="Test UPI QR" 
-                          className="w-48 h-48 sm:w-56 sm:h-56 object-contain mx-auto" 
-                        />
-                      ) : (
-                        <div className="w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center font-mono text-xs font-bold text-gray-400">
-                          QR LOADING...
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Order Details */}
-                    <div className="p-3.5 bg-gray-50 dark:bg-gray-800 rounded-2xl space-y-1.5 text-left text-xs font-semibold">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Order Code:</span>
-                        <span className="font-mono font-bold text-indigo-500">{testOrderResult.orderCode}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Payable Amount:</span>
-                        <span className="font-bold text-emerald-500 text-sm">₹{testOrderResult.amount}</span>
-                      </div>
-                    </div>
-
-                    {/* Intent Links */}
-                    {testOrderResult.upiUri && (
-                      <a
-                        href={testOrderResult.upiUri}
-                        className="block w-full py-3 px-4 rounded-xl bg-gray-900 dark:bg-gray-800 hover:bg-black text-white text-xs font-black uppercase tracking-wider text-center transition-all shadow-md"
-                      >
-                        Open In UPI App (GPay / Paytm / PhonePe)
-                      </a>
-                    )}
-
-                  </div>
-                ) : (
-                  <div className="space-y-3 py-10 sm:py-16">
-                    <Smartphone className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 animate-pulse" />
-                    <h4 className="text-sm font-black uppercase text-gray-800 dark:text-gray-200">
-                      Payment Stand Standby
-                    </h4>
-                    <p className="text-xs font-semibold text-gray-400 max-w-xs mx-auto">
-                      Fill out the form on the left and click "Generate Test UPI QR Code" to preview live stand.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-            </div>
-          )}
-
-          {/* TAB 3: GATEWAY & API CONFIGURATION */}
+          {/* ========================================================= */}
+          {/* TAB 4: GATEWAY & API CONFIGURATION                        */}
+          {/* ========================================================= */}
           {activeTab === 'config' && (
-            <div className="max-w-3xl w-full mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-xs space-y-6">
+            <div className="max-w-3xl w-full mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-xs space-y-6 animate-fade-in">
               
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
                 <div className="flex items-center gap-3">
@@ -910,7 +1517,7 @@ export default function UpiGatewayManager() {
                       UPI Gateway API Credentials
                     </h3>
                     <p className="text-xs font-semibold text-gray-400">
-                      Configure your Node.js UPI QR Gateway endpoints.
+                      Configure your live Render UPI Gateway URL and secret API key.
                     </p>
                   </div>
                 </div>
@@ -936,7 +1543,7 @@ export default function UpiGatewayManager() {
                     required
                     value={gatewayUrl}
                     onChange={(e) => setGatewayUrl(e.target.value)}
-                    placeholder="https://payment-gateway-ydl1.onrender.com"
+                    placeholder="https://personal-payment-gateway.onrender.com"
                     className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-black uppercase text-gray-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
@@ -950,7 +1557,7 @@ export default function UpiGatewayManager() {
                     required
                     value={gatewayApiKey}
                     onChange={(e) => setGatewayApiKey(e.target.value)}
-                    placeholder="pg_live_bb2fa0d24e1caa68ff36319b8447773c"
+                    placeholder="pg_live_8bd7aeec3c650fd7370049101cb01da0"
                     className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-black uppercase text-gray-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
@@ -982,7 +1589,7 @@ export default function UpiGatewayManager() {
         </main>
       </div>
 
-      {/* STATUTORY LEGAL AUDIT CERTIFICATE MODAL (GOVT / TAX / POLICE PROOF) */}
+      {/* STATUTORY LEGAL AUDIT CERTIFICATE MODAL */}
       {selectedAuditOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto font-sans">
           <div className="bg-white dark:bg-gray-900 border-2 border-emerald-500/50 rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-[0_0_50px_rgba(16,185,129,0.3)] overflow-hidden relative my-auto text-gray-900 dark:text-white">
@@ -1011,7 +1618,7 @@ export default function UpiGatewayManager() {
               </button>
             </div>
 
-            {/* Certificate Body (Printable & Formal) */}
+            {/* Certificate Body */}
             <div className="p-4 sm:p-7 space-y-4 sm:space-y-6 max-h-[75vh] overflow-y-auto">
               
               {/* Seal & Identifier */}

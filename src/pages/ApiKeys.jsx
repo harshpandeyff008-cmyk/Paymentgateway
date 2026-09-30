@@ -188,12 +188,20 @@ export default function ApiKeys() {
                 <Terminal className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-xs font-black text-indigo-955 dark:text-indigo-200 uppercase tracking-wide">Developer Integration</h4>
+                <h4 className="text-xs font-black text-indigo-955 dark:text-indigo-200 uppercase tracking-wide">UPI Payment Gateway &amp; Developer Integration</h4>
                 <p className="text-[11px] text-indigo-900 dark:text-indigo-400 font-semibold mt-0.5 leading-relaxed">
-                  Call the API via <code className="bg-indigo-100 dark:bg-indigo-950 px-1 py-0.5 rounded font-mono text-[10px] text-indigo-655 dark:text-indigo-300">POST /api/license/generate</code> using header <code className="bg-indigo-100 dark:bg-indigo-950 px-1 py-0.5 rounded font-mono text-[10px] text-indigo-655 dark:text-indigo-300">Authorization: Bearer [API_KEY]</code>
+                  Call the live UPI order API via <code className="bg-indigo-100 dark:bg-indigo-950 px-1 py-0.5 rounded font-mono text-[10px] text-indigo-655 dark:text-indigo-300">POST /api/v1/orders</code> with header <code className="bg-indigo-100 dark:bg-indigo-950 px-1 py-0.5 rounded font-mono text-[10px] text-indigo-655 dark:text-indigo-300">x-api-key: [API_KEY]</code>
                 </p>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/upi-gateway')}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap shadow-sm cursor-pointer transition-all shrink-0"
+            >
+              Open Payment SDK &amp; Playground ➔
+            </button>
           </div>
 
           {/* Form */}
