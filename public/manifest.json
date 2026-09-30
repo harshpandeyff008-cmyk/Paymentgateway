@@ -1,0 +1,23 @@
+{
+  "short_name": "FF Official Deals",
+  "name": "FREE FIRE OFFICIAL DEALS — #1 Verified Free Fire ID Marketplace",
+  "description": "India's #1 Most Trusted Free Fire ID Marketplace & Safe Escrow Desk. Buy and sell verified Free Fire accounts with instant OTP delivery.",
+  "icons": [
+    {
+      "src": "/garena-logo.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/garena-logo.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#06090c",
+  "theme_color": "#10b981",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["games", "shopping", "entertainment"]
+}

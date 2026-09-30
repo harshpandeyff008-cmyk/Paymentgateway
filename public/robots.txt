@@ -1,15 +1,37 @@
 User-agent: *
 Allow: /
 Allow: /store
+Allow: /ff-store-upload
 Allow: /pricing
-Allow: /privacy-policy
+Allow: /contact-us
+Allow: /terms-and-conditions
 Allow: /terms
+Allow: /privacy-policy
 Allow: /refund-policy
 Disallow: /admin
-Disallow: /client-dashboard
+Disallow: /admin/
 Disallow: /admin-dashboard
+Disallow: /client-dashboard
+Disallow: /user-dashboard
+Disallow: /setup-admin
 
-# Explicit AI Search & LLM Web Crawler Directives (ChatGPT, Perplexity, Claude, Gemini, Apple Intelligence)
+# Search Engine Web Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# AI Search & LLM Web Crawlers (Perplexity, ChatGPT, Claude, Gemini, Apple Intelligence)
 User-agent: GPTBot
 Allow: /
 
@@ -23,9 +45,6 @@ User-agent: ClaudeBot
 Allow: /
 
 User-agent: Google-Extended
-Allow: /
-
-User-agent: Bingbot
 Allow: /
 
 User-agent: Applebot-Extended
