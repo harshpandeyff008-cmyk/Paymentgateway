@@ -1,5 +1,8 @@
 /sitemap.xml /sitemap.xml 200
 /sitemap.txt /sitemap.txt 200
+/store/sitemap.xml /sitemap.xml 200
+/store/sitemap.txt /sitemap.txt 200
+/store/sitemap.html /sitemap.xml 200
 /robots.txt /robots.txt 200
 /manifest.json /manifest.json 200
 /llms.txt /llms.txt 200
