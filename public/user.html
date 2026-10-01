@@ -1046,6 +1046,34 @@ echo "Order: " . $data['order']['orderCode'] . " | Amount: " . $data['order']['a
 
             <!-- TAB 1: MANUAL IMAP / GMAIL APP PASSWORD (RECOMMENDED 24/7) -->
             <div id="settlementTabImap" style="display: block;">
+
+              <!-- LIVE CONNECTED IMAP CARD (VISIBLE WHEN SAVED) -->
+              <div id="imapConnectedCard" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 10px; padding: 16px; margin-bottom: 18px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: #34d399;">
+                      <span>🟢 24/7 IMAP Banking Monitor: ACTIVE</span>
+                      <span style="background: rgba(16,185,129,0.25); color: #34d399; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">NEVER EXPIRES</span>
+                    </div>
+                    <div style="font-size: 12.5px; color: #f1f5f9; margin-top: 6px;">
+                      Connected Banking Email: <strong id="imapLinkedEmailText" style="color: #38bdf8; font-family: monospace;">-</strong>
+                    </div>
+                    <div style="font-size: 11.5px; color: #94a3b8; margin-top: 4px;">
+                      16-Letter App Password: <span style="font-family: monospace; letter-spacing: 2px; color: #34d399;">•••• •••• •••• ••••</span> <span style="color: #64748b;">(Saved &amp; Active on server)</span>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 8px;">
+                    <button type="button" onclick="testMerchantImapConnection()" id="btnTestMerchantImap" class="btn-secondary" style="font-size: 12px; padding: 7px 14px; color: #38bdf8; border-color: rgba(56,189,248,0.4); font-weight: 700;">
+                      ⚡ Test Connection
+                    </button>
+                    <button type="button" onclick="disconnectBankingChannel()" class="btn-secondary" style="font-size: 12px; padding: 7px 12px; border-color: rgba(244,63,94,0.4); color: #f87171;">
+                      ✕ Disconnect
+                    </button>
+                  </div>
+                </div>
+                <div id="imapTestFeedback" style="display: none; margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 12px;"></div>
+              </div>
+
               <form onsubmit="saveImapSettlementConfig(event)">
                 <div class="google-step-card" style="margin-bottom: 16px;">
                   <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
@@ -1070,7 +1098,8 @@ echo "Order: " . $data['order']['orderCode'] . " | Amount: " . $data['order']['a
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">IMAP Password / 16-char App Password</label>
-                    <input type="password" id="inputImapPass" class="form-input" placeholder="e.g. abcd efgh ijkl mnop" required style="font-family: monospace;">
+                    <input type="password" id="inputImapPass" oninput="validateImapPassLength(this)" class="form-input" placeholder="e.g. abcd efgh ijkl mnop" required style="font-family: monospace;">
+                    <div id="imapPassHelper" style="font-size: 11px; margin-top: 5px; color: var(--text-dim);">Google App Passwords are exactly 16 letters (4 groups of 4).</div>
                   </div>
                 </div>
 
@@ -1086,12 +1115,12 @@ echo "Order: " . $data['order']['orderCode'] . " | Amount: " . $data['order']['a
                 </div>
 
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                  <button type="submit" class="btn-primary" style="height: 48px; font-size: 14px; font-weight: 800; padding: 0 24px;">
+                  <button type="submit" id="btnSaveImapConfig" class="btn-primary" style="height: 48px; font-size: 14px; font-weight: 800; padding: 0 24px;">
                     <span>Save IMAP Configuration &amp; Start 24/7 Listener</span>
                     <span>💾</span>
                   </button>
-                  <button type="button" onclick="disconnectBankingChannel()" class="btn-secondary" style="height: 48px; font-size: 12px; padding: 0 16px; border-color: rgba(244,63,94,0.4); color: #f87171;">
-                    ✕ Disconnect
+                  <button type="button" onclick="testMerchantImapConnection()" class="btn-secondary" style="height: 48px; font-size: 12px; padding: 0 16px; color: #38bdf8; border-color: rgba(56,189,248,0.4); font-weight: 700;">
+                    ⚡ Test Credentials
                   </button>
                 </div>
               </form>

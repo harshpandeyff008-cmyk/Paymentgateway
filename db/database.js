@@ -528,7 +528,8 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
         const updateGmailEmail = user.gmail_email || cloudUser.gmail_email || '';
         const updateGmailAppPass = user.gmail_app_pass || cloudUser.gmail_app_pass || '';
         const updateGmailAccessToken = user.gmail_access_token || cloudUser.gmail_access_token || '';
-        const updateSettlementType = user.settlement_type || cloudUser.settlement_type || 'GOOGLE_OAUTH';
+        const updateSettlementType = (cloudUser.settlement_type === 'IMAP' || user.settlement_type === 'IMAP') ? 'IMAP' : (user.settlement_type || cloudUser.settlement_type || 'GOOGLE_OAUTH');
+        const updateGmailTokenExpired = (updateSettlementType === 'IMAP') ? 0 : (user.gmail_token_expired !== undefined ? user.gmail_token_expired : (cloudUser.gmail_token_expired ? 1 : 0));
         const updateUpiVpa = user.upi_vpa || cloudUser.upi_vpa || '';
         const updateBusinessName = user.business_name || cloudUser.business_name || '';
         const updateImapHost = user.imap_host || cloudUser.imap_host || 'imap.gmail.com';
@@ -548,7 +549,7 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
 
         await query.run(
           `UPDATE users SET 
-             plan = ?, qr_credits = ?, gmail_connected = ?, gmail_email = ?, gmail_app_pass = ?,
+             plan = ?, qr_credits = ?, gmail_connected = ?, gmail_token_expired = ?, gmail_email = ?, gmail_app_pass = ?,
              gmail_access_token = ?, settlement_type = ?, upi_vpa = ?, business_name = ?,
              imap_host = ?, imap_port = ?, imap_secure = ?, upi_provider = ?,
              website_url = ?, website_urls = ?, is_website_locked = ?, website_locked_at = ?,
@@ -557,7 +558,7 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
              updated_at = ?
            WHERE email = ?`,
           [
-            updatePlan, updateCredits, updateGmailConnected, updateGmailEmail, updateGmailAppPass,
+            updatePlan, updateCredits, updateGmailConnected, updateGmailTokenExpired, updateGmailEmail, updateGmailAppPass,
             updateGmailAccessToken, updateSettlementType, updateUpiVpa, updateBusinessName,
             updateImapHost, updateImapPort, updateImapSecure, updateUpiProvider,
             updateWebsiteUrl, updateWebsiteUrls, updateIsWebsiteLocked, updateWebsiteLockedAt,
@@ -692,6 +693,7 @@ export async function updateUserImapBankingLink(email, { upiVpa = '', businessNa
        imap_secure = ?,
        settlement_type = 'IMAP',
        gmail_connected = 1,
+       gmail_token_expired = 0,
        updated_at = ?
      WHERE email = ?`,
     [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', imapEmail, imapAppPass, imapHost, Number(imapPort) || 993, imapSecure ? 1 : 0, now, email.trim().toLowerCase()]
@@ -970,7 +972,7 @@ export async function markCouponUsed(code, userEmail, orderCode, discountAmount)
 
 export async function deleteCoupon(id) {
   const coupon = await query.get('SELECT * FROM coupons WHERE id = ?', [id]);
-  const res = await query.run('UPDATE coupons SET is_active = 0 WHERE id = ?', [id]);
+  const res = await query.run('DELETE FROM coupons WHERE id = ?', [id]);
   try {
     if (coupon && coupon.code) {
       CloudSyncService.deleteCoupon(coupon.code).catch(() => {});

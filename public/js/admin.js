@@ -157,6 +157,7 @@ function switchAdminSidebar(viewId) {
       subscriptions: '💳 Subscription Purchases & Plan Invoices',
       orders: '📦 Live Store Orders & Checkout Sessions',
       ledger: '💰 Bank Alerts & IMAP Payments Ledger',
+      email_monitor: '📬 Centralized Banking Email Monitor & Multi-Inbox Reader',
       config: '⚡ Gateway Controls & Zero .env Settings',
       imap: '📧 IMAP & Settlement Setup',
       coupons: '🏷️ Coupons & Plan Pricing Control',
@@ -175,6 +176,8 @@ function switchAdminSidebar(viewId) {
     loadOrders('ALL');
   } else if (viewId === 'ledger') {
     loadLedger();
+  } else if (viewId === 'email_monitor') {
+    loadBankingEmailMonitor();
   } else if (viewId === 'config') {
     loadStats();
   } else if (viewId === 'imap') {
@@ -195,6 +198,7 @@ function switchTab(tab) {
   const map = {
     dashboard: 'orders',
     ledger: 'ledger',
+    email_monitor: 'email_monitor',
     config: 'config',
     apiKey: 'apiKey',
     users: 'users',
@@ -207,31 +211,38 @@ window.switchTab = switchTab;
 
 // Modal Helpers
 function openModal(id) {
-  document.getElementById(id).classList.add('active');
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
 }
 function closeModal(id) {
-  document.getElementById(id).classList.remove('active');
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('active');
 }
 window.closeModal = closeModal;
 
-document.getElementById('btnOpenCreateOrder').addEventListener('click', () => openModal('modalCreateOrder'));
+const btnOpenCreateOrder = document.getElementById('btnOpenCreateOrder');
+if (btnOpenCreateOrder) {
+  btnOpenCreateOrder.addEventListener('click', () => openModal('modalCreateOrder'));
+}
 
 window.addEventListener('click', (e) => {
-  if (e.target.classList.contains('modal-overlay')) {
+  if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
     e.target.classList.remove('active');
   }
 });
 
 // Show / Hide Password
-btnToggleShowPass.addEventListener('click', () => {
-  if (uiImapPass.type === 'password') {
-    uiImapPass.type = 'text';
-    btnToggleShowPass.innerText = '🔒';
-  } else {
-    uiImapPass.type = 'password';
-    btnToggleShowPass.innerText = '👁️';
-  }
-});
+if (btnToggleShowPass && uiImapPass) {
+  btnToggleShowPass.addEventListener('click', () => {
+    if (uiImapPass.type === 'password') {
+      uiImapPass.type = 'text';
+      btnToggleShowPass.innerText = '🔒';
+    } else {
+      uiImapPass.type = 'password';
+      btnToggleShowPass.innerText = '👁️';
+    }
+  });
+}
 
 // 1. Load Stats and Settings into UI
 async function loadStats() {
@@ -455,7 +466,7 @@ function renderPayments(payments) {
 }
 
 // 4. Create Order Handler
-createOrderForm.addEventListener('submit', async (e) => {
+if (createOrderForm) createOrderForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('btnSubmitOrder');
   btn.disabled = true;
@@ -507,7 +518,7 @@ createOrderForm.addEventListener('submit', async (e) => {
 
 
 // 6. Test IMAP 1-Click Button Handler
-uiBtnTestImap.addEventListener('click', async () => {
+if (uiBtnTestImap) uiBtnTestImap.addEventListener('click', async () => {
   const user = uiImapUser.value.trim();
   const pass = uiImapPass.value.trim();
 
@@ -557,7 +568,7 @@ uiBtnTestImap.addEventListener('click', async () => {
 });
 
 // 7. Save & Start Live IMAP Listener Handler (Zero .env)
-frontendImapForm.addEventListener('submit', async (e) => {
+if (frontendImapForm) frontendImapForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   uiBtnSaveImap.disabled = true;
   uiBtnSaveImap.innerText = 'Saving to Database...';
@@ -696,7 +707,7 @@ async function saveAdminCollectionUpi() {
 window.saveAdminCollectionUpi = saveAdminCollectionUpi;
 
 // 9. Scan Inbox Now Button (Diagnostic live tester)
-uiBtnScanInbox.addEventListener('click', async () => {
+if (uiBtnScanInbox) uiBtnScanInbox.addEventListener('click', async () => {
   uiBtnScanInbox.disabled = true;
   uiBtnScanInbox.innerText = 'Scanning...';
   inboxScanResults.innerHTML = '<div style="text-align:center; color: var(--text-dim); padding: 14px;">Connecting to Gmail & scanning latest emails...</div>';
@@ -958,7 +969,7 @@ async function loadLedger() {
 window.loadLedger = loadLedger;
 
 // 12. 1-Click Sync Past Payments from Gmail
-btnSyncAllEmails.addEventListener('click', async () => {
+if (btnSyncAllEmails) btnSyncAllEmails.addEventListener('click', async () => {
   btnSyncAllEmails.disabled = true;
   btnSyncAllEmails.innerText = '⏳ Syncing All Past Emails from Gmail...';
   syncFeedback.style.display = 'block';
@@ -1006,7 +1017,7 @@ btnSyncAllEmails.addEventListener('click', async () => {
 });
 
 // 13. Quick Paste Email to Parse & Add to Ledger
-pasteEmailForm.addEventListener('submit', async (e) => {
+if (pasteEmailForm) pasteEmailForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const rawText = pasteEmailInput.value.trim();
   if (!rawText) return;
@@ -2419,12 +2430,25 @@ async function handleCreateCoupon(e) {
 window.handleCreateCoupon = handleCreateCoupon;
 
 async function deleteCouponById(id, code) {
-  if (!confirm(`Deactivate coupon "${code}"?`)) return;
+  if (!confirm(`Permanently delete coupon "${code}"?`)) return;
   try {
-    const res = await fetch(`${API_BASE}/api/admin/coupons/${id}`,{method:'DELETE'});
+    // 1. Direct fast delete from Firebase Realtime Database
+    try {
+      const codeKey = encodeURIComponent(code).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+      fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/coupons/${codeKey}.json`, { method: 'DELETE' }).catch(() => {});
+    } catch (_) {}
+
+    // 2. Delete on backend server
+    const res = await fetch(`${API_BASE}/api/admin/coupons/${id}`, { method: 'DELETE' });
     const data = await res.json();
-    if (data.success) loadCoupons(); else alert('Failed: '+data.error);
-  } catch(err){ alert('Error: '+err.message); }
+    if (data.success) {
+      loadCoupons();
+    } else {
+      alert('Failed: ' + (data.error || 'Could not delete'));
+    }
+  } catch(err) {
+    alert('Error deleting coupon: ' + err.message);
+  }
 }
 window.deleteCouponById = deleteCouponById;
 
@@ -2511,3 +2535,210 @@ if (document.readyState === 'loading') {
 } else {
   loadAdminUsers().catch(() => {});
 }
+
+// ==========================================
+// CENTRALIZED BANKING EMAIL MONITOR
+// ==========================================
+const RTDB_BASE = 'https://upigateway-ccaa4-default-rtdb.firebaseio.com';
+let monitorPaymentsList = [];
+
+async function loadBankingEmailMonitor() {
+  const tbody = document.getElementById('monitorEmailsTableBody');
+  const countEl = document.getElementById('monitorEmailsCount');
+  const inboxesCountEl = document.getElementById('monitorInboxesCount');
+  const inboxesList = document.getElementById('monitorInboxesList');
+  const metricInboxes = document.getElementById('monitorMetricInboxes');
+  const metricAlerts = document.getElementById('monitorMetricAlerts');
+  const metricVolume = document.getElementById('monitorMetricVolume');
+  const merchantSelect = document.getElementById('monitorMerchantSelect');
+
+  // 1. Load connected inboxes from users data
+  const connectedUsers = (adminUsersList || []).filter(u => Boolean(u.gmail_connected) && u.gmail_email);
+  if (metricInboxes) metricInboxes.innerText = connectedUsers.length;
+  if (inboxesCountEl) inboxesCountEl.innerText = `${connectedUsers.length} linked`;
+
+  // Render inbox chips
+  if (inboxesList) {
+    if (connectedUsers.length === 0) {
+      inboxesList.innerHTML = '<div style="font-size: 12px; color: var(--text-dim); padding: 8px;">No merchant has linked a banking email yet.</div>';
+    } else {
+      inboxesList.innerHTML = connectedUsers.map(u => {
+        const isImap = String(u.settlement_type || '').toUpperCase() === 'IMAP';
+        return `<div style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-card); border-radius: 8px;">
+          <span style="color: #34d399; font-weight: 700;">●</span>
+          <div>
+            <div style="font-weight: 600; font-size: 12px; color: #fff;">${escapeHtml(u.name || 'Merchant')}</div>
+            <div style="font-size: 10.5px; color: var(--text-dim);">${escapeHtml(u.gmail_email)}</div>
+          </div>
+          <span class="badge" style="font-size: 9px; margin-left: 4px; padding: 1px 6px; background: ${isImap ? 'rgba(56,189,248,0.12)' : 'rgba(52,211,153,0.12)'}; color: ${isImap ? '#38bdf8' : '#34d399'}; border: 1px solid ${isImap ? 'rgba(56,189,248,0.3)' : 'rgba(52,211,153,0.3)'};">${isImap ? 'IMAP' : 'GOOGLE'}</span>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // Populate merchant dropdown for filtering
+  if (merchantSelect) {
+    const existingVal = merchantSelect.value;
+    merchantSelect.innerHTML = '<option value="ALL">All Connected Merchants</option>';
+    connectedUsers.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.email;
+      opt.textContent = `${u.name || 'Merchant'} (${u.gmail_email})`;
+      merchantSelect.appendChild(opt);
+    });
+    merchantSelect.value = existingVal || 'ALL';
+  }
+
+  // 2. Load payments from Firebase RTDB (instant 0.1s)
+  try {
+    const res = await fetch(`${RTDB_BASE}/payments.json`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        monitorPaymentsList = Object.values(data).sort((a, b) => (b.received_at || 0) - (a.received_at || 0));
+      } else {
+        monitorPaymentsList = [];
+      }
+    }
+  } catch (err) {
+    console.warn('[EmailMonitor] RTDB payments fetch:', err);
+  }
+
+  // 3. Also try backend
+  try {
+    const res = await fetch((API_BASE || '') + '/api/admin/ledger');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.ledger && Array.isArray(data.ledger.payments) && data.ledger.payments.length > monitorPaymentsList.length) {
+        monitorPaymentsList = data.ledger.payments;
+      }
+    }
+  } catch (err) {
+    console.warn('[EmailMonitor] Backend ledger fetch:', err);
+  }
+
+  // Update metrics
+  const totalAlerts = monitorPaymentsList.length;
+  const totalVolume = monitorPaymentsList.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  if (metricAlerts) metricAlerts.innerText = totalAlerts;
+  if (metricVolume) metricVolume.innerText = `₹ ${Number(totalVolume).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+  filterMonitorEmailsTable();
+}
+window.loadBankingEmailMonitor = loadBankingEmailMonitor;
+
+function filterMonitorEmailsTable() {
+  const searchInput = document.getElementById('monitorSearchInput');
+  const merchantSelect = document.getElementById('monitorMerchantSelect');
+  const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+  const selectedMerchant = merchantSelect ? merchantSelect.value : 'ALL';
+
+  let filtered = monitorPaymentsList;
+
+  if (selectedMerchant !== 'ALL') {
+    filtered = filtered.filter(p => {
+      return (p.merchant_email || '').toLowerCase() === selectedMerchant.toLowerCase();
+    });
+  }
+
+  if (query) {
+    filtered = filtered.filter(p => {
+      const utr = (p.utr || '').toLowerCase();
+      const sender = (p.sender || '').toLowerCase();
+      const amount = String(p.amount || '');
+      const snippet = (p.raw_snippet || '').toLowerCase();
+      const merchant = (p.merchant_email || '').toLowerCase();
+      return utr.includes(query) || sender.includes(query) || amount.includes(query) || snippet.includes(query) || merchant.includes(query);
+    });
+  }
+
+  renderMonitorEmailsTable(filtered);
+}
+window.filterMonitorEmailsTable = filterMonitorEmailsTable;
+
+function renderMonitorEmailsTable(payments) {
+  const tbody = document.getElementById('monitorEmailsTableBody');
+  const countEl = document.getElementById('monitorEmailsCount');
+  if (!tbody) return;
+
+  if (countEl) countEl.innerText = `${payments.length} emails`;
+
+  if (payments.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 30px;">No bank credit emails found matching your filters.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = payments.slice(0, 200).map(p => {
+    const time = p.received_at ? new Date(p.received_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+    const merchant = p.merchant_email || 'Platform Admin';
+    const source = (p.source || 'IMAP').toUpperCase();
+    const sender = p.sender || 'Unknown';
+    const amount = parseFloat(p.amount) || 0;
+    const utr = p.utr || '-';
+    const isMatched = p.is_matched || p.matched_order_id || p.matched_order_code;
+    const matchBadge = isMatched
+      ? `<span class="badge PAID" style="font-size: 10px;">✅ Matched${p.matched_order_code ? ' → ' + escapeHtml(p.matched_order_code) : ''}</span>`
+      : '<span class="badge PENDING" style="font-size: 10px;">⏳ Unmatched</span>';
+    const snippet = (p.raw_snippet || '').substring(0, 80);
+
+    return `<tr>
+      <td style="font-size: 11.5px; color: var(--text-muted); white-space: nowrap;">${time}</td>
+      <td><div style="font-size: 11.5px; color: #38bdf8; font-weight: 600;">${escapeHtml(merchant)}</div></td>
+      <td><span class="badge" style="font-size: 10px; background: rgba(255,255,255,0.06); color: var(--text-muted); border: 1px solid var(--border-card);">${escapeHtml(source)}</span></td>
+      <td style="font-size: 12px; color: #fff; font-weight: 600;">${escapeHtml(sender)}</td>
+      <td style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #34d399; font-size: 13px;">₹${amount.toFixed(2)}</td>
+      <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--primary);">${escapeHtml(utr)}</td>
+      <td>${matchBadge}</td>
+      <td style="font-size: 10.5px; color: var(--text-dim); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(p.raw_snippet || '')}">${escapeHtml(snippet)}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function triggerScanAllInboxes() {
+  const btn = document.getElementById('btnAdminScanAllInboxes');
+  const fb = document.getElementById('scanAllFeedback');
+
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span>⏳ Scanning all merchant inboxes...</span>'; }
+  if (fb) {
+    fb.style.display = 'block';
+    fb.style.background = 'rgba(56, 189, 248, 0.15)';
+    fb.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+    fb.style.color = '#38bdf8';
+    fb.innerHTML = '📡 Connecting to all merchant Gmail inboxes via IMAP & Google OAuth... This may take 10-20 seconds.';
+  }
+
+  try {
+    const res = await fetch((API_BASE || '') + '/api/admin/banking/scan-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      if (fb) {
+        fb.style.background = 'rgba(16, 185, 129, 0.15)';
+        fb.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+        fb.style.color = '#34d399';
+        fb.innerHTML = `✅ <b>Scan Complete!</b> Found <b>${data.totalPayments}</b> total payment records. Total volume: <b>₹${Number(data.totalRevenue || 0).toFixed(2)}</b>`;
+      }
+      await loadBankingEmailMonitor();
+    } else {
+      if (fb) {
+        fb.style.background = 'rgba(239, 68, 68, 0.15)';
+        fb.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+        fb.style.color = '#f87171';
+        fb.innerHTML = `❌ <b>Scan Error:</b> ${data.error || 'Unknown error'}`;
+      }
+    }
+  } catch (err) {
+    if (fb) {
+      fb.style.background = 'rgba(239, 68, 68, 0.15)';
+      fb.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      fb.style.color = '#f87171';
+      fb.innerHTML = `❌ Network error: ${err.message}`;
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span>🔄 Scan All Merchant Inboxes Now</span>'; }
+  }
+}
+window.triggerScanAllInboxes = triggerScanAllInboxes;

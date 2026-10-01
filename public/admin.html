@@ -88,6 +88,16 @@
           <span class="sidebar-item-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">IMAP</span>
         </button>
 
+        <!-- 4b. CENTRALIZED BANKING EMAIL MONITOR -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_email_monitor" onclick="switchAdminSidebar('email_monitor')">
+          <div class="sidebar-item-icon" style="background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">📬</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Central Email Monitor</div>
+            <div class="sidebar-item-line2">Read All Connected Bank Emails</div>
+          </div>
+          <span class="sidebar-item-badge info" id="badgeEmailMonitorCount" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">LIVE</span>
+        </button>
+
         <!-- 5. GATEWAY CONTROLS -->
         <button type="button" class="sidebar-item-2line" id="nav_admin_config" onclick="switchAdminSidebar('config')">
           <div class="sidebar-item-icon">⚡</div>
@@ -542,6 +552,136 @@
               <tbody id="ledgerTableBody">
                 <tr>
                   <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">Loading ledger...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 4b: CENTRALIZED BANKING EMAIL MONITOR (MULTI-INBOX) -->
+      <!-- ======================================================== -->
+      <section id="view_admin_email_monitor" class="admin-view-section">
+        
+        <!-- Header banner -->
+        <div class="panel-card" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(56, 189, 248, 0.08)); border-left: 4px solid var(--accent-amber);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 22px;">📬</span>
+                <h2 style="font-size: 18px; font-weight: 800; color: #fff; margin: 0;">Centralized Banking Email Monitor &amp; Multi-Inbox Reader</h2>
+                <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 700;">🟢 LIVE SYNC</span>
+              </div>
+              <p style="font-size: 13px; color: var(--text-muted); margin: 6px 0 0;">
+                Master real-time hub that reads and parses all inbound bank credit notification emails across <strong>all connected merchant accounts</strong> and platform inboxes (HDFC, SBI, ICICI, Axis, PNB, Paytm, FamPay, PhonePe).
+              </p>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-primary" id="btnAdminScanAllInboxes" onclick="triggerScanAllInboxes()" style="padding: 7px 16px; font-size: 12px; font-weight: 700;">
+                <span>🔄 Scan All Merchant Inboxes Now</span>
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="loadBankingEmailMonitor()" style="padding: 7px 14px; font-size: 12px;">
+                <span>⚡ Refresh Feed</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 KPI Metrics Cards -->
+        <div class="metrics-grid" style="margin-bottom: 24px;">
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Connected Inboxes</span>
+              <span>📬</span>
+            </div>
+            <div class="metric-val" id="monitorMetricInboxes">0</div>
+            <div class="metric-sub">Active merchant &amp; admin accounts</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Credit Emails Captured</span>
+              <span>📩</span>
+            </div>
+            <div class="metric-val" id="monitorMetricAlerts">0</div>
+            <div class="metric-sub">Total verified bank emails</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Total Volume Tracked</span>
+              <span>💰</span>
+            </div>
+            <div class="metric-val" id="monitorMetricVolume" style="color: #34d399;">₹ 0.00</div>
+            <div class="metric-sub">Across all connected inboxes</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Platform Engine</span>
+              <span>⚡</span>
+            </div>
+            <div class="metric-val" id="monitorMetricStatus" style="font-size: 18px; color: #38bdf8;">ACTIVE</div>
+            <div class="metric-sub">Automated 24/7 background worker</div>
+          </div>
+        </div>
+
+        <!-- Active Connected Banking Inboxes Bar -->
+        <div class="panel-card" style="margin-bottom: 24px;">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>📡 Monitored Merchant Inboxes</span>
+              <span style="font-size: 11px; color: var(--text-dim);" id="monitorInboxesCount">0 linked</span>
+            </div>
+          </div>
+          <div id="monitorInboxesList" style="display: flex; flex-wrap: wrap; gap: 10px;">
+            <div style="font-size: 12px; color: var(--text-dim); padding: 8px;">Loading monitored inboxes...</div>
+          </div>
+        </div>
+
+        <!-- Central Multi-Inbox Credit Emails Table -->
+        <div class="panel-card">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>🧾 Inbound Bank Credit Alert Stream</span>
+              <span style="font-size: 11px; color: var(--text-dim);" id="monitorEmailsCount">0 emails</span>
+            </div>
+
+            <!-- Search and Filter Toolbar -->
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <input type="text" id="monitorSearchInput" placeholder="🔍 Search UTR, sender, amount..." class="form-control" style="width: 240px; padding: 6px 12px; font-size: 12px;" oninput="filterMonitorEmailsTable()">
+              
+              <select id="monitorMerchantSelect" class="form-control" style="width: 200px; padding: 6px 10px; font-size: 12px;" onchange="filterMonitorEmailsTable()">
+                <option value="ALL">All Connected Merchants</option>
+              </select>
+
+              <button type="button" class="btn btn-secondary" onclick="loadBankingEmailMonitor()" style="padding: 6px 12px; font-size: 11px;">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <div id="scanAllFeedback" style="display: none; font-size: 12px; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px;"></div>
+
+          <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th style="width: 140px;">Time Received</th>
+                  <th>Merchant / Receiver</th>
+                  <th style="width: 120px;">Bank / Source</th>
+                  <th style="width: 140px;">Sender / Payer</th>
+                  <th style="width: 120px;">Amount (₹)</th>
+                  <th style="width: 160px;">12-Digit UTR</th>
+                  <th style="width: 130px;">Match Status</th>
+                  <th>Raw Email Snippet</th>
+                </tr>
+              </thead>
+              <tbody id="monitorEmailsTableBody">
+                <tr>
+                  <td colspan="8" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                    Loading banking email records...
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -1006,6 +1146,6 @@
     </div>
   </div>
 
-  <script src="/js/admin.js"></script>
+  <script src="/js/admin.js?v=2.4"></script>
 </body>
 </html>

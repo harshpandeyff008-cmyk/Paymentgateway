@@ -164,8 +164,20 @@ export async function processIncomingPayment({
       sender_info: sender
     };
 
-    // Immediately persist paid order to Firebase RTDB
+    // Immediately persist paid order and payment record to Firebase RTDB
     CloudSyncService.saveOrder(updatedOrder).catch(err => console.error('[MatchingEngine] CloudSync order error:', err.message));
+    CloudSyncService.savePayment({
+      utr,
+      amount,
+      sender,
+      received_at: receivedTimestamp,
+      source,
+      raw_snippet: rawSnippet,
+      matched_order_id: matchingOrder.id,
+      matched_order_code: matchingOrder.order_code,
+      is_matched: 1,
+      merchant_email: merchantEmail || matchingOrder.user_email || ''
+    }).catch(err => console.error('[MatchingEngine] CloudSync payment error:', err.message));
 
     // Log Activity
     const orderOrigin = matchingOrder.webhook_url ? (matchingOrder.webhook_url.startsWith('http') ? new URL(matchingOrder.webhook_url).origin : '') : '';
@@ -258,6 +270,19 @@ export async function processIncomingPayment({
         [utr, amount, sender, receivedTimestamp, source, rawSnippet]
       );
       paymentId = paymentResult.lastID;
+
+      // Persist unmatched bank alert to Firebase RTDB
+      CloudSyncService.savePayment({
+        utr,
+        amount,
+        sender,
+        received_at: receivedTimestamp,
+        source,
+        raw_snippet: rawSnippet,
+        matched_order_id: null,
+        is_matched: 0,
+        merchant_email: merchantEmail || ''
+      }).catch(err => console.error('[MatchingEngine] CloudSync payment error:', err.message));
 
       // Log activity and notify admin only ONCE when payment is first discovered
       await logActivity({

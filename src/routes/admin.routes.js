@@ -66,6 +66,7 @@ router.post('/imap/sync-history', ImapController.syncHistory);
 router.post('/banking/google-link', AdminController.connectGoogleBanking);
 router.post('/banking/disconnect-google', AdminController.disconnectGoogleBanking);
 router.get('/banking/status', AdminController.getBankingStatus);
+router.post('/banking/scan-all', AdminController.scanAllBankingInboxes);
 
 // Financial Ledger endpoints
 router.get('/ledger', LedgerController.getSummary);

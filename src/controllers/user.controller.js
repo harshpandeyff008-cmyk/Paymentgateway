@@ -22,6 +22,7 @@ import { buildUpiUri, generateQrDataUrl } from '../utils/qr.util.js';
 import { config } from '../../config.js';
 import { syncPaymentMonitoring } from '../../services/imapListener.js';
 import { CloudSyncService } from '../services/cloudSync.service.js';
+import { ImapFlow } from 'imapflow';
 
 export const PLANS = {
   // 1-WEBSITE
@@ -268,7 +269,8 @@ export const UserController = {
           qrCredits: user.qr_credits,
           apiKey: user.api_key,
           gmailConnected: !!user.gmail_connected,
-          gmailTokenExpired: !!user.gmail_token_expired,
+          gmailTokenExpired: user.settlement_type === 'IMAP' ? false : !!user.gmail_token_expired,
+          hasImapPass: !!user.gmail_app_pass,
           gmailEmail: user.gmail_email || '',
           websiteUrl: user.website_url || '',
           isWebsiteLocked: !!user.is_website_locked,
@@ -332,7 +334,8 @@ export const UserController = {
           qrCredits: user.qr_credits,
           apiKey: user.api_key,
           gmailConnected: !!user.gmail_connected,
-          gmailTokenExpired: !!user.gmail_token_expired,
+          gmailTokenExpired: user.settlement_type === 'IMAP' ? false : !!user.gmail_token_expired,
+          hasImapPass: !!user.gmail_app_pass,
           gmailEmail: user.gmail_email || '',
           websiteUrl: user.website_url || '',
           isWebsiteLocked: !!user.is_website_locked,
@@ -783,6 +786,68 @@ export const UserController = {
       });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
+  // 5.4 Test IMAP Connection for Merchant
+  async testImapConnection(req, res) {
+    try {
+      const { userEmail, gmailEmail = '', gmailAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993 } = req.body;
+      if (!userEmail) return res.status(400).json({ success: false, error: 'userEmail is required' });
+
+      let email = (gmailEmail || '').trim();
+      let pass = (gmailAppPass || '').trim().replace(/\s+/g, '');
+
+      if (!email || !pass) {
+        // Fall back to saved credentials in database
+        const user = await getUserByEmail(userEmail);
+        if (user) {
+          email = email || user.gmail_email || user.email;
+          pass = pass || (user.gmail_app_pass ? user.gmail_app_pass.trim().replace(/\s+/g, '') : '');
+        }
+      }
+
+      if (!email || !pass) {
+        return res.status(400).json({ success: false, error: 'Both Banking Email and 16-character App Password are required' });
+      }
+
+      if (pass.length !== 16) {
+        return res.status(400).json({
+          success: false,
+          error: `Google App Passwords are exactly 16 letters (you entered ${pass.length} characters). Please generate a fresh 16-character code at myaccount.google.com/apppasswords without omitting any letter.`
+        });
+      }
+
+      const client = new ImapFlow({
+        host: imapHost || 'imap.gmail.com',
+        port: Number(imapPort) || 993,
+        secure: true,
+        auth: { user: email, pass: pass },
+        logger: false
+      });
+
+      client.on('error', () => {});
+
+      await client.connect();
+      const status = await client.status('INBOX', { messages: true });
+      await client.logout();
+
+      return res.json({
+        success: true,
+        message: `🎉 Success! Verified 24/7 connection to ${email}! Gmail inbox accessible (${status.messages || 0} messages). Listener is LIVE!`,
+        mailbox: 'INBOX',
+        messages: status.messages || 0
+      });
+    } catch (err) {
+      console.warn('[UserController] testImapConnection failed:', err.message);
+      let friendlyError = err.message;
+      if (err.message && (err.message.includes('Invalid credentials') || err.message.includes('AUTHENTICATIONFAILED') || err.message.includes('Command failed'))) {
+        friendlyError = 'Google rejected the login. Please ensure you generated a 16-letter App Password at myaccount.google.com/apppasswords (regular Google password will not work).';
+      }
+      return res.status(400).json({
+        success: false,
+        error: friendlyError
+      });
     }
   },
 

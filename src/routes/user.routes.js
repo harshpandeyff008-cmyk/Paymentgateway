@@ -23,6 +23,7 @@ router.post('/buy-plan', UserController.buyPlan);
 router.post('/gmail-config', UserController.connectGmail);
 router.post('/banking/google-link', UserController.connectGoogleBanking);
 router.post('/banking/imap-link', UserController.connectImapBanking);
+router.post('/banking/test-imap', UserController.testImapConnection);
 router.post('/banking/disconnect', UserController.disconnectBanking);
 router.get('/banking/payments', UserController.getMerchantPayments);
 router.post('/bind-website', UserController.bindWebsite);

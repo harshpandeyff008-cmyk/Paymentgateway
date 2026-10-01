@@ -368,6 +368,30 @@ export const AdminController = {
     } catch (err) {
       next(err);
     }
+  },
+
+  async scanAllBankingInboxes(req, res, next) {
+    try {
+      const { scanAndProcessMerchantEmails, scanAndProcessRecentEmails } = await import('../../services/imapListener.js');
+      const { scanGoogleBankingAccounts } = await import('../../services/gmailWatcher.service.js');
+
+      await Promise.allSettled([
+        scanAndProcessMerchantEmails(),
+        scanAndProcessRecentEmails(),
+        scanGoogleBankingAccounts()
+      ]);
+
+      const paymentSummary = await PaymentModel.getLedgerSummary();
+      return res.json({
+        success: true,
+        message: 'Scanned all connected merchant banking inboxes successfully!',
+        totalPayments: paymentSummary.totalTransactions,
+        totalRevenue: paymentSummary.totalCollected,
+        payments: paymentSummary.payments || []
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 };
 

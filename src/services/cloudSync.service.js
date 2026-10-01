@@ -318,6 +318,41 @@ export const CloudSyncService = {
     return [];
   },
 
+  // ─── PAYMENTS / BANK ALERTS ───────────────────────────────────────────────
+  async savePayment(payment) {
+    if (!payment || !payment.utr) return false;
+    try {
+      const key = encodeKey(payment.utr);
+      const res = await fetch(`${RTDB_BASE}/payments/${key}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payment,
+          updated_at: Date.now()
+        })
+      });
+      return res.ok;
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to save payment ${payment.utr}: ${e.message}`);
+    }
+    return false;
+  },
+
+  async getAllPayments() {
+    try {
+      const res = await fetch(`${RTDB_BASE}/payments.json`);
+      if (res.ok) {
+        const paymentsObj = await res.json();
+        if (paymentsObj) {
+          return Object.values(paymentsObj);
+        }
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to load payments: ${e.message}`);
+    }
+    return [];
+  },
+
   // ─── RESTORE ALL ON STARTUP ───────────────────────────────────────────────
   /**
    * Called during database initialization so Render startup automatically
@@ -474,6 +509,32 @@ export const CloudSyncService = {
               `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at, last_used_at)
                VALUES (?, ?, ?, ?, ?, ?)`,
               [k.key_name || 'Key', k.domain, k.api_key, k.status || 'ACTIVE', k.created_at || Date.now(), k.last_used_at || null]
+            );
+          }
+        }
+      }
+
+      // 5. Restore Payments / Bank Alerts
+      const cloudPayments = await this.getAllPayments();
+      if (cloudPayments.length > 0) {
+        for (const p of cloudPayments) {
+          if (!p || !p.utr) continue;
+          const existing = await query.get('SELECT id FROM payments WHERE utr = ?', [p.utr]);
+          if (!existing) {
+            await query.run(
+              `INSERT INTO payments (utr, amount, sender, received_at, source, raw_snippet, matched_order_id, is_matched, merchant_email)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                p.utr,
+                p.amount,
+                p.sender || '',
+                p.received_at || Date.now(),
+                p.source || 'IMAP',
+                p.raw_snippet || '',
+                p.matched_order_id || null,
+                p.is_matched ? 1 : 0,
+                p.merchant_email || ''
+              ]
             );
           }
         }
