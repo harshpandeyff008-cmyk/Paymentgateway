@@ -318,7 +318,7 @@ export const UserController = {
 
       // Fetch user's recent customer orders (excluding internal plan subscriptions)
       const userOrders = await query.all(
-        'SELECT * FROM orders WHERE user_email = ? AND (plan_id IS NULL OR plan_id = "") AND order_code NOT LIKE "PLAN-%" ORDER BY id DESC LIMIT 20',
+        'SELECT * FROM orders WHERE user_email = ? AND (plan_id IS NULL OR plan_id = "") AND order_code NOT LIKE "PLAN-%" ORDER BY created_at DESC, id DESC LIMIT 20',
         [user.email]
       );
 
@@ -381,7 +381,7 @@ export const UserController = {
         sql += ' AND status = ?';
         params.push(status.toUpperCase());
       }
-      sql += ' ORDER BY id DESC LIMIT 100';
+      sql += ' ORDER BY created_at DESC, id DESC LIMIT 100';
 
       let orders = await query.all(sql, params);
 
@@ -428,7 +428,7 @@ export const UserController = {
         return res.status(400).json({ success: false, error: 'User email is required' });
       }
       const invoices = await query.all(
-        'SELECT * FROM orders WHERE user_email = ? AND (plan_id IS NOT NULL OR order_code LIKE "PLAN-%") ORDER BY id DESC',
+        'SELECT * FROM orders WHERE user_email = ? AND (plan_id IS NOT NULL OR order_code LIKE "PLAN-%") ORDER BY created_at DESC, id DESC',
         [email]
       );
       return res.json({ success: true, invoices });

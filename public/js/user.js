@@ -767,7 +767,7 @@ async function loadUserOrders() {
     const res = await fetch(`/api/v1/user/orders?email=${encodeURIComponent(currentUser.email)}&status=${currentOrderStatusFilter}`);
     const data = await res.json();
     if (data.success && data.orders) {
-      userOrdersList = data.orders;
+      userOrdersList = (data.orders || []).sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
       renderOrdersTables(userOrdersList);
     }
   } catch (err) {
@@ -2278,7 +2278,22 @@ window.runLiveApiTester = async function () {
         jsonEl.innerText = JSON.stringify(data, null, 2);
       }
 
-      // Also reload user orders if payments/dashboard view is opened
+      // Instantly insert into local orders list at rank #1 and refresh table
+      if (Array.isArray(userOrdersList)) {
+        userOrdersList.unshift({
+          id: order.id || order.orderId || Date.now(),
+          order_code: order.orderCode || order.order_code,
+          amount: order.amount,
+          base_amount: order.baseAmount || order.base_amount || order.amount,
+          customer_name: order.customerName || order.customer_name || 'Guest',
+          customer_phone: order.customerPhone || order.customer_phone || '',
+          status: order.status || 'PENDING',
+          utr: order.utr || null,
+          created_at: order.createdAt || order.created_at || Date.now(),
+          paid_at: null
+        });
+        renderOrdersTables(userOrdersList);
+      }
       if (typeof loadUserOrders === 'function') {
         loadUserOrders();
       }
