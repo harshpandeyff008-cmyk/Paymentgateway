@@ -1,3 +1,4 @@
+import { CloudSyncService } from './src/services/cloudSync.service.js';
 import http from 'http';
 import { Server } from 'socket.io';
 import { config } from './config.js';
@@ -28,6 +29,14 @@ async function bootstrap() {
 
   // 1. Initialize SQLite Database tables
   await initDatabase();
+
+  // 1.1 Restore all permanent Cloud data (Orders, Payments, Users, Plans, Keys) from Firebase CloudSync
+  try {
+    logger.info('[Startup] Restoring persistent data from Firebase CloudSync...');
+    await CloudSyncService.restoreFromCloud();
+  } catch (err) {
+    logger.warn(`[Startup] CloudSync restore warning: ${err.message}`);
+  }
 
   // 2. Hydrate dynamic settings from database into config
   await SettingModel.hydrateConfig(config);
