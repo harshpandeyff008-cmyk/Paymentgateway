@@ -7,7 +7,7 @@ const API_BASE = (window.location.hostname.includes('paypendicular') || window.l
 function getAdminMasterKey() {
   const k = localStorage.getItem('admin_master_key') || 
             sessionStorage.getItem('gateway_master_key');
-  return (k && k.trim() && k !== 'undefined' && k !== 'null') ? k.trim() : 'shivambhatt@admin';
+  return (k && k.trim() && k !== 'undefined' && k !== 'null') ? k.trim() : '';
 }
 
 const originalFetch = window.fetch;
@@ -1627,7 +1627,7 @@ try {
   const storedEmail = (sessionStorage.getItem('gateway_admin_email') || '').toLowerCase().trim();
   const masterKey = (localStorage.getItem('admin_master_key') || sessionStorage.getItem('gateway_master_key') || '').trim();
 
-  if (masterKey === 'shivambhatt@admin' || (storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase())) {
+  if ((masterKey === 'shivambhatt@admin' && storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) || (storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase())) {
     updateAdminProfileUI(storedEmail || REQUIRED_ADMIN_EMAIL, '', 'Administrator');
     hideMasterKeyLockScreen();
     initDashboardData();
@@ -1638,7 +1638,7 @@ try {
   if (fbAuth) {
     fbAuth.onAuthStateChanged((user) => {
       if (!user) {
-        if (getAdminMasterKey() === 'shivambhatt@admin') {
+        if (getAdminMasterKey() === 'shivambhatt@admin' && storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
           updateAdminProfileUI(REQUIRED_ADMIN_EMAIL, '', 'Administrator');
           initDashboardData();
           return;
@@ -1656,7 +1656,7 @@ try {
           initDashboardData();
         } else {
           // If master key is active in browser, don't kick admin out to /user
-          if (getAdminMasterKey() === 'shivambhatt@admin') {
+          if (getAdminMasterKey() === 'shivambhatt@admin' && storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
             updateAdminProfileUI(REQUIRED_ADMIN_EMAIL, '', 'Administrator');
             initDashboardData();
             return;
@@ -1666,7 +1666,7 @@ try {
       }
     });
   } else {
-    if (getAdminMasterKey() === 'shivambhatt@admin') {
+    if (getAdminMasterKey() === 'shivambhatt@admin' && storedAuth === 'google' && storedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
       updateAdminProfileUI(REQUIRED_ADMIN_EMAIL, '', 'Administrator');
       initDashboardData();
       return;

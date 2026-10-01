@@ -177,7 +177,7 @@ async function onFirebaseUserAuthenticated(user) {
 
   // Sync user with backend
   try {
-    const res = await fetch('/api/v1/user/sync', {
+    const res = await fetch(`${API_BASE}/api/v1/user/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -601,14 +601,14 @@ function renderDashboard() {
 
   if (currentUser.gmailConnected) {
     if (imapStatusBadge) {
-      imapStatusBadge.innerHTML = '<span style="color: #34d399; font-weight: 700; background: rgba(16,185,129,0.15); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(16,185,129,0.3);">🟢 ACTIVE & LISTENING</span>';
+      imapStatusBadge.innerHTML = '<span style="color: #34d399; font-weight: 700; background: rgba(16₹85₹29,0.15); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(16₹85₹29,0.3);">🟢 ACTIVE & LISTENING</span>';
     }
     if (imapPassInput && !imapPassInput.value) {
       imapPassInput.placeholder = '•••• •••• •••• •••• (Saved & Active)';
     }
   } else {
     if (imapStatusBadge) {
-      imapStatusBadge.innerHTML = '<span style="color: #94a3b8;">⚪ Not Connected</span>';
+      imapStatusBadge.innerHTML = '<span style="color: var(--text-dim);">⚪ Not Connected</span>';
     }
     if (imapPassInput && !imapPassInput.value) {
       imapPassInput.placeholder = '16-character App Password';
@@ -656,7 +656,7 @@ function renderDashboard() {
     if (googleConnectActionBox) googleConnectActionBox.style.display = 'block';
     if (googleTokenExpiredAlert) googleTokenExpiredAlert.style.display = 'none';
     if (googleLinkStatusBadge) {
-      googleLinkStatusBadge.innerHTML = `<span style="color: #94a3b8;">⚪ Not Linked</span>`;
+      googleLinkStatusBadge.innerHTML = `<span style="color: var(--text-dim);">⚪ Not Linked</span>`;
     }
   }
 
@@ -764,7 +764,7 @@ async function loadUserOrders() {
   if (!currentUser || !currentUser.email) return;
 
   try {
-    const res = await fetch(`/api/v1/user/orders?email=${encodeURIComponent(currentUser.email)}&status=${currentOrderStatusFilter}`);
+    const res = await fetch(`${API_BASE}/api/v1/user/orders?email=${encodeURIComponent(currentUser.email)}&status=${currentOrderStatusFilter}`);
     const data = await res.json();
     if (data.success && data.orders) {
       userOrdersList = data.orders;
@@ -782,7 +782,7 @@ async function loadUserSubscriptionInvoices() {
   if (!tbody) return;
 
   try {
-    const res = await fetch(`/api/v1/user/subscription-invoices?email=${encodeURIComponent(currentUser.email)}`);
+    const res = await fetch(`${API_BASE}/api/v1/user/subscription-invoices?email=${encodeURIComponent(currentUser.email)}`);
     const data = await res.json();
     if (data.success && data.invoices) {
       if (data.invoices.length === 0) {
@@ -800,7 +800,7 @@ async function loadUserSubscriptionInvoices() {
         const dateStr = inv.created_at ? new Date(inv.created_at).toLocaleString() : 'N/A';
         return `
           <tr>
-            <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #fff;">${inv.order_code}</span></td>
+            <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text-main);">${inv.order_code}</span></td>
             <td><span class="badge-status paid" style="background: rgba(168,85,247,0.15); color: #c084fc; border-color: rgba(168,85,247,0.3);">${inv.plan_id || 'Plan'}</span></td>
             <td><strong>₹${Number(inv.amount).toFixed(2)}</strong></td>
             <td><span class="badge-status ${statusClass}">${inv.status}</span></td>
@@ -861,10 +861,10 @@ function renderOrdersTables(orders) {
 
       return `
         <tr>
-          <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #fff;">${order.order_code}</span></td>
+          <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text-main);">${order.order_code}</span></td>
           <td>${amountHtml}</td>
           <td>
-            <div style="font-weight: 600; color: #fff;">${order.customer_name || 'Guest'}</div>
+            <div style="font-weight: 600; color: var(--text-main);">${order.customer_name || 'Guest'}</div>
             <div style="font-size: 11px; color: var(--text-dim);">${order.customer_phone || ''}</div>
           </td>
           <td><span class="badge-status ${statusClass}">${order.status}</span></td>
@@ -888,7 +888,7 @@ function renderOrdersTables(orders) {
       const dateStr = order.created_at ? new Date(order.created_at).toLocaleTimeString() : 'N/A';
       return `
         <tr>
-          <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #fff;">${order.order_code}</span></td>
+          <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text-main);">${order.order_code}</span></td>
           <td><strong>₹${Number(order.amount).toFixed(2)}</strong></td>
           <td>${order.customer_name || 'Guest'}</td>
           <td><span class="badge-status ${statusClass}">${order.status}</span></td>
@@ -959,7 +959,7 @@ async function initiateBuyPlan(planId, couponCode = '') {
       payload.couponCode = effectiveCoupon;
     }
 
-    const res = await fetch('/api/v1/user/buy-plan', {
+    const res = await fetch(`${API_BASE}/api/v1/user/buy-plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1280,7 +1280,7 @@ async function handleBindWebsite(event) {
   }
 
   try {
-    const res = await fetch('/api/v1/user/bind-website', {
+    const res = await fetch(`${API_BASE}/api/v1/user/bind-website', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1355,7 +1355,7 @@ async function handleTestApiCall(event) {
   }
 
   try {
-    const res = await fetch('/api/v1/orders', {
+    const res = await fetch(`${API_BASE}/api/v1/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1379,7 +1379,7 @@ async function handleTestApiCall(event) {
         resultBox.innerHTML = `
           <strong>❌ HTTP ${res.status} ${res.statusText}:</strong><br>
           ${data.error || 'Payment creation failed'}<br><br>
-          <span style="color: #cbd5e1; font-size: 11.5px;">
+          <span style="color: var(--text-muted); font-size: 11.5px;">
             💡 Note: This demonstrates our strict protection: API keys cannot process payments until a website domain is registered and locked.
           </span>
         `;
@@ -1393,7 +1393,7 @@ async function handleTestApiCall(event) {
           Order Code: <b>${data.order.orderCode}</b> | Amount: <b>₹${data.order.amount}</b><br>
           Status: <b>${data.order.status}</b><br>
           <div style="margin-top: 10px;">
-            <a href="${data.order.checkoutUrl}" target="_blank" class="nav-btn" style="display: inline-flex; padding: 4px 10px; font-size: 12px; background: rgba(16, 185, 129, 0.2); color: #fff;">
+            <a href="${data.order.checkoutUrl}" target="_blank" class="nav-btn" style="display: inline-flex; padding: 4px 10px; font-size: 12px; background: rgba(16, 185, 129, 0.2); color: var(--text-main);">
               Open Test Checkout ↗
             </a>
           </div>
@@ -1417,7 +1417,7 @@ async function handleRegenerateKey() {
     return;
   }
   try {
-    const res = await fetch('/api/v1/user/regenerate-key', {
+    const res = await fetch(`${API_BASE}/api/v1/user/regenerate-key', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userEmail: currentUser.email })
@@ -1806,10 +1806,10 @@ async function loadMerchantLivePayments() {
           <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
             <td style="padding: 10px 12px; font-weight: 800; color: #34d399; font-size: 13.5px;">₹${Number(p.amount).toFixed(2)}</td>
             <td style="padding: 10px 12px; font-family: monospace; color: #38bdf8; font-weight: 700;">${p.utr || 'Auto-Verified'}</td>
-            <td style="padding: 10px 12px; font-weight: 600; color: #fff;">${p.order_code || 'Direct Store Order'}</td>
-            <td style="padding: 10px 12px;"><span style="background: rgba(56,189,248,0.15); color: #38bdf8; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700;">${sourceLabel}</span></td>
+            <td style="padding: 10px 12px; font-weight: 600; color: var(--text-main);">${p.order_code || 'Direct Store Order'}</td>
+            <td style="padding: 10px 12px;"><span style="background: rgba(56₹89,248,0.15); color: #38bdf8; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700;">${sourceLabel}</span></td>
             <td style="padding: 10px 12px; color: var(--text-dim);">${dateStr}</td>
-            <td style="padding: 10px 12px; text-align: right;"><span style="background: rgba(16,185,129,0.2); color: #34d399; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">🟢 SETTLED</span></td>
+            <td style="padding: 10px 12px; text-align: right;"><span style="background: rgba(16₹85₹29,0.2); color: #34d399; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">🟢 SETTLED</span></td>
           </tr>
         `;
       }).join('');
@@ -2059,20 +2059,20 @@ function updateLiveStandPreview() {
   if (previewStrip && previewCard) {
     if (theme === 'cyan') {
       previewStrip.style.background = 'linear-gradient(90deg, #06b6d4, #3b82f6)';
-      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(6,182,212,0.3)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(6₹82,212,0.3)';
     } else if (theme === 'purple') {
       previewStrip.style.background = 'linear-gradient(90deg, #8b5cf6, #ec4899)';
       previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(139,92,246,0.3)';
     } else if (theme === 'emerald') {
       previewStrip.style.background = 'linear-gradient(90deg, #10b981, #059669)';
-      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(16,185,129,0.3)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(16₹85₹29,0.3)';
     } else if (theme === 'amber') {
       previewStrip.style.background = 'linear-gradient(90deg, #f59e0b, #d97706)';
-      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(245,158,11,0.3)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(245₹58₹1,0.3)';
     } else {
       // Default: Tiranga
       previewStrip.style.background = 'linear-gradient(90deg, #FF671F 0%, #FFFFFF 50%, #046A38 100%)';
-      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(255,103,31,0.2)';
+      previewCard.style.boxShadow = '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(255₹03,31,0.2)';
     }
   }
 }

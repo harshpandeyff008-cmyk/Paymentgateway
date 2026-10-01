@@ -370,20 +370,50 @@ export const UserController = {
       if (!email) {
         return res.status(400).json({ success: false, error: 'User email is required' });
       }
-
+      const cleanEmail = String(email).toLowerCase().trim();
       const status = req.query.status || 'ALL';
+      
       // Strictly exclude internal plan subscriptions. This table is exclusively for customer payments.
-      let sql = 'SELECT * FROM orders WHERE user_email = ? AND (plan_id IS NULL OR plan_id = "") AND order_code NOT LIKE "PLAN-%"';
-      const params = [email];
+      let sql = 'SELECT * FROM orders WHERE LOWER(TRIM(user_email)) = ? AND (plan_id IS NULL OR plan_id = "") AND order_code NOT LIKE "PLAN-%"';
+      const params = [cleanEmail];
 
       if (status !== 'ALL') {
         sql += ' AND status = ?';
-        params.push(status);
+        params.push(status.toUpperCase());
       }
       sql += ' ORDER BY id DESC LIMIT 100';
 
-      const orders = await query.all(sql, params);
-      return res.json({ success: true, orders });
+      let orders = await query.all(sql, params);
+
+      // Cloud Fallback: If SQLite has no orders, check CloudSync RTDB orders
+      if (!orders || orders.length === 0) {
+        try {
+          const cloudOrders = await CloudSyncService.getAllOrders();
+          if (cloudOrders && cloudOrders.length > 0) {
+            orders = cloudOrders.filter(o => {
+              const uEmail = String(o.user_email || o.userEmail || '').toLowerCase().trim();
+              const isPlan = (o.plan_id || o.planId || String(o.order_code || o.orderCode || '').startsWith('PLAN-'));
+              if (uEmail !== cleanEmail || isPlan) return false;
+              if (status !== 'ALL' && (o.status || '').toUpperCase() !== status.toUpperCase()) return false;
+              return true;
+            }).map(o => ({
+              id: o.id || o.orderId || 0,
+              order_code: o.order_code || o.orderCode,
+              amount: o.amount,
+              base_amount: o.base_amount || o.baseAmount || o.amount,
+              customer_name: o.customer_name || o.customerName || 'Guest',
+              customer_phone: o.customer_phone || o.customerPhone || '',
+              status: o.status || 'PENDING',
+              utr: o.utr || null,
+              created_at: o.created_at || o.createdAt,
+              paid_at: o.paid_at || o.paidAt || null,
+              user_email: cleanEmail
+            }));
+          }
+        } catch (_) {}
+      }
+
+      return res.json({ success: true, orders: orders || [] });
     } catch (err) {
       console.error('[UserController] getUserOrders error:', err.message);
       return res.status(500).json({ success: false, error: 'Failed to fetch user orders' });

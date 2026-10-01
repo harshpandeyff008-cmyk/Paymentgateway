@@ -1,12 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg-primary: #f8fafc;
-  --bg-secondary: #f1f5f9;
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #e2e8f0;
   --bg-card: #ffffff;
   --bg-card-hover: #f8fafc;
-  --border-subtle: #e2e8f0;
-  --border-glow: rgba(37, 99, 235, 0.25);
+  --border-subtle: #cbd5e1;
+  --border-glow: rgba(37, 99, 235, 0.35);
   --accent-cyan: #0284c7;
   --accent-blue: #2563eb;
   --accent-purple: #7c3aed;
@@ -14,7 +14,7 @@
   --accent-amber: #d97706;
   --accent-rose: #e11d48;
   --text-main: #0f172a;
-  --text-muted: #475569;
+  --text-muted: #334155;
   --text-dim: #64748b;
   --radius-lg: 16px;
   --radius-md: 10px;
