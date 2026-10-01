@@ -60,7 +60,7 @@ export async function processIncomingPayment({
        WHERE user_email = ? 
          AND status = 'PENDING'
          AND (plan_id IS NULL OR plan_id = '')
-         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 30 * 60 * 1000)
+         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 5 * 60 * 1000)
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
       [merchantEmail, amount, receivedTimestamp, receivedTimestamp]
@@ -73,7 +73,7 @@ export async function processIncomingPayment({
       `SELECT * FROM orders 
        WHERE (plan_id IS NOT NULL OR order_code LIKE 'PLAN-%')
          AND status = 'PENDING'
-         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 30 * 60 * 1000)
+         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 5 * 60 * 1000)
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
       [amount, receivedTimestamp, receivedTimestamp]
@@ -85,20 +85,20 @@ export async function processIncomingPayment({
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE status = 'PENDING'
-         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 30 * 60 * 1000)
+         AND ROUND(amount, 2) = ROUND(?, 2) AND (? >= created_at - 60000 AND ? <= created_at + 5 * 60 * 1000)
        ORDER BY ABS(created_at - ?) ASC 
        LIMIT 1`,
       [amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
-  // Step C: Search for recently EXPIRED orders matching this amount (within 2 hours)
+  // Step C: Search for recently EXPIRED orders matching this amount (within 5 minutes grace)
   if (!matchingOrder) {
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE status = 'EXPIRED'
          AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
-         AND ABS(created_at - ?) <= 120 * 60 * 1000
+         AND ABS(created_at - ?) <= 5 * 60 * 1000
        ORDER BY created_at DESC 
        LIMIT 1`,
       [amount, amount, receivedTimestamp]
@@ -114,7 +114,7 @@ export async function processIncomingPayment({
       `SELECT * FROM orders 
        WHERE status != 'PAID'
          AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
-         AND ABS(created_at - ?) <= 120 * 60 * 1000
+         AND ABS(created_at - ?) <= 5 * 60 * 1000
        ORDER BY id DESC 
        LIMIT 1`,
       [amount, amount, receivedTimestamp]

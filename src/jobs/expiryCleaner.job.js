@@ -7,7 +7,7 @@ import { CloudSyncService } from '../services/cloudSync.service.js';
 
 let intervalId = null;
 
-export function startExpiryCleaner(io, intervalMs = 30000) {
+export function startExpiryCleaner(io, intervalMs = 15000) {
   if (intervalId) clearInterval(intervalId);
 
   intervalId = setInterval(async () => {
