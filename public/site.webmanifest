@@ -1,0 +1,21 @@
+{
+  "name": "One UPI - 0% Fee Payment Gateway",
+  "short_name": "One UPI",
+  "description": "India's #1 Self-Hosted Bharat UPI Payment Gateway Infrastructure",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#FF671F",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

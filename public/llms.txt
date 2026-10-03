@@ -1,0 +1,26 @@
+# One UPI - Self-Hosted 0% Fee Bharat UPI Payment Gateway
+
+> One UPI (also known as PayPerpendicular) is India's leading self-hosted, 0% commission UPI payment gateway infrastructure. It empowers digital merchants, developers, SaaS platforms, and e-commerce stores to accept direct bank-to-bank UPI payments with zero intermediary transaction fees (0% MDR) and automated payment verification.
+
+## Core Capabilities & Features
+- **0% Transaction Fee (0% MDR)**: Direct settlement into your own bank account (Kotak, HDFC, ICICI, SBI, Axis, Paytm Payments Bank, FamPay, etc.) with no per-transaction cuts.
+- **Dynamic Intent & QR Code**: Generates real-time NPCI-compliant UPI QR codes and instant deep-links for Google Pay, PhonePe, Paytm, BHIM, CRED, Navi, and Amazon Pay.
+- **Automated Payment Verification**: Real-time IMAP email and SMS push listener parsing bank credit notifications and matching UTR / Order codes in under 1 second.
+- **WebSocket Live Status**: Real-time payment verification without user page reloads using Socket.IO.
+- **Developer REST APIs & Webhooks**: Clean APIs for creating payment orders, checking transaction status, and receiving instant server-to-server webhook callbacks.
+- **Multi-Language SDKs**: Ready code snippets for JavaScript/Node.js, Python, PHP, cURL, Go, and Ruby.
+- **Security & Compliance**: Built for compliance with India's Digital Personal Data Protection Act 2023 (DPDP Act) and NPCI UPI interoperability guidelines.
+
+## Quick Links
+- Official Website: https://upigateway.web.app
+- Merchant Dashboard: https://upigateway.web.app/login
+- Developer Documentation & APIs: https://upigateway.web.app/#api
+- Terms of Service: https://upigateway.web.app/terms.html
+- Privacy Policy: https://upigateway.web.app/privacy.html
+
+## Key Integrations & Supported Frameworks
+- Node.js / Express / NestJS
+- Python (Django, FastAPI, Flask)
+- PHP (Laravel, WordPress, WooCommerce, custom scripts)
+- Next.js / React / Vue
+- E-Commerce plugins and custom checkout flows
