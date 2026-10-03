@@ -101,7 +101,7 @@ body::after {
 
 .checkout-container {
   width: 100%;
-  max-width: 460px;
+  max-width: 410px;
   position: relative;
   z-index: 10;
 }
@@ -112,8 +112,8 @@ body::after {
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--card-border);
-  border-radius: var(--radius-lg);
-  padding: 24px 22px 28px;
+  border-radius: var(--radius-md);
+  padding: 18px 16px 20px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 50px rgba(0, 0, 0, 0.5);
   position: relative;
   overflow: hidden;
@@ -230,23 +230,23 @@ body::after {
 /* Amount Section */
 .amount-section {
   text-align: center;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .amount-label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   font-weight: 600;
 }
 
 .amount-value {
-  font-size: 42px;
+  font-size: 32px;
   font-weight: 900;
-  letter-spacing: -1.2px;
+  letter-spacing: -0.8px;
   color: #ffffff;
-  margin-top: 2px;
+  margin-top: 1px;
   text-shadow: 0 2px 14px rgba(255, 255, 255, 0.15);
 }
 
@@ -260,18 +260,18 @@ body::after {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   position: relative;
 }
 
 /* Official NPCI / Bharat UPI Merchant Tabletop Stand Card */
 .official-upi-stand {
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.15), 0 0 35px rgba(255, 103, 31, 0.2);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.15), 0 0 30px rgba(255, 103, 31, 0.18);
   width: 100%;
-  max-width: 320px;
+  max-width: 290px;
   margin: 0 auto;
   color: #0f172a;
   text-align: center;
@@ -754,10 +754,60 @@ body::after {
   to { transform: scale(1); opacity: 1; }
 }
 
-/* Responsive */
+/* Comprehensive Mobile & Phone Responsiveness */
 @media (max-width: 480px) {
-  body { padding: 12px; }
-  .checkout-card { padding: 22px 18px; }
-  .amount-value { font-size: 34px; }
-  #qrImage { width: 190px; height: 190px; }
+  body {
+    padding: 10px 8px;
+    min-height: 100vh;
+    align-items: flex-start;
+  }
+  .checkout-container {
+    max-width: 100%;
+    width: 100%;
+  }
+  .checkout-card {
+    padding: 14px 12px 16px;
+    border-radius: 16px;
+  }
+  .brand-header {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+  }
+  .brand-name {
+    font-size: 14.5px;
+  }
+  .amount-section {
+    margin-bottom: 10px;
+  }
+  .amount-value {
+    font-size: 27px;
+  }
+  .official-upi-stand {
+    max-width: 275px;
+    border-radius: 16px;
+  }
+  #qrImage, .upi-qr-img {
+    width: 190px;
+    height: 190px;
+  }
+  .upi-stand-header {
+    padding: 8px 10px;
+  }
+  .upi-scan-banner {
+    padding: 5px 8px;
+    font-size: 10.5px;
+  }
+  .upi-stand-footer {
+    padding: 8px 10px;
+  }
+  .timer-container {
+    margin: 8px 0;
+  }
+  .intent-grid {
+    gap: 6px;
+  }
+  .intent-btn {
+    padding: 9px 8px;
+    font-size: 12px;
+  }
 }

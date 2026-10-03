@@ -738,13 +738,21 @@ function updatePlanCardsUI() {
         btn.title = `Click to upgrade to ${info.name}`;
       }
     } else if (userPlan && userPlanInfo && info.weight < userPlanInfo.weight) {
-      // 3. Lower Tier Plan -> Switch option
+      // 3. Lower Tier Plan -> Disabled / Covered by Current Higher Tier
       card.classList.remove('current-active-plan');
       if (badge) badge.style.display = 'none';
 
       if (btn) {
-        btn.className = 'btn-buy-plan';
-        btn.innerHTML = `<span>Switch to ${info.name} (₹${info.amount})</span><span>➔</span>`;
+        btn.className = 'btn-buy-plan plan-btn-lower-tier';
+        btn.disabled = true;
+        btn.style.opacity = '0.55';
+        btn.style.cursor = 'not-allowed';
+        btn.style.background = 'rgba(255, 255, 255, 0.05)';
+        btn.style.color = '#94a3b8';
+        btn.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+        btn.style.boxShadow = 'none';
+        btn.innerHTML = `<span>🔒 Included in Current Plan</span>`;
+        btn.title = `You already have ${userPlanInfo.name} active with higher limits.`;
       }
     } else {
       // 4. Default / No active plan
