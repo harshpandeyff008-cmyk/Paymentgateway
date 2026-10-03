@@ -2100,8 +2100,12 @@ async function handleSaveBranding(event) {
   try {
     const res = await fetch(`${API_BASE}/api/v1/user/checkout-branding`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-user-email': currentUser.email
+      },
       body: JSON.stringify({
+        email: currentUser.email,
         userEmail: currentUser.email,
         defaultBrandName: name,
         defaultBrandLogoUrl: logo,

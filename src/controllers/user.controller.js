@@ -1151,7 +1151,7 @@ export const UserController = {
 
   async saveCheckoutBranding(req, res) {
     try {
-      const email = req.userRecord?.email || req.body.email || req.query.email;
+      const email = req.userRecord?.email || req.body.email || req.body.userEmail || req.headers['x-user-email'] || req.query.email;
       if (!email) {
         return res.status(401).json({ success: false, error: 'Authentication required' });
       }
