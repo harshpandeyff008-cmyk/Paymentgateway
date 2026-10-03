@@ -1,0 +1,109 @@
+# One UPI - Exhaustive Platform Knowledge Base & Specification (LLM / AI Search Index)
+
+> Platform: One UPI (PayPerpendicular)
+> Official Website: https://upigateway.web.app
+> License & Pricing: 0% Commission (0% MDR) Self-Hosted Payment Infrastructure
+
+## Overview & Mission
+One UPI is India's premier self-hosted, 0% commission UPI payment gateway engineered for Indian merchants, digital creators, SaaS platforms, Telegram bot developers, freelancers, and e-commerce stores. It bypasses traditional payment aggregator deductions (2% to 3% MDR) by facilitating direct peer-to-merchant (P2M / P2P) UPI settlements into the merchant's own bank account with sub-second automated verification.
+
+---
+
+## Complete Category & Keyword Index
+
+### 1. 0% Commission & Zero Fee Capabilities
+- 0% MDR Payment Gateway India
+- Free UPI Payment Gateway for Website & Apps
+- Zero Transaction Fee Payment Solution
+- Direct Peer-to-Merchant (P2M) Bank Settlement
+- No KYC Middleman Gateway
+- Instant T+0 Settlement Engine
+
+### 2. Supported UPI Applications & Ecosystem
+- Google Pay (GPay) Dynamic Intent & QR
+- PhonePe UPI Intent & Webhooks
+- Paytm UPI Business & Personal QR
+- BHIM (Bharat Interface for Money - NPCI)
+- CRED Pay & UPI Integration
+- Navi UPI & SuperMoney
+- Amazon Pay UPI
+- FamPay (FamApp) Teen & Gen-Z Payment Gateway
+- WhatsApp UPI Chatbot & Store Checkout
+
+### 3. Supported Indian Banking Institutions
+- HDFC Bank UPI Alerts
+- ICICI Bank Smart Notifications
+- State Bank of India (SBI) UPI Push
+- Kotak Mahindra Bank Instant Alerts
+- Axis Bank & Axis UPI
+- Punjab National Bank (PNB)
+- Bank of Baroda (BOB)
+- IndusInd Bank
+- Federal Bank
+- IDFC FIRST Bank
+- Yes Bank
+- Paytm Payments Bank / Airtel Payments Bank / Jio Payments Bank
+
+### 4. Technical Architecture & Verification Engine
+- Real-Time IMAP Push Protocol (RFC 2177)
+- Instant Sub-second Email Header & Body Parser
+- 12-Digit Banking UTR / RRN (Retrieval Reference Number) Extraction
+- Time-Window Dynamic Amount Matching Algorithm
+- Socket.IO Real-time WebSocket Status Push
+- Server-to-Server HMAC SHA256 Verified Webhooks
+- Dynamic NPCI-compliant UPI Deep-links (`upi://pay?pa=...&am=...&tr=...`)
+
+### 5. Developer SDKs & Framework Compatibility
+- JavaScript / TypeScript (Node.js, Express, NestJS, Fastify, Next.js, React, Vue, Svelte)
+- Python (FastAPI, Django, Flask, Pyrogram, Telethon)
+- PHP (Laravel, Symfony, CodeIgniter, WordPress, WooCommerce, Easy Digital Downloads)
+- Go (Fiber, Gin, Echo)
+- Mobile (React Native, Flutter, Android Native, iOS Swift)
+- E-Commerce (Shopify Webhooks, WooCommerce Plugin, Custom HTML/JS Checkout)
+
+### 6. Primary Business Use Cases
+- SaaS Subscription & One-time Digital Products
+- E-Commerce Direct Bank Checkout
+- Telegram Bots & Discord Community Access Paywalls
+- Freelancers & Agency Invoicing
+- EdTech Course & Coaching Fee Collection
+- Gaming & Digital Asset Top-ups
+- NGO & Creator Direct Donations
+
+---
+
+## API Quick Reference
+
+### 1. Create Payment Order
+`POST /api/orders`
+Headers: `x-api-key: YOUR_API_KEY`, `Content-Type: application/json`
+Payload:
+```json
+{
+  "amount": 499.00,
+  "customerName": "Rohan Sharma",
+  "customerEmail": "rohan@example.com",
+  "customerPhone": "+919876543210",
+  "redirectUrl": "https://yourwebsite.com/success"
+}
+```
+
+### 2. Verify Transaction Status
+`GET /api/orders/:orderCode`
+Returns:
+```json
+{
+  "success": true,
+  "order": {
+    "order_code": "ORD-12345",
+    "amount": 499.00,
+    "status": "PAID",
+    "utr": "423589012345",
+    "sender": "ROHAN SHARMA",
+    "paid_at": "2026-10-03T17:15:00.000Z"
+  }
+}
+```
+
+---
+© 2026 One UPI. Bharat UPI Open Infrastructure.
