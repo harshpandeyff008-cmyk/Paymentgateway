@@ -39,5 +39,11 @@ export const config = {
     projectId: process.env.FIREBASE_PROJECT_ID || 'upigateway-ccaa4',
     apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyCdeUo_GtvqTlgq-gXG71wtPPehC2mCOpw',
     enabled: true
+  },
+
+  googleOAuth: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '470009930210-787kh67m6gko0ubkn2f72mkpiltprid7.apps.googleusercontent.com',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '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',
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'https://personal-payment-gateway.onrender.com/api/v1/user/banking/google/callback'
   }
 };

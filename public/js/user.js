@@ -1559,11 +1559,12 @@ function switchSettlementTab(tab) {
   }
 }
 
-// 1-Click Google Banking Link (uses gmail.readonly scope)
+// 1-Click Google Banking Link (Permanent 24/7 Auto-Refreshed via Offline Refresh Token)
 async function linkGoogleBankingGmail() {
   if (!currentUser) return;
   const upiInput = (document.getElementById('inputMerchantUpi')?.value || currentUser.upiVpa || '').trim();
   const bizInput = (document.getElementById('inputMerchantBusiness')?.value || currentUser.businessName || '').trim();
+  const providerInput = (document.getElementById('inputMerchantProvider')?.value || currentUser.upiProvider || 'AUTO').trim();
   const feedback = document.getElementById('settlementConfigFeedback');
 
   if (!upiInput) {
@@ -1572,13 +1573,33 @@ async function linkGoogleBankingGmail() {
     return;
   }
 
+  const btn = document.getElementById('btnLinkGoogleBanking');
+  if (btn) btn.innerHTML = '<span>Initiating 24/7 Google Auth...</span> ⏳';
+
+  // 1. Try direct Permanent Server-Side OAuth flow
+  try {
+    const origin = window.location.origin;
+    const res = await fetch(`${API_BASE}/api/v1/user/banking/google/auth-url?userEmail=${encodeURIComponent(currentUser.email)}&upiVpa=${encodeURIComponent(upiInput)}&businessName=${encodeURIComponent(bizInput)}&upiProvider=${encodeURIComponent(providerInput)}`);
+    const data = await res.json();
+    if (data.success && data.authUrl) {
+      // Save pending state in localStorage
+      currentUser.upiVpa = upiInput;
+      currentUser.businessName = bizInput;
+      currentUser.upiProvider = providerInput;
+      sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+      window.location.href = data.authUrl;
+      return;
+    }
+  } catch (err) {
+    console.warn('[GoogleOAuth] Server auth-url fallback to popup:', err.message);
+  }
+
+  // 2. Client-side popup fallback
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
     provider.setCustomParameters({ prompt: 'select_account' });
-
-    const btn = document.getElementById('btnLinkGoogleBanking');
-    if (btn) btn.innerHTML = '<span>Connecting with Google...</span> ⏳';
 
     const result = await firebase.auth().signInWithPopup(provider);
     const accessToken = result.credential ? result.credential.accessToken : null;
@@ -2325,6 +2346,27 @@ window.runLiveApiTester = async function () {
     alert('Failed to connect to API Gateway: ' + err.message);
   }
 };
+
+// Google OAuth 2.0 Return Callback Handler
+(function handleGoogleOAuthUrlParams() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google_linked') === 'success') {
+      const email = params.get('email') || '';
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => {
+        alert(`🎉 Success! 24/7 Permanent Google Banking Channel Connected (${email || 'Active'})! Payments will now be auto-verified 24/7 non-stop with auto-refresh.`);
+        if (typeof renderDashboard === 'function') renderDashboard();
+      }, 500);
+    } else if (params.get('google_error')) {
+      const error = params.get('google_error');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => {
+        alert(`⚠️ Google Linking Notice: ${error}`);
+      }, 500);
+    }
+  } catch (_) {}
+})();
 
 
 

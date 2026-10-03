@@ -256,6 +256,12 @@ export async function initDatabase() {
   try {
     await query.run('ALTER TABLE users ADD COLUMN gmail_token_expired INTEGER DEFAULT 0');
   } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN google_refresh_token TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN google_token_expiry INTEGER DEFAULT 0');
+  } catch (_) {}
 
   // 2. Payments table
   await query.run(`
@@ -657,7 +663,7 @@ export async function updateUserGmailConfig(email, { gmailEmail = '', gmailConne
   return updated;
 }
 
-export async function updateUserGoogleBankingLink(email, { upiVpa = '', businessName = '', upiProvider = 'AUTO', googleEmail = '', accessToken = '' }) {
+export async function updateUserGoogleBankingLink(email, { upiVpa = '', businessName = '', upiProvider = 'AUTO', googleEmail = '', accessToken = '', refreshToken = '', tokenExpiry = 0 }) {
   if (!email) return null;
   const now = Date.now();
   await query.run(
@@ -667,11 +673,14 @@ export async function updateUserGoogleBankingLink(email, { upiVpa = '', business
        upi_provider = ?,
        gmail_email = ?,
        gmail_access_token = ?,
+       google_refresh_token = CASE WHEN ? != '' THEN ? ELSE google_refresh_token END,
+       google_token_expiry = CASE WHEN ? > 0 THEN ? ELSE google_token_expiry END,
        settlement_type = 'GOOGLE_OAUTH',
        gmail_connected = 1,
+       gmail_token_expired = 0,
        updated_at = ?
-     WHERE email = ?`,
-    [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', googleEmail, accessToken, now, email.trim().toLowerCase()]
+     WHERE lower(email) = ?`,
+    [upiVpa, upiVpa, businessName, businessName, upiProvider || 'AUTO', googleEmail, accessToken, refreshToken, refreshToken, tokenExpiry, tokenExpiry, now, email.trim().toLowerCase()]
   );
   const updated = await getUserByEmail(email);
   if (updated) await CloudSyncService.saveUser(updated).catch(() => {});

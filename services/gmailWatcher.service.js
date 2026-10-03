@@ -1,6 +1,7 @@
 import { query, getSetting, setSetting } from '../db/database.js';
 import { parsePaymentEmail } from './emailParser.js';
 import { processIncomingPayment } from './matchingEngine.js';
+import { GoogleOAuthService } from './googleOAuth.service.js';
 
 let isScanning = false;
 let watcherInterval = null;
@@ -150,18 +151,37 @@ export async function scanGoogleBankingAccounts() {
 
     // 2. Scan Connected Merchants who chose Google OAuth Link
     const merchants = await query.all(
-      `SELECT email, upi_vpa, business_name, gmail_email, gmail_access_token
+      `SELECT email, upi_vpa, business_name, gmail_email, gmail_access_token, google_refresh_token, google_token_expiry
        FROM users
        WHERE gmail_connected = 1
          AND settlement_type = 'GOOGLE_OAUTH'
-         AND gmail_access_token IS NOT NULL
-         AND gmail_access_token != ''`
+         AND (gmail_access_token != '' OR google_refresh_token != '')`
     );
 
     if (merchants && merchants.length > 0) {
       for (const m of merchants) {
-        if (!m.gmail_access_token) continue;
-        const scanRes = await checkGoogleBankingAlerts(m.gmail_access_token, m.email, true);
+        let activeToken = m.gmail_access_token;
+
+        // Auto-refresh before call if token expired and refresh token available
+        if (m.google_refresh_token && (!activeToken || (m.google_token_expiry && Date.now() > m.google_token_expiry - 60000))) {
+          const refreshed = await GoogleOAuthService.refreshAccessToken(m.google_refresh_token, m.email);
+          if (refreshed && refreshed.accessToken) {
+            activeToken = refreshed.accessToken;
+          }
+        }
+
+        if (!activeToken) continue;
+        let scanRes = await checkGoogleBankingAlerts(activeToken, m.email, true);
+
+        // If scan returned expired, try instant refresh with google_refresh_token and retry scan once
+        if (scanRes && scanRes.expired && m.google_refresh_token) {
+          const refreshed = await GoogleOAuthService.refreshAccessToken(m.google_refresh_token, m.email);
+          if (refreshed && refreshed.accessToken) {
+            activeToken = refreshed.accessToken;
+            scanRes = await checkGoogleBankingAlerts(activeToken, m.email, true);
+          }
+        }
+
         if (scanRes && scanRes.expired) {
           try {
             await query.run('UPDATE users SET gmail_token_expired = 1 WHERE email = ?', [m.email]);

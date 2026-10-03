@@ -22,6 +22,8 @@ router.post('/buy-plan', UserController.buyPlan);
 // Gated Features (Require Active Plan)
 router.post('/gmail-config', UserController.connectGmail);
 router.post('/banking/google-link', UserController.connectGoogleBanking);
+router.get('/banking/google/auth-url', UserController.getGoogleAuthUrl);
+router.get('/banking/google/callback', UserController.googleOAuthCallback);
 router.post('/banking/imap-link', UserController.connectImapBanking);
 router.post('/banking/test-imap', UserController.testImapConnection);
 router.post('/banking/disconnect', UserController.disconnectBanking);

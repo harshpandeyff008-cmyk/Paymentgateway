@@ -22,6 +22,7 @@ import { buildUpiUri, generateQrDataUrl } from '../utils/qr.util.js';
 import { config } from '../../config.js';
 import { syncPaymentMonitoring } from '../../services/imapListener.js';
 import { CloudSyncService } from '../services/cloudSync.service.js';
+import { GoogleOAuthService } from '../../services/googleOAuth.service.js';
 import { ImapFlow } from 'imapflow';
 
 export const PLANS = {
@@ -729,6 +730,88 @@ export const UserController = {
     } catch (err) {
       console.error('[UserController] connectGoogleBanking error:', err.message);
       return res.status(500).json({ success: false, error: 'Failed to link Google banking email: ' + err.message });
+    }
+  },
+
+  // 5.1.1 Get Google OAuth Authorization URL for Permanent 24/7 Refresh Token
+  async getGoogleAuthUrl(req, res) {
+    try {
+      const userEmail = (req.query.userEmail || req.query.email || req.body.userEmail || '').trim().toLowerCase();
+      const upiVpa = (req.query.upiVpa || req.body.upiVpa || '').trim();
+      const businessName = (req.query.businessName || req.body.businessName || '').trim();
+      const upiProvider = (req.query.upiProvider || req.body.upiProvider || 'AUTO').trim();
+      const origin = req.headers.origin || req.headers.referer || 'https://upigateway.web.app';
+
+      if (!userEmail) {
+        return res.status(400).json({ success: false, error: 'userEmail is required' });
+      }
+
+      const authUrl = GoogleOAuthService.getAuthUrl(userEmail, upiVpa, businessName, upiProvider, origin);
+      return res.json({ success: true, authUrl });
+    } catch (err) {
+      console.error('[UserController] getGoogleAuthUrl error:', err.message);
+      return res.status(500).json({ success: false, error: 'Failed to generate Google auth URL: ' + err.message });
+    }
+  },
+
+  // 5.1.2 Handle Google OAuth 2.0 Server-Side Callback
+  async googleOAuthCallback(req, res) {
+    const { code, state, error } = req.query;
+
+    let targetOrigin = 'https://upigateway.web.app';
+    let userEmail = '';
+    let upiVpa = '';
+    let businessName = '';
+    let upiProvider = 'AUTO';
+
+    if (state) {
+      try {
+        const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8'));
+        userEmail = decoded.userEmail || '';
+        upiVpa = decoded.upiVpa || '';
+        businessName = decoded.businessName || '';
+        upiProvider = decoded.upiProvider || 'AUTO';
+        if (decoded.origin) targetOrigin = decoded.origin;
+      } catch (_) {}
+    }
+
+    if (error || !code) {
+      console.warn('[UserController] Google OAuth callback error or rejected:', error);
+      return res.redirect(`${targetOrigin}/user.html?google_error=${encodeURIComponent(error || 'Authorization rejected')}`);
+    }
+
+    try {
+      const { accessToken, refreshToken, tokenExpiry } = await GoogleOAuthService.exchangeCodeForTokens(code);
+      const googleEmail = await GoogleOAuthService.getGoogleUserEmail(accessToken) || userEmail;
+
+      if (userEmail) {
+        await updateUserGoogleBankingLink(userEmail, {
+          upiVpa,
+          businessName,
+          upiProvider,
+          googleEmail,
+          accessToken,
+          refreshToken,
+          tokenExpiry
+        });
+
+        await logActivity({
+          eventType: 'BANKING_GOOGLE_PERMANENT_LINKED',
+          status: 'SUCCESS',
+          title: `Google Banking 24/7 Permanent Linked: ${userEmail}`,
+          details: `Gmail: ${googleEmail} | Refresh Token: Captured & Active | Provider: ${upiProvider}`,
+          clientIp: req.ip || '',
+          origin: req.headers.origin || ''
+        });
+
+        // Trigger active payment monitoring sync
+        syncPaymentMonitoring().catch(() => {});
+      }
+
+      return res.redirect(`${targetOrigin}/user.html?google_linked=success&email=${encodeURIComponent(googleEmail)}`);
+    } catch (err) {
+      console.error('[UserController] googleOAuthCallback exchange error:', err.message);
+      return res.redirect(`${targetOrigin}/user.html?google_error=${encodeURIComponent(err.message)}`);
     }
   },
 
