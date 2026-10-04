@@ -1177,6 +1177,14 @@
       });
     }
 
+    // Check URL params for ?mode=register or ?tab=register
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('mode') === 'register' || urlParams.get('tab') === 'register' || urlParams.get('action') === 'register') {
+        setTimeout(() => switchAuthMode('register'), 50);
+      }
+    } catch (_) {}
+
     // 1. Switch Auth Modes (Sign In vs Register)
     function switchAuthMode(mode) {
       const tabSignInBtn = document.getElementById('tabSignInBtn');
