@@ -166,19 +166,25 @@ export const OtpController = {
         return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long' });
       }
 
-      // Validate token
-      if (verificationToken) {
-        const isValid = OtpManager.validateVerificationToken(normalizedEmail, verificationToken, 'SIGNUP');
-        if (!isValid) {
-          return res.status(401).json({ success: false, error: 'Invalid or expired verification session. Please request a new OTP.' });
-        }
+      // Check if already registered with a password
+      let user = await getUserByEmail(normalizedEmail);
+      if (!user) {
+        try {
+          user = await CloudSyncService.getUser(normalizedEmail);
+        } catch (_) {}
+      }
+
+      if (user && user.password_hash && !verificationToken) {
+        return res.status(409).json({
+          success: false,
+          error: '⚠️ This email is already registered. Please Sign In with your password.'
+        });
       }
 
       const now = Date.now();
       const isAdmin = normalizedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase();
       const role = isAdmin ? 'admin' : 'user';
 
-      let user = await getUserByEmail(normalizedEmail);
       if (user) {
         // Update user's password, name, phone
         await query.run(

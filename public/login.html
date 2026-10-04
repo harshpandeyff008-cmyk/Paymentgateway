@@ -955,7 +955,7 @@
                 <input type="checkbox" id="checkKeepLoggedIn" checked>
                 <span>Keep me logged in</span>
               </label>
-              <a href="#" class="forgot-link" onclick="openForgotPasswordModal(event)">Forgot password?</a>
+              <!-- Forgot password temporarily hidden as requested -->
             </div>
 
             <button type="submit" class="btn-submit" id="btnLoginSubmit">
@@ -969,15 +969,14 @@
           </div>
         </div>
 
-        <!-- 2. REGISTER VIEW (STEP 1: DETAILS & STEP 2: IN-CARD OTP) -->
+        <!-- 2. REGISTER VIEW (DIRECT 1-CLICK INSTANT REGISTRATION) -->
         <div id="viewRegister" style="display: none;">
           
-          <!-- STEP 1: FILL REGISTRATION DETAILS -->
           <div id="regStepDetails">
             <div class="auth-header">
-              <h1 class="auth-header-title">Register new account</h1>
+              <h1 class="auth-header-title">Create New Account</h1>
               <p class="auth-header-sub">
-                Create your secure merchant workspace on ZeroFee UPI.
+                Fill details below. Your email &amp; password will become your login ID.
               </p>
             </div>
 
@@ -1014,14 +1013,14 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="regEmail">Email address</label>
+                <label class="form-label" for="regEmail">Email address (Your Login ID)</label>
                 <div class="input-wrapper">
                   <input type="email" id="regEmail" class="form-input" placeholder="name@company.com" required autocomplete="email">
                 </div>
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="regPassword">Password</label>
+                <label class="form-label" for="regPassword">Password (Your Login Password)</label>
                 <div class="input-wrapper">
                   <input type="password" id="regPassword" class="form-input" placeholder="Min. 6 characters" minlength="6" required autocomplete="new-password">
                   <button type="button" class="password-toggle" onclick="togglePasswordVisibility('regPassword', this)">👁️</button>
@@ -1044,49 +1043,14 @@
               </div>
 
               <button type="submit" class="btn-submit" id="btnRegisterSubmit">
-                <span id="btnRegisterText">NEXT • SEND VERIFICATION OTP</span>
+                <span id="btnRegisterText">🚀 CREATE ACCOUNT &amp; ENTER DASHBOARD</span>
               </button>
             </form>
 
             <div class="auth-switch-footer">
-              <span>Have an account? </span>
+              <span>Already have an account? </span>
               <button type="button" class="auth-switch-btn" onclick="switchAuthMode('signin')">Sign in</button>
             </div>
-          </div>
-
-          <!-- STEP 2: IN-CARD EMAIL OTP VERIFICATION -->
-          <div id="regStepOtp" style="display: none;">
-            <div class="auth-header">
-              <div style="font-size: 32px; margin-bottom: 8px;">📩</div>
-              <h1 class="auth-header-title">Verify Your Email</h1>
-              <p class="auth-header-sub">
-                Enter the 6-digit OTP sent to <b id="displayVerifyEmail" style="color: #0f172a;">name@company.com</b>
-              </p>
-            </div>
-
-            <!-- Helpful Folder Tip -->
-            <div style="background: #fffbeb; border: 1px solid #fef3c7; border-left: 3.5px solid #f59e0b; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #92400e; margin-bottom: 14px; text-align: left; line-height: 1.45;">
-              📁 <b>Important Tip:</b> Agar email <b>Primary Inbox</b> me na dikhe, toh please apna <b>Spam, Junk ya Promotions</b> folder zaroor check karein.
-            </div>
-
-            <div class="otp-verification-box">
-              <label class="form-label" style="text-align: center; color: #475569;">ENTER 6-DIGIT VERIFICATION CODE</label>
-              <input type="text" id="regOtpInput" class="otp-input-large" placeholder="••••••" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" autofocus>
-
-              <button type="button" class="btn-submit" id="btnVerifyOtpSubmit" onclick="handleVerifyRegistrationOtp()">
-                <span id="btnVerifyOtpText">VERIFY &amp; ACTIVATE WORKSPACE</span>
-              </button>
-
-              <div class="resend-row">
-                <span>Didn't receive code?</span>
-                <button type="button" class="resend-btn" id="btnResendRegOtp" onclick="handleResendRegisterOtp()">Resend OTP</button>
-                <span id="resendCountdown" style="display: none; color: #94a3b8;">(30s)</span>
-              </div>
-            </div>
-
-            <button type="button" class="btn-outline" onclick="backToRegDetails()">
-              ← Edit Details / Change Email
-            </button>
           </div>
 
         </div>
@@ -1356,7 +1320,7 @@
       }
     }
 
-    // 5. Register Step 1: Initiate & Send Email OTP
+    // 5. Direct Account Registration (1-Click Instant Setup)
     async function handleInitiateRegister(event) {
       event.preventDefault();
 
@@ -1404,126 +1368,18 @@
       }
 
       btn.disabled = true;
-      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Sending Verification OTP...</span>';
-      if (feedback) feedback.style.display = 'none';
-
-      // Store temporary registration payload
-      pendingRegistration = { name, mobile, email, password };
-
-      try {
-        const res = await fetch((API_BASE || '') + '/api/v1/auth/otp/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, purpose: 'SIGNUP' })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          // Switch to OTP View
-          document.getElementById('regStepDetails').style.display = 'none';
-          document.getElementById('regStepOtp').style.display = 'block';
-          document.getElementById('displayVerifyEmail').innerText = email;
-          const tabs = document.getElementById('mainAuthTabs');
-          if (tabs) tabs.style.display = 'none';
-
-          startResendCountdown();
-
-          if (feedback) {
-            feedback.style.display = 'block';
-            feedback.style.background = 'rgba(16, 185, 129, 0.12)';
-            feedback.style.border = '1px solid rgba(16, 185, 129, 0.25)';
-            feedback.style.color = '#10b981';
-            feedback.innerHTML = `✅ <strong>OTP Sent!</strong> 6-digit code sent to <b>${email}</b>. <div style="font-size:11.5px; margin-top:3px; color:#475569;">📁 Agar inbox me na mile to <b>Spam / Promotions</b> folder check karein.</div>${data.debugOtp ? `<div style="margin-top:6px; font-weight:800; color:#ea580c;">⚡ Local Dev OTP: ${data.debugOtp}</div>` : ''}`;
-          }
-          if (data.debugOtp) {
-            const otpInp = document.getElementById('regOtpInput');
-            if (otpInp) otpInp.value = data.debugOtp;
-          }
-          document.getElementById('regOtpInput').focus();
-
-        } else {
-          if (feedback) {
-            feedback.style.display = 'block';
-            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
-            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
-            feedback.style.color = '#ef4444';
-            feedback.innerHTML = '❌ ' + (data.error || 'Failed to send OTP email');
-          }
-        }
-      } catch (err) {
-        if (feedback) {
-          feedback.style.display = 'block';
-          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
-          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
-          feedback.style.color = '#ef4444';
-          feedback.innerHTML = '❌ Network error: ' + err.message;
-        }
-      } finally {
-        btn.disabled = false;
-        btnText.innerText = 'NEXT • SEND VERIFICATION OTP';
-      }
-    }
-
-    // 6. Register Step 2: Verify OTP & Create Workspace
-    async function handleVerifyRegistrationOtp() {
-      if (!pendingRegistration) return;
-      const otp = document.getElementById('regOtpInput')?.value?.trim();
-      const feedback = document.getElementById('authFeedback');
-      const btn = document.getElementById('btnVerifyOtpSubmit');
-      const btnText = document.getElementById('btnVerifyOtpText');
-
-      if (!otp || otp.length !== 6) {
-        if (feedback) {
-          feedback.style.display = 'block';
-          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
-          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
-          feedback.style.color = '#ef4444';
-          feedback.innerHTML = '⚠️ Please enter the complete 6-digit OTP code.';
-        }
-        return;
-      }
-
-      btn.disabled = true;
-      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Verifying code...</span>';
+      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Creating your account...</span>';
       if (feedback) feedback.style.display = 'none';
 
       try {
-        // Step A: Verify OTP on Backend
-        const res = await fetch((API_BASE || '') + '/api/v1/auth/otp/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: pendingRegistration.email,
-            otp: otp,
-            purpose: 'SIGNUP'
-          })
-        });
-        const data = await res.json();
-
-        if (!data.success) {
-          if (feedback) {
-            feedback.style.display = 'block';
-            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
-            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
-            feedback.style.color = '#ef4444';
-            feedback.innerHTML = '❌ ' + (data.error || 'Invalid OTP code.');
-          }
-          btn.disabled = false;
-          btnText.innerText = 'VERIFY & ACTIVATE WORKSPACE';
-          return;
-        }
-
-        // Step B: Register and activate user on Backend
-        btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Activating account...</span>';
         const regRes = await fetch((API_BASE || '') + '/api/v1/auth/otp/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email: pendingRegistration.email,
-            password: pendingRegistration.password,
-            name: pendingRegistration.name,
-            phone: pendingRegistration.mobile,
-            verificationToken: data.verificationToken
+            email,
+            password,
+            name: name || 'User',
+            phone: mobile || ''
           })
         });
         const regData = await regRes.json();
@@ -1534,77 +1390,46 @@
             feedback.style.background = 'rgba(239, 68, 68, 0.12)';
             feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
             feedback.style.color = '#ef4444';
-            feedback.innerHTML = '❌ ' + (regData.error || 'Failed to create user workspace.');
+            feedback.innerHTML = '❌ ' + (regData.error || 'Failed to create user account.');
           }
           btn.disabled = false;
-          btnText.innerText = 'VERIFY & ACTIVATE WORKSPACE';
+          btnText.innerText = '🚀 CREATE ACCOUNT & ENTER DASHBOARD';
           return;
         }
 
-        // Step C: Also try Firebase Auth User creation in background if possible
+        // Also sync in background to Firebase Auth if possible
         if (fbAuth) {
           try {
-            const userCred = await fbAuth.createUserWithEmailAndPassword(pendingRegistration.email, pendingRegistration.password);
-            if (userCred.user && pendingRegistration.name) {
-              await userCred.user.updateProfile({ displayName: pendingRegistration.name });
+            const userCred = await fbAuth.createUserWithEmailAndPassword(email, password);
+            if (userCred.user && name) {
+              await userCred.user.updateProfile({ displayName: name });
             }
           } catch (fbErr) {
             console.warn('[Firebase Auth helper]', fbErr.message);
           }
         }
 
-        const savedInfo = pendingRegistration;
-        pendingRegistration = null;
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+          feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          feedback.style.color = '#10b981';
+          feedback.innerHTML = '✅ <b>Account Created Successfully!</b> Entering dashboard...';
+        }
 
-        await routeAuthenticatedUser(regData.user || { email: savedInfo.email, name: savedInfo.name }, { name: savedInfo.name, phone: savedInfo.mobile });
+        await routeAuthenticatedUser(regData.user || { email, name }, { name, phone: mobile });
       } catch (err) {
-        console.error('Registration OTP verification error:', err);
+        console.error('Registration error:', err);
         if (feedback) {
           feedback.style.display = 'block';
           feedback.style.background = 'rgba(239, 68, 68, 0.12)';
           feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
           feedback.style.color = '#ef4444';
-          feedback.innerHTML = '❌ ' + err.message;
+          feedback.innerHTML = '❌ Network error: ' + err.message;
         }
         btn.disabled = false;
-        btnText.innerText = 'VERIFY & ACTIVATE WORKSPACE';
+        btnText.innerText = '🚀 CREATE ACCOUNT & ENTER DASHBOARD';
       }
-    }
-
-    // Resend Registration OTP
-    async function handleResendRegisterOtp() {
-      if (!pendingRegistration) return;
-      startResendCountdown();
-      try {
-        await fetch((API_BASE || '') + '/api/v1/auth/otp/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: pendingRegistration.email, purpose: 'SIGNUP' })
-        });
-      } catch (_) {}
-    }
-
-    function startResendCountdown() {
-      const btn = document.getElementById('btnResendRegOtp');
-      const counter = document.getElementById('resendCountdown');
-      if (!btn || !counter) return;
-
-      btn.disabled = true;
-      counter.style.display = 'inline';
-      let sec = 30;
-      counter.innerText = `(${sec}s)`;
-
-      clearInterval(resendTimerInterval);
-      resendTimerInterval = setInterval(() => {
-        sec--;
-        if (sec <= 0) {
-          clearInterval(resendTimerInterval);
-          btn.disabled = false;
-          counter.style.display = 'none';
-        } else {
-          counter.innerText = `(${sec}s)`;
-        }
-      }, 1000);
     }
 
     // 7. Forgot Password Modal Handlers
