@@ -1,6 +1,6 @@
 {
-  "name": "One UPI - 0% Fee Payment Gateway",
-  "short_name": "One UPI",
+  "name": "ZeroFee UPI - 0% Fee Payment Gateway",
+  "short_name": "ZeroFee UPI",
   "description": "India's #1 Self-Hosted Bharat UPI Payment Gateway Infrastructure",
   "start_url": "/",
   "display": "standalone",

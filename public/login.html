@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In • One UPI Payment Gateway</title>
+  <title>Sign In &amp; Register • ZeroFee UPI Gateway</title>
   <link rel="icon" href="/favicon.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   
   <!-- Firebase SDKs (Compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -15,15 +15,17 @@
 
   <style>
     :root {
-      --bg-dark: #ffffff;
+      --bg-dark: #080c14;
       --card-bg: #ffffff;
       --border: #e2e8f0;
       --primary: #ea580c;
+      --primary-hover: #c2410c;
+      --accent-saffron: #ff671f;
+      --accent-green: #10b981;
       --accent-cyan: #0284c7;
-      --accent-emerald: #047857;
       --text: #0f172a;
-      --text-muted: #475569;
-      --text-dim: #64748b;
+      --text-muted: #64748b;
+      --text-dim: #94a3b8;
     }
 
     * {
@@ -34,7 +36,7 @@
 
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #ffffff;
+      background: #f8fafc;
       color: var(--text);
       min-height: 100vh;
       display: flex;
@@ -46,124 +48,588 @@
       overflow-x: hidden;
       background-image: 
         radial-gradient(ellipse 70% 40% at 50% -10%, rgba(255, 103, 31, 0.08), transparent 70%),
-        radial-gradient(ellipse 50% 30% at 90% 40%, rgba(16, 185, 129, 0.05), transparent 60%);
+        radial-gradient(ellipse 50% 30% at 90% 40%, rgba(16, 185, 129, 0.06), transparent 60%),
+        radial-gradient(ellipse 60% 40% at 10% 90%, rgba(2, 132, 199, 0.05), transparent 70%);
     }
 
-    .login-container {
+    /* Top Tricolor Accent Line */
+    .top-tricolor-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3.5px;
+      background: linear-gradient(90deg, #FF671F 0%, #FFFFFF 50%, #046A38 100%);
+      z-index: 9999;
+      box-shadow: 0 0 12px rgba(255, 103, 31, 0.35);
+    }
+
+    .auth-wrapper {
       position: relative;
       z-index: 1;
       width: 100%;
-      max-width: 440px;
+      max-width: 1080px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 32px;
+      align-items: center;
+      margin: auto;
     }
 
-    .brand-header {
+    @media (min-width: 960px) {
+      .auth-wrapper {
+        grid-template-columns: 1fr 1.12fr;
+        gap: 48px;
+        padding: 20px 0;
+      }
+    }
+
+    /* LEFT SIDE: SHOWCASE BANNER (PC Display) */
+    .showcase-panel {
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      min-height: 580px;
+      background: linear-gradient(145deg, #0b1120, #040914);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 28px;
+      padding: 44px 38px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.4), 0 0 35px rgba(255, 103, 31, 0.12);
+      color: #ffffff;
+    }
+
+    @media (min-width: 960px) {
+      .showcase-panel {
+        display: flex;
+      }
+    }
+
+    .showcase-panel::before {
+      content: '';
+      position: absolute;
+      top: -90px;
+      left: -90px;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 103, 31, 0.25), transparent 70%);
+      filter: blur(40px);
+      pointer-events: none;
+    }
+
+    .showcase-panel::after {
+      content: '';
+      position: absolute;
+      bottom: -90px;
+      right: -90px;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.25), transparent 70%);
+      filter: blur(40px);
+      pointer-events: none;
+    }
+
+    .showcase-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      position: relative;
+      z-index: 2;
+    }
+
+    .showcase-brand img {
+      height: 42px;
+      width: 42px;
+      border-radius: 12px;
+      object-fit: cover;
+      box-shadow: 0 0 20px rgba(255, 103, 31, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .showcase-brand-text {
+      font-size: 20px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .showcase-badge {
+      font-size: 11px;
+      font-weight: 800;
+      color: #ff9933;
+      background: rgba(255, 103, 31, 0.18);
+      border: 1px solid rgba(255, 103, 31, 0.35);
+      padding: 2px 8px;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+
+    .showcase-hero {
+      position: relative;
+      z-index: 2;
+      margin: 36px 0;
+    }
+
+    .showcase-slogan {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.35;
+      letter-spacing: -0.6px;
+      color: #f8fafc;
+      margin-bottom: 14px;
+    }
+
+    .showcase-slogan span {
+      background: linear-gradient(90deg, #ff9933 0%, #ffffff 50%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .showcase-desc {
+      font-size: 14px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    /* Live Payment Showcase Card Component */
+    .payment-mockup-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+      margin-top: 24px;
+    }
+
+    .mockup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+    }
+
+    .mockup-live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    .mockup-live-dot {
+      width: 7px;
+      height: 7px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulseDot 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
+    }
+
+    .mockup-content {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .mockup-qr-box {
+      width: 76px;
+      height: 76px;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
-      margin-bottom: 32px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      flex-shrink: 0;
+    }
+
+    .mockup-qr-box svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .mockup-details {
+      flex: 1;
+    }
+
+    .mockup-amount {
+      font-size: 20px;
+      font-weight: 800;
+      color: #38bdf8;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .mockup-tagline {
+      font-size: 11.5px;
+      color: #94a3b8;
+      margin-top: 3px;
+    }
+
+    .mockup-settlement {
+      margin-top: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #f59e0b;
+    }
+
+    .showcase-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 12px;
+      color: #64748b;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* RIGHT SIDE: AUTHENTICATION FORM (PC Right / Mobile Center) */
+    .auth-card-container {
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .mobile-brand-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 24px;
       text-decoration: none;
     }
 
-    .brand-icon {
-      width: 44px;
-      height: 44px;
-      background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(16, 185, 129, 0.2));
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      box-shadow: 0 0 25px rgba(56, 189, 248, 0.3);
+    @media (min-width: 960px) {
+      .mobile-brand-header {
+        display: none;
+      }
     }
 
-    .brand-title {
-      font-size: 22px;
-      font-weight: 800;
-      color: #0f172a;
-      letter-spacing: -0.5px;
-    }
-
-    .login-card {
-      background: #ffffff;
+    .auth-card {
+      background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 24px;
-      padding: 40px 32px;
-      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.08), 0 0 1px 1px rgba(0, 0, 0, 0.04);
+      padding: 34px 28px;
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.07), 0 0 1px 1px rgba(0, 0, 0, 0.03);
       position: relative;
       overflow: hidden;
-      text-align: center;
     }
 
-    .login-card::before {
+    @media (min-width: 640px) {
+      .auth-card {
+        padding: 38px 36px;
+      }
+    }
+
+    .auth-card::before {
       content: '';
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
-      height: 3px;
+      height: 3.5px;
       background: linear-gradient(90deg, #FF671F, #FF9933, #10b981);
     }
 
-    .card-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px;
-      background: rgba(255, 103, 31, 0.09);
-      border: 1px solid rgba(255, 103, 31, 0.28);
-      border-radius: 20px;
-      font-size: 11.5px;
-      font-weight: 800;
-      color: #ea580c;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 16px;
+    /* Tab Switcher */
+    .auth-tabs {
+      display: flex;
+      background: #f1f5f9;
+      border-radius: 14px;
+      padding: 4px;
+      margin-bottom: 24px;
+      position: relative;
+      border: 1px solid #e2e8f0;
     }
 
-    .card-title {
-      font-size: 24px;
+    .auth-tab-btn {
+      flex: 1;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      border: none;
+      background: transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .auth-tab-btn.active {
+      background: #ffffff;
+      color: var(--text);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+    }
+
+    .auth-header {
+      margin-bottom: 22px;
+      text-align: left;
+    }
+
+    .auth-header-title {
+      font-size: 22px;
       font-weight: 800;
       color: #0f172a;
-      margin-bottom: 8px;
-      letter-spacing: -0.5px;
+      letter-spacing: -0.4px;
+      margin-bottom: 5px;
     }
 
-    .card-subtitle {
-      font-size: 13.5px;
+    .auth-header-sub {
+      font-size: 13px;
       color: var(--text-muted);
-      line-height: 1.55;
-      margin-bottom: 30px;
+      line-height: 1.5;
     }
 
+    /* Form Fields */
+    .form-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #0f172a;
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+      background: #ffffff;
+      border-color: #ea580c;
+      box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+    }
+
+    .input-prefix {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #475569;
+      background: #e2e8f0;
+      border: 1.5px solid #cbd5e1;
+      border-right: none;
+      border-radius: 12px 0 0 12px;
+      height: 46px;
+      user-select: none;
+    }
+
+    .form-input.has-prefix {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      transition: color 0.2s;
+    }
+
+    .password-toggle:hover {
+      color: #334155;
+    }
+
+    /* Checkbox & Links Row */
+    .form-options-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      font-size: 12.5px;
+      color: #475569;
+    }
+
+    .custom-checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .custom-checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #ea580c;
+      cursor: pointer;
+    }
+
+    .forgot-link {
+      color: #ea580c;
+      text-decoration: none;
+      font-weight: 700;
+      transition: color 0.2s;
+    }
+
+    .forgot-link:hover {
+      text-decoration: underline;
+    }
+
+    /* Primary Submit Button */
+    .btn-submit {
+      width: 100%;
+      padding: 13px 20px;
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #ffffff;
+      background: linear-gradient(135deg, #ff671f, #ea580c);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px rgba(234, 88, 12, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-submit:hover {
+      transform: translateY(-1.5px);
+      box-shadow: 0 8px 22px rgba(234, 88, 12, 0.4);
+      background: linear-gradient(135deg, #ff7a38, #ea580c);
+    }
+
+    .btn-submit:active {
+      transform: translateY(0);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Secondary / Outline Button */
+    .btn-outline {
+      width: 100%;
+      padding: 12px 18px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #475569;
+      background: #f8fafc;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-outline:hover {
+      background: #ffffff;
+      border-color: #94a3b8;
+      color: #0f172a;
+    }
+
+    /* Divider */
+    .auth-divider {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      margin: 22px 0;
+      color: var(--text-dim);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .auth-divider::before,
+    .auth-divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .auth-divider span {
+      padding: 0 12px;
+    }
+
+    /* Google Sign-in Button (Preserved 100%) */
     .btn-google {
       width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 12px;
-      padding: 15px 24px;
-      font-size: 15px;
+      padding: 13px 20px;
+      font-size: 14px;
       font-weight: 700;
       color: #0f172a;
       background: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 14px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 12px;
       cursor: pointer;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
     }
 
     .btn-google:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
       background: #ffffff;
       border-color: #94a3b8;
-    }
-
-    .btn-google:active {
-      transform: translateY(0);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+      transform: translateY(-1.5px);
     }
 
     .btn-google:disabled {
@@ -172,6 +638,31 @@
       transform: none;
     }
 
+    /* Switch View Footer */
+    .auth-switch-footer {
+      margin-top: 22px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .auth-switch-btn {
+      color: #ea580c;
+      font-weight: 800;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      font-family: inherit;
+      font-size: inherit;
+      text-decoration: underline;
+    }
+
+    .auth-switch-btn:hover {
+      color: #c2410c;
+    }
+
+    /* Feedback Box */
     .feedback-box {
       display: none;
       font-size: 12.5px;
@@ -182,14 +673,106 @@
       line-height: 1.45;
     }
 
-    .footer-security {
-      margin-top: 28px;
+    /* In-Card OTP Verification Box */
+    .otp-verification-box {
+      background: #f8fafc;
+      border: 1.5px dashed #cbd5e1;
+      border-radius: 16px;
+      padding: 22px 18px;
+      margin: 18px 0;
+      text-align: center;
+    }
+
+    .otp-input-large {
+      width: 100%;
+      max-width: 240px;
+      height: 52px;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 12px;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      color: #ea580c;
+      background: #ffffff;
+      border: 2px solid #fdba74;
+      border-radius: 12px;
+      outline: none;
+      margin: 14px auto;
+      display: block;
+      box-shadow: 0 4px 14px rgba(234, 88, 12, 0.12);
+    }
+
+    .otp-input-large:focus {
+      border-color: #ea580c;
+      box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.2);
+    }
+
+    .resend-row {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
       font-size: 12px;
-      color: var(--text-dim);
+      color: #64748b;
+      margin-top: 12px;
+    }
+
+    .resend-btn {
+      color: #ea580c;
+      font-weight: 800;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+      font-size: inherit;
+    }
+
+    .resend-btn:disabled {
+      color: #94a3b8;
+      cursor: not-allowed;
+      text-decoration: none;
+    }
+
+    /* Modal Overlay for Forgot Password */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(8, 12, 20, 0.7);
+      backdrop-filter: blur(6px);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-card {
+      background: #ffffff;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 440px;
+      padding: 28px 24px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    .modal-close-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+
+    .modal-close-btn:hover {
+      color: #0f172a;
     }
 
     .back-home {
@@ -204,16 +787,21 @@
     }
 
     .back-home:hover {
-      color: #38bdf8;
+      color: #ea580c;
     }
 
     .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(0, 0, 0, 0.2);
-      border-top-color: #000;
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ffffff;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
+    }
+
+    .spinner.dark {
+      border-color: rgba(0, 0, 0, 0.15);
+      border-top-color: #0f172a;
     }
 
     @keyframes spin {
@@ -223,60 +811,364 @@
 </head>
 <body>
 
-  <div class="login-container">
+  <!-- Top Tricolor Bar -->
+  <div class="top-tricolor-bar"></div>
+
+  <div class="auth-wrapper">
     
-    <a href="/" class="brand-header">
-      <img src="/images/logo.png" alt="Logo" style="height: 44px; width: 44px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 20px rgba(255, 103, 31, 0.35); border: 1px solid rgba(255, 255, 255, 0.15);">
-      <div class="brand-title">One UPI <span style="font-size: 11px; color: #FF8C38; background: rgba(255, 103, 31, 0.15); border: 1px solid rgba(255, 103, 31, 0.35); padding: 2px 7px; border-radius: 999px; margin-left: 6px; font-weight: 700;">V2</span></div>
-    </a>
+    <!-- LEFT SIDE: DESKTOP SHOWCASE PANEL -->
+    <div class="showcase-panel">
+      
+      <!-- Top Brand -->
+      <a href="/" class="showcase-brand">
+        <img src="/images/logo.png" alt="ZeroFee UPI Logo">
+        <div class="showcase-brand-text">
+          <span>ZeroFee UPI</span>
+          <span class="showcase-badge">0% Commission</span>
+        </div>
+      </a>
 
-    <div class="login-card">
-      <div class="card-badge">🔐 Single Gateway Sign In</div>
-      <h1 class="card-title">Welcome Back</h1>
-      <p class="card-subtitle">
-        Sign in with Google to enter your personal UPI gateway terminal or merchant dashboard.
-      </p>
+      <!-- Slogan & Graphic Showcase -->
+      <div class="showcase-hero">
+        <h2 class="showcase-slogan">
+          Generate secure payment links instantly. <span>Share, scan and collect with confidence.</span>
+        </h2>
+        <p class="showcase-desc">
+          Automate real-time UPI credit notifications, dynamic paise matching, and instant webhooks with 0% gateway commission.
+        </p>
 
-      <!-- Acceptance Checkboxes -->
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 20px; text-align: left; font-size: 12.5px; line-height: 1.5;">
-        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 10px; color: #334155;">
-          <input type="checkbox" id="checkTermsAccept" style="accent-color: #ea580c; width: 16px; height: 16px; cursor: pointer;" checked>
-          <span>I have read and agree to the <a href="/terms.html" target="_blank" style="color: #ea580c; text-decoration: underline; font-weight: 700;">Terms &amp; Conditions</a>.</span>
-        </label>
-        
-        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #334155;">
-          <input type="checkbox" id="checkPrivacyConsent" style="accent-color: #ea580c; width: 16px; height: 16px; cursor: pointer;" checked>
-          <span>I agree to the <a href="/privacy.html" target="_blank" style="color: #ea580c; text-decoration: underline; font-weight: 700;">Privacy Policy</a> &amp; <a href="/data-control.html" target="_blank" style="color: #ea580c; text-decoration: underline; font-weight: 700;">Data Control</a>.</span>
-        </label>
+        <!-- Mockup Card -->
+        <div class="payment-mockup-card">
+          <div class="mockup-header">
+            <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">
+              🇮🇳 Instant Payment Verification
+            </div>
+            <div class="mockup-live-indicator">
+              <span class="mockup-live-dot"></span>
+              <span>1-SEC VERIFIED</span>
+            </div>
+          </div>
+
+          <div class="mockup-content">
+            <div class="mockup-qr-box">
+              <svg viewBox="0 0 100 100" fill="none">
+                <rect width="100" height="100" fill="#ffffff"/>
+                <rect x="10" y="10" width="30" height="30" rx="4" fill="#0f172a"/>
+                <rect x="16" y="16" width="18" height="18" rx="2" fill="#ffffff"/>
+                <rect x="20" y="20" width="10" height="10" fill="#ea580c"/>
+                <rect x="60" y="10" width="30" height="30" rx="4" fill="#0f172a"/>
+                <rect x="66" y="16" width="18" height="18" rx="2" fill="#ffffff"/>
+                <rect x="70" y="20" width="10" height="10" fill="#ea580c"/>
+                <rect x="10" y="60" width="30" height="30" rx="4" fill="#0f172a"/>
+                <rect x="16" y="66" width="18" height="18" rx="2" fill="#ffffff"/>
+                <rect x="20" y="70" width="10" height="10" fill="#ea580c"/>
+                <rect x="46" y="46" width="8" height="8" fill="#10b981"/>
+                <rect x="58" y="58" width="14" height="8" fill="#0f172a"/>
+                <rect x="76" y="76" width="14" height="14" fill="#0f172a"/>
+                <circle cx="50" cy="50" r="12" fill="#041E42"/>
+                <circle cx="50" cy="50" r="3" fill="#ffffff"/>
+              </svg>
+            </div>
+            <div class="mockup-details">
+              <div class="mockup-amount">₹ 499.12</div>
+              <div class="mockup-tagline">ORDER #ORD-89421 • Direct Settlement</div>
+              <div class="mockup-settlement">
+                <span>⚡ 0% MDR Commission • Bank Account</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <button type="button" class="btn-google" id="btnGoogleSignIn" onclick="handleUnifiedSignIn()">
-        <svg width="20" height="20" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-        </svg>
-        <span id="btnText">Continue with Google</span>
-      </button>
-
-      <div id="authFeedback" class="feedback-box"></div>
-
-      <div class="footer-security">
-        <span>🛡️</span>
-        <span>Secure OAuth 2.0 Google Identity Verification</span>
+      <!-- Footer Info -->
+      <div class="showcase-footer">
+        <span>🛡️ NPCI Standard Protocol</span>
+        <span>256-Bit SSL Encrypted</span>
       </div>
+
     </div>
 
-    <div style="text-align: center;">
-      <a href="/" class="back-home">← Back to Homepage</a>
+    <!-- RIGHT SIDE: AUTHENTICATION CONTAINER (PC Right / Mobile Center) -->
+    <div class="auth-card-container">
+      
+      <!-- Mobile Logo Header -->
+      <a href="/" class="mobile-brand-header">
+        <img src="/images/logo.png" alt="ZeroFee UPI Logo" style="height: 38px; width: 38px; border-radius: 10px; object-fit: cover;">
+        <span style="font-size: 20px; font-weight: 800; color: #0f172a;">ZeroFee UPI <b style="font-size: 11px; color: #ea580c; background: rgba(234, 88, 12, 0.1); padding: 2px 6px; border-radius: 999px;">0% Fee</b></span>
+      </a>
+
+      <div class="auth-card">
+        
+        <!-- Tab Switcher (Sign In vs Register) -->
+        <div class="auth-tabs" id="mainAuthTabs">
+          <button type="button" class="auth-tab-btn active" id="tabSignInBtn" onclick="switchAuthMode('signin')">
+            <span>🔐 Sign In</span>
+          </button>
+          <button type="button" class="auth-tab-btn" id="tabRegisterBtn" onclick="switchAuthMode('register')">
+            <span>✨ Create New Account</span>
+          </button>
+        </div>
+
+        <!-- 1. SIGN IN VIEW -->
+        <div id="viewSignIn">
+          <div class="auth-header">
+            <h1 class="auth-header-title">WELCOME BACK</h1>
+            <p class="auth-header-sub">
+              Sign in to your account. Manage payments, links and merchant activity.
+            </p>
+          </div>
+
+          <!-- Single-Click Google Auth (Preserved 100%) -->
+          <button type="button" class="btn-google" id="btnGoogleSignIn" onclick="handleUnifiedSignIn()">
+            <svg width="18" height="18" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span id="btnGoogleText">Continue with Google</span>
+          </button>
+
+          <div class="auth-divider">
+            <span>or sign in with email</span>
+          </div>
+
+          <!-- Email Password Sign In Form -->
+          <form id="formEmailSignIn" onsubmit="handleEmailSignIn(event)">
+            <div class="form-group">
+              <label class="form-label" for="loginEmail">Email address</label>
+              <div class="input-wrapper">
+                <input type="email" id="loginEmail" class="form-input" placeholder="name@company.com" required autocomplete="email">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="loginPassword">Password</label>
+              <div class="input-wrapper">
+                <input type="password" id="loginPassword" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
+                <button type="button" class="password-toggle" onclick="togglePasswordVisibility('loginPassword', this)">👁️</button>
+              </div>
+            </div>
+
+            <div class="form-options-row">
+              <label class="custom-checkbox-label">
+                <input type="checkbox" id="checkKeepLoggedIn" checked>
+                <span>Keep me logged in</span>
+              </label>
+              <a href="#" class="forgot-link" onclick="openForgotPasswordModal(event)">Forgot password?</a>
+            </div>
+
+            <button type="submit" class="btn-submit" id="btnLoginSubmit">
+              <span id="btnLoginText">LOGIN</span>
+            </button>
+          </form>
+
+          <div class="auth-switch-footer">
+            <span>New to ZeroFee UPI? </span>
+            <button type="button" class="auth-switch-btn" onclick="switchAuthMode('register')">Register new account</button>
+          </div>
+        </div>
+
+        <!-- 2. REGISTER VIEW (STEP 1: DETAILS & STEP 2: IN-CARD OTP) -->
+        <div id="viewRegister" style="display: none;">
+          
+          <!-- STEP 1: FILL REGISTRATION DETAILS -->
+          <div id="regStepDetails">
+            <div class="auth-header">
+              <h1 class="auth-header-title">Register new account</h1>
+              <p class="auth-header-sub">
+                Create your secure merchant workspace on ZeroFee UPI.
+              </p>
+            </div>
+
+            <!-- Single-Click Google Auth for Registration -->
+            <button type="button" class="btn-google" id="btnGoogleRegister" onclick="handleUnifiedSignIn()">
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Sign up with Google</span>
+            </button>
+
+            <div class="auth-divider">
+              <span>or register with details</span>
+            </div>
+
+            <!-- Registration Form -->
+            <form id="formRegisterAccount" onsubmit="handleInitiateRegister(event)">
+              <div class="form-group">
+                <label class="form-label" for="regName">Name</label>
+                <div class="input-wrapper">
+                  <input type="text" id="regName" class="form-input" placeholder="Shivam Bhatt" required autocomplete="name">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="regMobile">Mobile number</label>
+                <div class="input-wrapper">
+                  <div class="input-prefix">🇮🇳 +91</div>
+                  <input type="tel" id="regMobile" class="form-input has-prefix" placeholder="98765 43210" pattern="[0-9]{10}" maxlength="10" required autocomplete="tel">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="regEmail">Email address</label>
+                <div class="input-wrapper">
+                  <input type="email" id="regEmail" class="form-input" placeholder="name@company.com" required autocomplete="email">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="regPassword">Password</label>
+                <div class="input-wrapper">
+                  <input type="password" id="regPassword" class="form-input" placeholder="Min. 6 characters" minlength="6" required autocomplete="new-password">
+                  <button type="button" class="password-toggle" onclick="togglePasswordVisibility('regPassword', this)">👁️</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="regConfirmPassword">Confirm password</label>
+                <div class="input-wrapper">
+                  <input type="password" id="regConfirmPassword" class="form-input" placeholder="Repeat password" minlength="6" required autocomplete="new-password">
+                  <button type="button" class="password-toggle" onclick="togglePasswordVisibility('regConfirmPassword', this)">👁️</button>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 18px; font-size: 12.5px; color: #475569; line-height: 1.5;">
+                <label class="custom-checkbox-label">
+                  <input type="checkbox" id="regCheckTerms" required checked>
+                  <span>I agree to the <a href="/terms.html" target="_blank" style="color: #ea580c; text-decoration: underline; font-weight: 700;">Terms</a> and <a href="/privacy.html" target="_blank" style="color: #ea580c; text-decoration: underline; font-weight: 700;">Privacy Policy</a>.</span>
+                </label>
+              </div>
+
+              <button type="submit" class="btn-submit" id="btnRegisterSubmit">
+                <span id="btnRegisterText">NEXT • SEND VERIFICATION OTP</span>
+              </button>
+            </form>
+
+            <div class="auth-switch-footer">
+              <span>Have an account? </span>
+              <button type="button" class="auth-switch-btn" onclick="switchAuthMode('signin')">Sign in</button>
+            </div>
+          </div>
+
+          <!-- STEP 2: IN-CARD EMAIL OTP VERIFICATION -->
+          <div id="regStepOtp" style="display: none;">
+            <div class="auth-header">
+              <div style="font-size: 32px; margin-bottom: 8px;">📩</div>
+              <h1 class="auth-header-title">Verify Your Email</h1>
+              <p class="auth-header-sub">
+                Enter the 6-digit OTP sent to <b id="displayVerifyEmail" style="color: #0f172a;">name@company.com</b>
+              </p>
+            </div>
+
+            <!-- Helpful Folder Tip -->
+            <div style="background: #fffbeb; border: 1px solid #fef3c7; border-left: 3.5px solid #f59e0b; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #92400e; margin-bottom: 14px; text-align: left; line-height: 1.45;">
+              📁 <b>Important Tip:</b> Agar email <b>Primary Inbox</b> me na dikhe, toh please apna <b>Spam, Junk ya Promotions</b> folder zaroor check karein.
+            </div>
+
+            <div class="otp-verification-box">
+              <label class="form-label" style="text-align: center; color: #475569;">ENTER 6-DIGIT VERIFICATION CODE</label>
+              <input type="text" id="regOtpInput" class="otp-input-large" placeholder="••••••" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" autofocus>
+
+              <button type="button" class="btn-submit" id="btnVerifyOtpSubmit" onclick="handleVerifyRegistrationOtp()">
+                <span id="btnVerifyOtpText">VERIFY &amp; ACTIVATE WORKSPACE</span>
+              </button>
+
+              <div class="resend-row">
+                <span>Didn't receive code?</span>
+                <button type="button" class="resend-btn" id="btnResendRegOtp" onclick="handleResendRegisterOtp()">Resend OTP</button>
+                <span id="resendCountdown" style="display: none; color: #94a3b8;">(30s)</span>
+              </div>
+            </div>
+
+            <button type="button" class="btn-outline" onclick="backToRegDetails()">
+              ← Edit Details / Change Email
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Global Auth Feedback Box -->
+        <div id="authFeedback" class="feedback-box"></div>
+
+      </div>
+
+      <div style="text-align: center;">
+        <a href="/" class="back-home">← Back to Homepage</a>
+      </div>
+
     </div>
 
   </div>
 
+  <!-- MODAL: FORGOT PASSWORD OTP & RESET -->
+  <div class="modal-overlay" id="modalForgotPassword">
+    <div class="modal-card">
+      <button type="button" class="modal-close-btn" onclick="closeForgotPasswordModal()">✕</button>
+      
+      <!-- Stage 1: Request OTP -->
+      <div id="forgotStage1">
+        <h2 style="font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 6px;">Reset Password</h2>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 18px; line-height: 1.5;">
+          Enter your registered merchant email. We will send a 6-digit OTP to reset your password.
+        </p>
+
+        <form onsubmit="handleSendForgotOtp(event)">
+          <div class="form-group">
+            <label class="form-label">Registered Email Address</label>
+            <input type="email" id="forgotEmailInput" class="form-input" placeholder="name@company.com" required>
+          </div>
+
+          <button type="submit" class="btn-submit" id="btnForgotSendOtp">
+            <span id="btnForgotSendText">SEND RESET OTP</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Stage 2: Enter OTP & New Password -->
+      <div id="forgotStage2" style="display: none;">
+        <h2 style="font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 6px;">Enter OTP &amp; New Password</h2>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 12px; line-height: 1.5;">
+          6-digit OTP code sent to <b id="forgotDisplayEmail"></b>
+        </p>
+
+        <!-- Helpful Folder Tip in Modal -->
+        <div style="background: #fffbeb; border: 1px solid #fef3c7; border-left: 3.5px solid #f59e0b; border-radius: 10px; padding: 9px 11px; font-size: 11.5px; color: #92400e; margin-bottom: 14px; text-align: left; line-height: 1.45;">
+          📁 <b>Tip:</b> Agar inbox me na mile, toh please <b>Spam / Junk / Updates</b> folder check karein.
+        </div>
+
+        <form onsubmit="handleResetPasswordSubmit(event)">
+          <div class="form-group">
+            <label class="form-label">6-Digit OTP</label>
+            <input type="text" id="forgotOtpInput" class="form-input" style="font-family: monospace; font-size: 18px; letter-spacing: 6px; text-align: center;" placeholder="••••••" maxlength="6" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">New Password</label>
+            <input type="password" id="forgotNewPass" class="form-input" placeholder="Min. 6 characters" minlength="6" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Confirm New Password</label>
+            <input type="password" id="forgotConfirmPass" class="form-input" placeholder="Repeat new password" minlength="6" required>
+          </div>
+
+          <button type="submit" class="btn-submit" id="btnResetPassSubmit">
+            <span id="btnResetPassText">UPDATE PASSWORD</span>
+          </button>
+        </form>
+      </div>
+
+      <div id="forgotModalFeedback" class="feedback-box"></div>
+    </div>
+  </div>
+
   <script>
-    const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
-      ? 'https://personal-payment-gateway.onrender.com' 
+    const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000')
+      ? ''
       : (window.location.hostname.includes('onrender.com') ? '' : 'https://personal-payment-gateway.onrender.com');
 
     const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';
@@ -294,6 +1186,8 @@
 
     let fbApp = null;
     let fbAuth = null;
+    let pendingRegistration = null;
+    let resendTimerInterval = null;
 
     try {
       if (typeof firebase !== 'undefined') {
@@ -307,38 +1201,69 @@
     // Auto-check stored session or active auth state
     if (fbAuth) {
       fbAuth.onAuthStateChanged((user) => {
-        if (user) {
+        if (user && !pendingRegistration) {
           routeAuthenticatedUser(user);
         }
       });
     }
 
+    // 1. Switch Auth Modes (Sign In vs Register)
+    function switchAuthMode(mode) {
+      const tabSignInBtn = document.getElementById('tabSignInBtn');
+      const tabRegisterBtn = document.getElementById('tabRegisterBtn');
+      const viewSignIn = document.getElementById('viewSignIn');
+      const viewRegister = document.getElementById('viewRegister');
+      const feedback = document.getElementById('authFeedback');
+
+      if (feedback) feedback.style.display = 'none';
+      backToRegDetails();
+
+      if (mode === 'register') {
+        tabSignInBtn.classList.remove('active');
+        tabRegisterBtn.classList.add('active');
+        viewSignIn.style.display = 'none';
+        viewRegister.style.display = 'block';
+      } else {
+        tabRegisterBtn.classList.remove('active');
+        tabSignInBtn.classList.add('active');
+        viewRegister.style.display = 'none';
+        viewSignIn.style.display = 'block';
+      }
+    }
+
+    function backToRegDetails() {
+      document.getElementById('regStepDetails').style.display = 'block';
+      document.getElementById('regStepOtp').style.display = 'none';
+      const tabs = document.getElementById('mainAuthTabs');
+      if (tabs) tabs.style.display = 'flex';
+    }
+
+    // 2. Toggle Password Visibility
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerText = '🔒';
+      } else {
+        input.type = 'password';
+        btn.innerText = '👁️';
+      }
+    }
+
+    // 3. Google Single-Click Sign In (Preserved 100%)
     async function handleUnifiedSignIn() {
       if (!fbAuth) {
         alert('Authentication service is initializing. Please check your internet connection.');
         return;
       }
 
-      const checkTerms = document.getElementById('checkTermsAccept');
-      const checkPrivacy = document.getElementById('checkPrivacyConsent');
       const feedback = document.getElementById('authFeedback');
-
-      if (!checkTerms?.checked || !checkPrivacy?.checked) {
-        if (feedback) {
-          feedback.style.display = 'block';
-          feedback.style.background = 'rgba(239, 68, 68, 0.15)';
-          feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-          feedback.style.color = '#f87171';
-          feedback.innerHTML = '⚠️ <strong>Consent Required:</strong> You must check both boxes to agree to our Terms &amp; Conditions (100% Non-Refundable Policy) and DPDP Act Privacy &amp; Cookies Policy before signing in.';
-        }
-        return;
-      }
-
+      const btnText = document.getElementById('btnGoogleText');
       const btn = document.getElementById('btnGoogleSignIn');
-      const btnText = document.getElementById('btnText');
 
-      btn.disabled = true;
-      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Connecting to Google...</span>';
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner dark"></span> Connecting to Google...</span>';
       if (feedback) feedback.style.display = 'none';
 
       try {
@@ -350,33 +1275,514 @@
         console.error('Google Sign-In Error:', err);
         if (feedback) {
           feedback.style.display = 'block';
-          feedback.style.background = 'rgba(239, 68, 68, 0.15)';
-          feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-          feedback.style.color = '#f87171';
-          feedback.innerText = 'Sign-In Failed: ' + (err.message || 'Window closed');
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerText = 'Google Sign-In Failed: ' + (err.message || 'Window closed');
         }
-        btn.disabled = false;
-        btnText.innerText = 'Continue with Google';
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.innerText = 'Continue with Google';
       }
     }
 
-    async function routeAuthenticatedUser(user) {
+    // 4. Email/Password Sign In
+    async function handleEmailSignIn(event) {
+      event.preventDefault();
+
+      const email = document.getElementById('loginEmail')?.value?.trim();
+      const password = document.getElementById('loginPassword')?.value;
+      const feedback = document.getElementById('authFeedback');
+      const btn = document.getElementById('btnLoginSubmit');
+      const btnText = document.getElementById('btnLoginText');
+
+      if (!email || !password) return;
+
+      btn.disabled = true;
+      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Verifying credentials...</span>';
+      if (feedback) feedback.style.display = 'none';
+
+      try {
+        // Step A: Backend Authentication
+        const res = await fetch((API_BASE || '') + '/api/v1/auth/otp/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          // Also sync with Firebase auth in background if available
+          if (fbAuth) {
+            try { await fbAuth.signInWithEmailAndPassword(email, password); } catch (_) {}
+          }
+          await routeAuthenticatedUser(data.user || { email, name: data.user?.name || 'User' });
+        } else {
+          // If backend fails, fallback try Firebase Auth
+          if (fbAuth) {
+            try {
+              const result = await fbAuth.signInWithEmailAndPassword(email, password);
+              await routeAuthenticatedUser(result.user);
+              return;
+            } catch (_) {}
+          }
+
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            feedback.style.color = '#ef4444';
+            feedback.innerHTML = '❌ <strong>Sign-In Error:</strong> ' + (data.error || 'Invalid email or password.');
+          }
+          btn.disabled = false;
+          btnText.innerText = 'LOGIN';
+        }
+      } catch (err) {
+        console.error('Email Sign-In Error:', err);
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '❌ Network error: ' + err.message;
+        }
+        btn.disabled = false;
+        btnText.innerText = 'LOGIN';
+      }
+    }
+
+    // 5. Register Step 1: Initiate & Send Email OTP
+    async function handleInitiateRegister(event) {
+      event.preventDefault();
+
+      const name = document.getElementById('regName')?.value?.trim();
+      const mobile = document.getElementById('regMobile')?.value?.trim();
+      const email = document.getElementById('regEmail')?.value?.trim();
+      const password = document.getElementById('regPassword')?.value;
+      const confirmPassword = document.getElementById('regConfirmPassword')?.value;
+      const termsAccepted = document.getElementById('regCheckTerms')?.checked;
+      const feedback = document.getElementById('authFeedback');
+      const btn = document.getElementById('btnRegisterSubmit');
+      const btnText = document.getElementById('btnRegisterText');
+
+      if (!termsAccepted) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '⚠️ Please accept the Terms and Privacy Policy to proceed.';
+        }
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '❌ <strong>Password Mismatch:</strong> Password and Confirm Password must match exactly.';
+        }
+        return;
+      }
+
+      if (mobile && mobile.length !== 10) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '❌ <strong>Invalid Phone:</strong> Please enter a valid 10-digit Indian mobile number.';
+        }
+        return;
+      }
+
+      btn.disabled = true;
+      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Sending Verification OTP...</span>';
+      if (feedback) feedback.style.display = 'none';
+
+      // Store temporary registration payload
+      pendingRegistration = { name, mobile, email, password };
+
+      try {
+        const res = await fetch((API_BASE || '') + '/api/v1/auth/otp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, purpose: 'SIGNUP' })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          // Switch to OTP View
+          document.getElementById('regStepDetails').style.display = 'none';
+          document.getElementById('regStepOtp').style.display = 'block';
+          document.getElementById('displayVerifyEmail').innerText = email;
+          const tabs = document.getElementById('mainAuthTabs');
+          if (tabs) tabs.style.display = 'none';
+
+          startResendCountdown();
+
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(16, 185, 129, 0.12)';
+            feedback.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+            feedback.style.color = '#10b981';
+            feedback.innerHTML = `✅ <strong>OTP Sent!</strong> 6-digit code sent to <b>${email}</b>. <div style="font-size:11.5px; margin-top:3px; color:#475569;">📁 Agar inbox me na mile to <b>Spam / Promotions</b> folder check karein.</div>${data.debugOtp ? `<div style="margin-top:6px; font-weight:800; color:#ea580c;">⚡ Local Dev OTP: ${data.debugOtp}</div>` : ''}`;
+          }
+          if (data.debugOtp) {
+            const otpInp = document.getElementById('regOtpInput');
+            if (otpInp) otpInp.value = data.debugOtp;
+          }
+          document.getElementById('regOtpInput').focus();
+
+        } else {
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            feedback.style.color = '#ef4444';
+            feedback.innerHTML = '❌ ' + (data.error || 'Failed to send OTP email');
+          }
+        }
+      } catch (err) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '❌ Network error: ' + err.message;
+        }
+      } finally {
+        btn.disabled = false;
+        btnText.innerText = 'NEXT • SEND VERIFICATION OTP';
+      }
+    }
+
+    // 6. Register Step 2: Verify OTP & Create Workspace
+    async function handleVerifyRegistrationOtp() {
+      if (!pendingRegistration) return;
+      const otp = document.getElementById('regOtpInput')?.value?.trim();
+      const feedback = document.getElementById('authFeedback');
+      const btn = document.getElementById('btnVerifyOtpSubmit');
+      const btnText = document.getElementById('btnVerifyOtpText');
+
+      if (!otp || otp.length !== 6) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '⚠️ Please enter the complete 6-digit OTP code.';
+        }
+        return;
+      }
+
+      btn.disabled = true;
+      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Verifying code...</span>';
+      if (feedback) feedback.style.display = 'none';
+
+      try {
+        // Step A: Verify OTP on Backend
+        const res = await fetch((API_BASE || '') + '/api/v1/auth/otp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: pendingRegistration.email,
+            otp: otp,
+            purpose: 'SIGNUP'
+          })
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            feedback.style.color = '#ef4444';
+            feedback.innerHTML = '❌ ' + (data.error || 'Invalid OTP code.');
+          }
+          btn.disabled = false;
+          btnText.innerText = 'VERIFY & ACTIVATE WORKSPACE';
+          return;
+        }
+
+        // Step B: Register and activate user on Backend
+        btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Activating account...</span>';
+        const regRes = await fetch((API_BASE || '') + '/api/v1/auth/otp/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: pendingRegistration.email,
+            password: pendingRegistration.password,
+            name: pendingRegistration.name,
+            phone: pendingRegistration.mobile,
+            verificationToken: data.verificationToken
+          })
+        });
+        const regData = await regRes.json();
+
+        if (!regData.success) {
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            feedback.style.color = '#ef4444';
+            feedback.innerHTML = '❌ ' + (regData.error || 'Failed to create user workspace.');
+          }
+          btn.disabled = false;
+          btnText.innerText = 'VERIFY & ACTIVATE WORKSPACE';
+          return;
+        }
+
+        // Step C: Also try Firebase Auth User creation in background if possible
+        if (fbAuth) {
+          try {
+            const userCred = await fbAuth.createUserWithEmailAndPassword(pendingRegistration.email, pendingRegistration.password);
+            if (userCred.user && pendingRegistration.name) {
+              await userCred.user.updateProfile({ displayName: pendingRegistration.name });
+            }
+          } catch (fbErr) {
+            console.warn('[Firebase Auth helper]', fbErr.message);
+          }
+        }
+
+        const savedInfo = pendingRegistration;
+        pendingRegistration = null;
+
+        await routeAuthenticatedUser(regData.user || { email: savedInfo.email, name: savedInfo.name }, { name: savedInfo.name, phone: savedInfo.mobile });
+      } catch (err) {
+        console.error('Registration OTP verification error:', err);
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '❌ ' + err.message;
+        }
+        btn.disabled = false;
+        btnText.innerText = 'VERIFY & ACTIVATE WORKSPACE';
+      }
+    }
+
+    // Resend Registration OTP
+    async function handleResendRegisterOtp() {
+      if (!pendingRegistration) return;
+      startResendCountdown();
+      try {
+        await fetch((API_BASE || '') + '/api/v1/auth/otp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: pendingRegistration.email, purpose: 'SIGNUP' })
+        });
+      } catch (_) {}
+    }
+
+    function startResendCountdown() {
+      const btn = document.getElementById('btnResendRegOtp');
+      const counter = document.getElementById('resendCountdown');
+      if (!btn || !counter) return;
+
+      btn.disabled = true;
+      counter.style.display = 'inline';
+      let sec = 30;
+      counter.innerText = `(${sec}s)`;
+
+      clearInterval(resendTimerInterval);
+      resendTimerInterval = setInterval(() => {
+        sec--;
+        if (sec <= 0) {
+          clearInterval(resendTimerInterval);
+          btn.disabled = false;
+          counter.style.display = 'none';
+        } else {
+          counter.innerText = `(${sec}s)`;
+        }
+      }, 1000);
+    }
+
+    // 7. Forgot Password Modal Handlers
+    function openForgotPasswordModal(event) {
+      event.preventDefault();
+      document.getElementById('modalForgotPassword').style.display = 'flex';
+      document.getElementById('forgotStage1').style.display = 'block';
+      document.getElementById('forgotStage2').style.display = 'none';
+      const feedback = document.getElementById('forgotModalFeedback');
+      if (feedback) feedback.style.display = 'none';
+      const email = document.getElementById('loginEmail')?.value?.trim();
+      if (email) document.getElementById('forgotEmailInput').value = email;
+    }
+
+    function closeForgotPasswordModal() {
+      document.getElementById('modalForgotPassword').style.display = 'none';
+    }
+
+    let forgotUserEmail = '';
+
+    async function handleSendForgotOtp(event) {
+      event.preventDefault();
+      const email = document.getElementById('forgotEmailInput')?.value?.trim();
+      const feedback = document.getElementById('forgotModalFeedback');
+      const btn = document.getElementById('btnForgotSendOtp');
+      const btnText = document.getElementById('btnForgotSendText');
+
+      if (!email) return;
+
+      btn.disabled = true;
+      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Sending OTP...</span>';
+      if (feedback) feedback.style.display = 'none';
+
+      forgotUserEmail = email;
+
+      try {
+        const res = await fetch((API_BASE || '') + '/api/v1/auth/otp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, purpose: 'FORGOT_PASSWORD' })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          document.getElementById('forgotStage1').style.display = 'none';
+          document.getElementById('forgotStage2').style.display = 'block';
+          document.getElementById('forgotDisplayEmail').innerText = email;
+          if (data.debugOtp) {
+            const inp = document.getElementById('forgotOtpInput');
+            if (inp) inp.value = data.debugOtp;
+          }
+        } else {
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            feedback.style.color = '#ef4444';
+            feedback.innerHTML = '❌ ' + (data.error || 'Failed to send OTP.');
+          }
+        }
+      } catch (err) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '❌ ' + err.message;
+        }
+      } finally {
+        btn.disabled = false;
+        btnText.innerText = 'SEND RESET OTP';
+      }
+    }
+
+    async function handleResetPasswordSubmit(event) {
+      event.preventDefault();
+      const otp = document.getElementById('forgotOtpInput')?.value?.trim();
+      const newPass = document.getElementById('forgotNewPass')?.value;
+      const confirmPass = document.getElementById('forgotConfirmPass')?.value;
+      const feedback = document.getElementById('forgotModalFeedback');
+      const btn = document.getElementById('btnResetPassSubmit');
+      const btnText = document.getElementById('btnResetPassText');
+
+      if (newPass !== confirmPass) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '❌ Passwords do not match.';
+        }
+        return;
+      }
+
+      btn.disabled = true;
+      btnText.innerHTML = '<span style="display:inline-flex; align-items:center; gap:8px;"><span class="spinner"></span> Updating Password...</span>';
+      if (feedback) feedback.style.display = 'none';
+
+      try {
+        // Step 1: Verify OTP
+        const resVerify = await fetch((API_BASE || '') + '/api/v1/auth/otp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: forgotUserEmail, otp: otp, purpose: 'FORGOT_PASSWORD' })
+        });
+        const dataVerify = await resVerify.json();
+
+        if (!dataVerify.success) {
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            feedback.style.color = '#ef4444';
+            feedback.innerHTML = '❌ ' + (dataVerify.error || 'Invalid OTP code');
+          }
+          btn.disabled = false;
+          btnText.innerText = 'UPDATE PASSWORD';
+          return;
+        }
+
+        // Step 2: Reset Password on Backend
+        const resReset = await fetch((API_BASE || '') + '/api/v1/auth/otp/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: forgotUserEmail,
+            verificationToken: dataVerify.verificationToken,
+            newPassword: newPass
+          })
+        });
+        const dataReset = await resReset.json();
+
+        if (dataReset.success) {
+          // Also trigger Firebase password reset link as backup
+          try { await fbAuth.sendPasswordResetEmail(forgotUserEmail); } catch (_) {}
+
+          closeForgotPasswordModal();
+          const mainFeedback = document.getElementById('authFeedback');
+          if (mainFeedback) {
+            mainFeedback.style.display = 'block';
+            mainFeedback.style.background = 'rgba(16, 185, 129, 0.15)';
+            mainFeedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+            mainFeedback.style.color = '#10b981';
+            mainFeedback.innerHTML = '✅ <strong>Password Reset Successfully!</strong> You can now sign in with your new password.';
+          }
+          switchAuthMode('signin');
+          document.getElementById('loginEmail').value = forgotUserEmail;
+          document.getElementById('loginPassword').value = newPass;
+        } else {
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+            feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            feedback.style.color = '#ef4444';
+            feedback.innerHTML = '❌ ' + (dataReset.error || 'Failed to update password');
+          }
+        }
+      } catch (err) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+          feedback.style.color = '#ef4444';
+          feedback.innerHTML = '❌ ' + err.message;
+        }
+      } finally {
+        btn.disabled = false;
+        btnText.innerText = 'UPDATE PASSWORD';
+      }
+    }
+
+    // 8. Route Authenticated User (Shared by Google, Email Sign-In, and Registration)
+    async function routeAuthenticatedUser(user, extraData = {}) {
       const email = (user.email || '').toLowerCase().trim();
       const feedback = document.getElementById('authFeedback');
-      const btn = document.getElementById('btnGoogleSignIn');
-      const btnText = document.getElementById('btnText');
-
-      if (btn) btn.disabled = true;
-      if (btnText) btnText.innerText = 'Routing to your dashboard...';
 
       if (feedback) {
         feedback.style.display = 'block';
         feedback.style.background = 'rgba(16, 185, 129, 0.15)';
         feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-        feedback.style.color = '#34d399';
+        feedback.style.color = '#10b981';
       }
 
-      // Check if Admin
+      // Check if SuperAdmin
       if (email === REQUIRED_ADMIN_EMAIL.toLowerCase()) {
         sessionStorage.setItem('gateway_admin_auth', 'google');
         sessionStorage.setItem('gateway_admin_email', email);
@@ -389,15 +1795,16 @@
         }, 400);
       } else {
         // Regular Merchant / User
-        if (feedback) feedback.innerHTML = '👤 <b>Merchant Verified!</b> Preparing dashboard...';
+        if (feedback) feedback.innerHTML = '👤 <b>Workspace Verified!</b> Loading merchant dashboard...';
         try {
           const res = await fetch((API_BASE || '') + '/api/v1/user/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: email,
-              name: user.displayName || 'User',
-              photoUrl: user.photoURL || ''
+              name: extraData.name || user.displayName || 'User',
+              photoUrl: user.photoURL || '',
+              phone: extraData.phone || ''
             })
           });
           const data = await res.json();
@@ -417,6 +1824,17 @@
     }
 
     window.handleUnifiedSignIn = handleUnifiedSignIn;
+    window.handleEmailSignIn = handleEmailSignIn;
+    window.handleInitiateRegister = handleInitiateRegister;
+    window.handleVerifyRegistrationOtp = handleVerifyRegistrationOtp;
+    window.handleResendRegisterOtp = handleResendRegisterOtp;
+    window.backToRegDetails = backToRegDetails;
+    window.openForgotPasswordModal = openForgotPasswordModal;
+    window.closeForgotPasswordModal = closeForgotPasswordModal;
+    window.handleSendForgotOtp = handleSendForgotOtp;
+    window.handleResetPasswordSubmit = handleResetPasswordSubmit;
+    window.switchAuthMode = switchAuthMode;
+    window.togglePasswordVisibility = togglePasswordVisibility;
   </script>
 </body>
 </html>

@@ -1,11 +1,11 @@
-# One UPI - Exhaustive Platform Knowledge Base & Specification (LLM / AI Search Index)
+# ZeroFee UPI - Exhaustive Platform Knowledge Base & Specification (LLM / AI Search Index)
 
-> Platform: One UPI (PayPerpendicular)
+> Platform: ZeroFee UPI (PayPerpendicular)
 > Official Website: https://upigateway.web.app
 > License & Pricing: 0% Commission (0% MDR) Self-Hosted Payment Infrastructure
 
 ## Overview & Mission
-One UPI is India's premier self-hosted, 0% commission UPI payment gateway engineered for Indian merchants, digital creators, SaaS platforms, Telegram bot developers, freelancers, and e-commerce stores. It bypasses traditional payment aggregator deductions (2% to 3% MDR) by facilitating direct peer-to-merchant (P2M / P2P) UPI settlements into the merchant's own bank account with sub-second automated verification.
+ZeroFee UPI is India's premier self-hosted, 0% commission UPI payment gateway engineered for Indian merchants, digital creators, SaaS platforms, Telegram bot developers, freelancers, and e-commerce stores. It bypasses traditional payment aggregator deductions (2% to 3% MDR) by facilitating direct peer-to-merchant (P2M / P2P) UPI settlements into the merchant's own bank account with sub-second automated verification.
 
 ---
 
@@ -106,4 +106,4 @@ Returns:
 ```
 
 ---
-© 2026 One UPI. Bharat UPI Open Infrastructure.
+© 2026 ZeroFee UPI. Bharat UPI Open Infrastructure.

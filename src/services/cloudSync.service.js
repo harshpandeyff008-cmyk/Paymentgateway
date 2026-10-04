@@ -517,12 +517,12 @@ export const CloudSyncService = {
       // 5. Restore Payments / Bank Alerts
       const cloudPayments = await this.getAllPayments();
       if (cloudPayments.length > 0) {
-        for (const p of cloudPayments) {
-          if (!p || !p.utr) continue;
-          const existing = await query.get('SELECT id FROM payments WHERE utr = ?', [p.utr]);
-          if (!existing) {
+        try {
+          await query.run('BEGIN TRANSACTION');
+          for (const p of cloudPayments) {
+            if (!p || !p.utr) continue;
             await query.run(
-              `INSERT INTO payments (utr, amount, sender, received_at, source, raw_snippet, matched_order_id, is_matched, merchant_email)
+              `INSERT OR IGNORE INTO payments (utr, amount, sender, received_at, source, raw_snippet, matched_order_id, is_matched, merchant_email)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 p.utr,
@@ -537,6 +537,10 @@ export const CloudSyncService = {
               ]
             );
           }
+          await query.run('COMMIT');
+        } catch (txErr) {
+          await query.run('ROLLBACK').catch(() => {});
+          logger.warn(`[CloudSync] Payments batch restore error: ${txErr.message}`);
         }
       }
 

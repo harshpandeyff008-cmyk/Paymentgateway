@@ -262,6 +262,12 @@ export async function initDatabase() {
   try {
     await query.run('ALTER TABLE users ADD COLUMN google_token_expiry INTEGER DEFAULT 0');
   } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT ""');
+  } catch (_) {}
+  try {
+    await query.run('ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ""');
+  } catch (_) {}
 
   // 2. Payments table
   await query.run(`

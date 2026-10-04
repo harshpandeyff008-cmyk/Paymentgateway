@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard - One UPI Master Terminal</title>
+  <title>Admin Dashboard - ZeroFee UPI Master Terminal</title>
   <link rel="stylesheet" href="/css/admin.css">
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <!-- Firebase SDK for Google Admin Authentication -->
@@ -25,9 +25,9 @@
       
       <!-- Brand Box -->
       <div class="sidebar-brand-box">
-        <img src="/images/logo.png" alt="One UPI Gateway Logo" style="height: 38px; width: 38px; border-radius: 9px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 14px rgba(255,103,31,0.35);">
+        <img src="/images/logo.png" alt="ZeroFee UPI Gateway Logo" style="height: 38px; width: 38px; border-radius: 9px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 14px rgba(255,103,31,0.35);">
         <div>
-          <div style="font-size: 15px; font-weight: 800; color: #fff; letter-spacing: -0.3px;">One UPI <span style="font-size: 10px; color: #FF8C38; background: rgba(255, 103, 31, 0.15); border: 1px solid rgba(255, 103, 31, 0.35); padding: 1px 5px; border-radius: 999px; margin-left: 3px;">V2</span></div>
+          <div style="font-size: 15px; font-weight: 800; color: #fff; letter-spacing: -0.3px;">ZeroFee UPI <span style="font-size: 10px; color: #FF8C38; background: rgba(255, 103, 31, 0.15); border: 1px solid rgba(255, 103, 31, 0.35); padding: 1px 5px; border-radius: 999px; margin-left: 3px;">V2</span></div>
           <div style="font-size: 11px; color: #ff9933; font-weight: 700; text-transform: uppercase;">🇮🇳 Master Terminal • ADMIN</div>
         </div>
         <button type="button" class="mobile-sidebar-close-btn" onclick="toggleAdminMobileSidebar()" aria-label="Close Sidebar" title="Close Sidebar" style="margin-left: auto;">✕</button>
@@ -56,6 +56,16 @@
             <div class="sidebar-item-line2">Track All Registered Accounts</div>
           </div>
           <span class="sidebar-item-badge success" id="badgeTotalUsersCount">0</span>
+        </button>
+
+        <!-- 1b. MARKETING & USER LEADS (PHONE, NAME, EXPORT) -->
+        <button type="button" class="sidebar-item-2line" id="nav_admin_marketing_leads" onclick="switchAdminSidebar('marketing_leads')">
+          <div class="sidebar-item-icon" style="background: rgba(234, 88, 12, 0.15); border-color: rgba(234, 88, 12, 0.3); color: #ea580c;">📢</div>
+          <div class="sidebar-item-texts">
+            <div class="sidebar-item-line1">Marketing &amp; Leads</div>
+            <div class="sidebar-item-line2">Name, Phone &amp; CSV Export</div>
+          </div>
+          <span class="sidebar-item-badge" style="background: rgba(234, 88, 12, 0.2); color: #ea580c;" id="badgeLeadsCount">EXPORT</span>
         </button>
 
         <!-- 2. SUBSCRIPTION PURCHASES & REVENUE -->
@@ -363,6 +373,128 @@
                 <tr>
                   <td colspan="9" style="text-align: center; color: var(--text-dim); padding: 30px;">
                     Loading user records...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 1B: MARKETING LEADS & CONTACT DETAILS EXPORT        -->
+      <!-- ======================================================== -->
+      <section id="view_admin_marketing_leads" class="admin-view-section">
+        
+        <!-- Hero Card with Marketing Action Buttons -->
+        <div class="panel-card" style="margin-bottom: 24px; background: linear-gradient(135deg, rgba(234, 88, 12, 0.12), rgba(245, 158, 11, 0.08)); border-left: 4px solid #ea580c;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <h2 style="font-size: 19px; font-weight: 800; color: #fff; margin: 0;">📢 User Leads &amp; Contact Directory</h2>
+                <span class="badge" style="background: rgba(234, 88, 12, 0.25); color: #fb923c; border: 1px solid rgba(234, 88, 12, 0.4); font-size: 11px;">MARKETING ENGINE</span>
+              </div>
+              <p style="font-size: 13px; color: var(--text-muted); margin: 6px 0 0;">
+                Export verified names, mobile numbers, emails, and plan tiers for WhatsApp broadcasts, SMS campaigns, and email marketing.
+              </p>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-primary" onclick="exportMarketingLeadsCsv()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 12.5px;">
+                <span>📥 Export CSV (Excel)</span>
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="copyAllMarketingMobiles()" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 12px; color: #38bdf8;">
+                <span>📋 Copy All Mobiles</span>
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="copyAllMarketingEmails()" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 12px; color: #fbbf24;">
+                <span>📧 Copy All Emails</span>
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="loadMarketingLeads()" style="padding: 8px 12px; font-size: 12px;">
+                <span>🔄 Refresh</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 Quick Stats Cards -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Total Lead Contacts</span>
+              <span>👥</span>
+            </div>
+            <div class="metric-val" id="leadsStatTotal">0</div>
+            <div class="metric-sub">Registered accounts</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Mobiles Captured</span>
+              <span>📱</span>
+            </div>
+            <div class="metric-val" id="leadsStatWithPhone" style="color: #34d399;">0</div>
+            <div class="metric-sub" id="leadsStatPhonePercent">0% with phone number</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Subscribed Merchants</span>
+              <span>👑</span>
+            </div>
+            <div class="metric-val" id="leadsStatPaid" style="color: #c084fc;">0</div>
+            <div class="metric-sub">High-value active buyers</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Free Tier / Prospects</span>
+              <span>🎯</span>
+            </div>
+            <div class="metric-val" id="leadsStatFree" style="color: #fb923c;">0</div>
+            <div class="metric-sub">Ready for upsell discounts</div>
+          </div>
+        </div>
+
+        <!-- Leads Table Panel -->
+        <div class="panel-card">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>🗂️ Lead Records &amp; Quick Reach</span>
+              <span style="font-size: 11.5px; color: var(--text-dim);" id="leadsTableCount">0 contacts</span>
+            </div>
+
+            <!-- Search and Filter Toolbar -->
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <input type="text" id="leadsSearchInput" placeholder="🔍 Search Name, Phone, Email, Plan..." class="form-control" style="width: 260px; padding: 7px 12px; font-size: 12px;" oninput="filterMarketingLeads()">
+              
+              <div style="display: inline-flex; background: rgba(255,255,255,0.04); border: 1px solid var(--border-card); border-radius: 8px; padding: 2px;">
+                <button type="button" class="btn btn-secondary active" id="filterLeadBtnAll" onclick="setLeadFilter('ALL', this)" style="padding: 4px 10px; font-size: 11px; border: none;">All</button>
+                <button type="button" class="btn btn-secondary" id="filterLeadBtnPhone" onclick="setLeadFilter('PHONE', this)" style="padding: 4px 10px; font-size: 11px; border: none; color: #34d399;">With Phone</button>
+                <button type="button" class="btn btn-secondary" id="filterLeadBtnPaid" onclick="setLeadFilter('PAID', this)" style="padding: 4px 10px; font-size: 11px; border: none; color: #c084fc;">Subscribed</button>
+                <button type="button" class="btn btn-secondary" id="filterLeadBtnFree" onclick="setLeadFilter('FREE', this)" style="padding: 4px 10px; font-size: 11px; border: none; color: #fb923c;">Free Leads</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th style="width: 45px;">ID</th>
+                  <th style="min-width: 140px;">Name</th>
+                  <th style="min-width: 170px;">Mobile / WhatsApp</th>
+                  <th style="min-width: 190px;">Email Address</th>
+                  <th style="width: 120px;">Plan Tier</th>
+                  <th style="min-width: 150px;">Merchant UPI VPA</th>
+                  <th style="width: 130px;">Joined Date</th>
+                  <th style="width: 100px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="marketingLeadsTableBody">
+                <tr>
+                  <td colspan="8" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                    Loading marketing leads directory...
                   </td>
                 </tr>
               </tbody>
@@ -711,7 +843,7 @@
 
             <div class="form-group">
               <label class="form-label">Default Platform Business Name</label>
-              <input type="text" id="configMerchantName" class="form-control" placeholder="e.g. Personal Gateway" required>
+              <input type="text" id="configMerchantName" class="form-control" placeholder="e.g. ZeroFee UPI" required>
             </div>
 
             <div class="form-group">
@@ -853,7 +985,7 @@
             </div>
             <div style="flex: 2; min-width: 180px;">
               <label class="form-label" style="font-size: 11px;">Admin Business Name *</label>
-              <input type="text" id="adminImapMerchantName" class="form-control" placeholder="Personal Gateway" style="font-weight: 600;">
+              <input type="text" id="adminImapMerchantName" class="form-control" placeholder="ZeroFee UPI" style="font-weight: 600;">
             </div>
             <div>
               <button type="button" onclick="saveAdminCollectionUpi()" class="btn btn-primary" style="padding: 9px 16px; font-size: 12px;">💾 Save UPI</button>

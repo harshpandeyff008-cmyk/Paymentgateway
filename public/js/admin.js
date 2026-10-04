@@ -154,6 +154,7 @@ function switchAdminSidebar(viewId) {
   if (titleEl) {
     const titles = {
       users: '👥 Registered Users & Merchant Directory',
+      marketing_leads: '📢 User Leads & Contact Directory (Marketing)',
       subscriptions: '💳 Subscription Purchases & Plan Invoices',
       orders: '📦 Live Store Orders & Checkout Sessions',
       ledger: '💰 Bank Alerts & IMAP Payments Ledger',
@@ -170,6 +171,8 @@ function switchAdminSidebar(viewId) {
   // Trigger loads based on active view
   if (viewId === 'users') {
     loadAdminUsers();
+  } else if (viewId === 'marketing_leads') {
+    loadMarketingLeads();
   } else if (viewId === 'subscriptions') {
     loadAdminSubscriptions();
   } else if (viewId === 'orders') {
@@ -2906,3 +2909,294 @@ async function checkTestPaymentStatus() {
   }
 }
 window.checkTestPaymentStatus = checkTestPaymentStatus;
+
+// =========================================================================
+// MARKETING LEADS & USER CONTACT DIRECTORY
+// =========================================================================
+let cachedMarketingLeads = [];
+let currentLeadFilter = 'ALL';
+
+async function loadMarketingLeads() {
+  const tableBody = document.getElementById('marketingLeadsTableBody');
+  const countEl = document.getElementById('leadsTableCount');
+  const badgeEl = document.getElementById('badgeLeadsCount');
+
+  try {
+    if (tableBody) {
+      tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 30px;"><div class="spinner dark" style="margin: 0 auto 10px;"></div>Loading marketing leads...</td></tr>';
+    }
+
+    const res = await fetch(`${API_BASE}/api/v1/admin/leads/list`);
+    const data = await res.json();
+
+    if (!data.success || !Array.isArray(data.leads)) {
+      if (tableBody) tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #f87171; padding: 25px;">Failed to load leads</td></tr>';
+      return;
+    }
+
+    cachedMarketingLeads = data.leads;
+
+    // Update Stats
+    const stats = data.stats || {};
+    const totalEl = document.getElementById('leadsStatTotal');
+    const phoneEl = document.getElementById('leadsStatWithPhone');
+    const percentEl = document.getElementById('leadsStatPhonePercent');
+    const paidEl = document.getElementById('leadsStatPaid');
+    const freeEl = document.getElementById('leadsStatFree');
+
+    if (totalEl) totalEl.innerText = stats.totalUsers || cachedMarketingLeads.length;
+    if (phoneEl) phoneEl.innerText = stats.totalWithPhone || 0;
+    if (percentEl) {
+      const pct = stats.totalUsers > 0 ? Math.round((stats.totalWithPhone / stats.totalUsers) * 100) : 0;
+      percentEl.innerText = `${pct}% with captured mobile`;
+    }
+    if (paidEl) paidEl.innerText = stats.totalPaid || 0;
+    if (freeEl) freeEl.innerText = stats.freeTier || 0;
+
+    if (countEl) countEl.innerText = `${cachedMarketingLeads.length} contacts`;
+    if (badgeEl) badgeEl.innerText = `${cachedMarketingLeads.length}`;
+
+    renderMarketingLeadsTable();
+  } catch (err) {
+    console.error('[Leads] Load Error:', err);
+    if (tableBody) tableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #f87171; padding: 25px;">Error: ${err.message}</td></tr>`;
+  }
+}
+window.loadMarketingLeads = loadMarketingLeads;
+
+function setLeadFilter(filter, btn) {
+  currentLeadFilter = filter;
+  const buttons = document.querySelectorAll('#filterLeadBtnAll, #filterLeadBtnPhone, #filterLeadBtnPaid, #filterLeadBtnFree');
+  buttons.forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderMarketingLeadsTable();
+}
+window.setLeadFilter = setLeadFilter;
+
+function filterMarketingLeads() {
+  renderMarketingLeadsTable();
+}
+window.filterMarketingLeads = filterMarketingLeads;
+
+function renderMarketingLeadsTable() {
+  const tableBody = document.getElementById('marketingLeadsTableBody');
+  const countEl = document.getElementById('leadsTableCount');
+  if (!tableBody) return;
+
+  const searchInput = document.getElementById('leadsSearchInput');
+  const queryStr = (searchInput?.value || '').toLowerCase().trim();
+
+  let filtered = cachedMarketingLeads.filter(lead => {
+    // 1. Tab Filter
+    if (currentLeadFilter === 'PHONE' && !lead.hasPhone) return false;
+    if (currentLeadFilter === 'PAID' && !lead.isPaid) return false;
+    if (currentLeadFilter === 'FREE' && lead.isPaid) return false;
+
+    // 2. Search Query
+    if (queryStr) {
+      const matchName = (lead.name || '').toLowerCase().includes(queryStr);
+      const matchEmail = (lead.email || '').toLowerCase().includes(queryStr);
+      const matchPhone = (lead.phone || '').toLowerCase().includes(queryStr);
+      const matchPlan = (lead.plan || '').toLowerCase().includes(queryStr);
+      const matchVpa = (lead.upiVpa || '').toLowerCase().includes(queryStr);
+      return matchName || matchEmail || matchPhone || matchPlan || matchVpa;
+    }
+    return true;
+  });
+
+  if (countEl) countEl.innerText = `${filtered.length} of ${cachedMarketingLeads.length} contacts`;
+
+  if (filtered.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 30px;">No lead contacts match your search or filter.</td></tr>';
+    return;
+  }
+
+  tableBody.innerHTML = filtered.map(lead => {
+    const isPaid = lead.isPaid;
+    const planBadge = isPaid
+      ? `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">${lead.plan}</span>`
+      : `<span class="badge" style="background: rgba(255, 255, 255, 0.06); color: var(--text-dim);">FREE TIER</span>`;
+
+    const phoneDisplay = lead.hasPhone
+      ? `
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-family: monospace; font-size: 12.5px; font-weight: 700; color: #38bdf8;">${lead.phone}</span>
+          <a href="https://wa.me/91${lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Hello ' + (lead.name !== 'User' ? lead.name : 'Merchant') + ', thanks for joining ZeroFee UPI Gateway!')}" target="_blank" title="Send WhatsApp Message" style="text-decoration: none; font-size: 14px;">💬</a>
+          <button type="button" class="btn-copy" onclick="copyLeadText('${lead.phone}', 'Phone copied!')" title="Copy Number" style="background: none; border: none; cursor: pointer; padding: 2px; font-size: 11px;">📋</button>
+        </div>
+      `
+      : `<span style="font-size: 11px; color: var(--text-dim); font-style: italic;">Not Provided</span>`;
+
+    const vpaDisplay = lead.upiVpa && lead.upiVpa !== 'Not Linked'
+      ? `<span style="font-family: monospace; font-size: 12px; color: #fbbf24;">${lead.upiVpa}</span>`
+      : `<span style="font-size: 11px; color: var(--text-dim);">None</span>`;
+
+    return `
+      <tr>
+        <td><span style="color: var(--text-dim); font-family: monospace; font-size: 11px;">#${lead.id}</span></td>
+        <td>
+          <div style="font-weight: 700; color: #fff;">${escapeHtml(lead.name || 'Merchant')}</div>
+          <div style="font-size: 11px; color: var(--text-dim);">${lead.businessName ? escapeHtml(lead.businessName) : 'Individual'}</div>
+        </td>
+        <td>${phoneDisplay}</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <a href="mailto:${lead.email}" style="color: #93c5fd; text-decoration: none; font-size: 12.5px;">${escapeHtml(lead.email)}</a>
+            <button type="button" class="btn-copy" onclick="copyLeadText('${lead.email}', 'Email copied!')" title="Copy Email" style="background: none; border: none; cursor: pointer; padding: 2px; font-size: 11px;">📋</button>
+          </div>
+        </td>
+        <td>${planBadge}</td>
+        <td>${vpaDisplay}</td>
+        <td><span style="font-size: 11.5px; color: var(--text-muted);">${lead.formattedDate || 'N/A'}</span></td>
+        <td>
+          <div style="display: flex; gap: 4px;">
+            ${lead.hasPhone ? `<a href="https://wa.me/91${lead.phone.replace(/[^0-9]/g, '')}" target="_blank" class="btn btn-secondary" style="padding: 4px 8px; font-size: 10.5px; text-decoration: none; color: #34d399;" title="Chat on WhatsApp">WA</a>` : ''}
+            <button type="button" class="btn btn-secondary" onclick="exportSingleLeadCsv(${lead.id})" style="padding: 4px 8px; font-size: 10.5px;" title="Export Lead">CSV</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// 1. Export All Leads as CSV
+function exportMarketingLeadsCsv() {
+  if (!cachedMarketingLeads || cachedMarketingLeads.length === 0) {
+    alert('No lead records available to export.');
+    return;
+  }
+
+  const headers = ['ID', 'Name', 'Email', 'Mobile Number', 'Plan', 'QR Credits', 'Website', 'UPI VPA', 'Joined Date', 'API Key'];
+  const escapeCsv = (val) => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  const rows = cachedMarketingLeads.map(l => [
+    l.id,
+    escapeCsv(l.name),
+    escapeCsv(l.email),
+    escapeCsv(l.phone !== 'N/A' ? l.phone : ''),
+    escapeCsv(l.plan),
+    l.qrCredits || 0,
+    escapeCsv(l.websiteUrl !== 'None' ? l.websiteUrl : ''),
+    escapeCsv(l.upiVpa !== 'Not Linked' ? l.upiVpa : ''),
+    escapeCsv(l.formattedDate || ''),
+    escapeCsv(l.apiKey || '')
+  ].join(','));
+
+  const csvContent = [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `ZeroFee_UPI_Marketing_Leads_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+window.exportMarketingLeadsCsv = exportMarketingLeadsCsv;
+
+// 2. Export Single Lead
+function exportSingleLeadCsv(leadId) {
+  const lead = cachedMarketingLeads.find(l => l.id === leadId);
+  if (!lead) return;
+
+  const headers = ['ID', 'Name', 'Email', 'Mobile Number', 'Plan', 'Website', 'UPI VPA', 'Joined Date'];
+  const escapeCsv = (val) => `"${String(val || '').replace(/"/g, '""')}"`;
+  const row = [
+    lead.id,
+    escapeCsv(lead.name),
+    escapeCsv(lead.email),
+    escapeCsv(lead.phone !== 'N/A' ? lead.phone : ''),
+    escapeCsv(lead.plan),
+    escapeCsv(lead.websiteUrl !== 'None' ? lead.websiteUrl : ''),
+    escapeCsv(lead.upiVpa !== 'Not Linked' ? lead.upiVpa : ''),
+    escapeCsv(lead.formattedDate)
+  ].join(',');
+
+  const csvContent = [headers.join(','), row].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `Lead_${lead.email.split('@')[0]}_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+window.exportSingleLeadCsv = exportSingleLeadCsv;
+
+// 3. Copy All Phone Numbers for WhatsApp/SMS marketing
+function copyAllMarketingMobiles() {
+  const phones = cachedMarketingLeads
+    .map(l => l.phone)
+    .filter(p => p && p !== 'N/A' && p.length >= 10);
+
+  if (phones.length === 0) {
+    alert('No phone numbers found in registered leads.');
+    return;
+  }
+
+  const phoneList = phones.join(', ');
+  navigator.clipboard.writeText(phoneList).then(() => {
+    alert(`📋 Copied ${phones.length} mobile numbers to clipboard for WhatsApp/SMS blast!`);
+  }).catch(() => {
+    prompt('Copy phone numbers below:', phoneList);
+  });
+}
+window.copyAllMarketingMobiles = copyAllMarketingMobiles;
+
+// 4. Copy All Emails for Email marketing
+function copyAllMarketingEmails() {
+  const emails = cachedMarketingLeads
+    .map(l => l.email)
+    .filter(e => e && e.includes('@'));
+
+  if (emails.length === 0) {
+    alert('No emails found.');
+    return;
+  }
+
+  const emailList = emails.join(', ');
+  navigator.clipboard.writeText(emailList).then(() => {
+    alert(`📧 Copied ${emails.length} email addresses to clipboard!`);
+  }).catch(() => {
+    prompt('Copy emails below:', emailList);
+  });
+}
+window.copyAllMarketingEmails = copyAllMarketingEmails;
+
+function copyLeadText(text, alertMsg) {
+  navigator.clipboard.writeText(text).then(() => {
+    const toast = document.createElement('div');
+    toast.style.position = 'fixed';
+    toast.style.bottom = '20px';
+    toast.style.right = '20px';
+    toast.style.background = '#10b981';
+    toast.style.color = '#fff';
+    toast.style.padding = '8px 16px';
+    toast.style.borderRadius = '8px';
+    toast.style.fontSize = '12px';
+    toast.style.fontWeight = 'bold';
+    toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    toast.style.zIndex = '999999';
+    toast.innerText = alertMsg || 'Copied!';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+  });
+}
+window.copyLeadText = copyLeadText;
+

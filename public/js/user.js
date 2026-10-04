@@ -9,9 +9,10 @@ try {
 // ==========================================
 
 // Dynamically resolve Gateway Backend URL (supports Firebase Hosting, custom domains, and Render)
-const API_BASE = (window.location.hostname.includes('paypendicular') || window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
-  ? 'https://personal-payment-gateway.onrender.com' 
-  : (window.location.hostname.includes('onrender.com') ? '' : 'https://personal-payment-gateway.onrender.com');
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000' || window.location.hostname.includes('onrender.com')) 
+  ? '' 
+  : 'https://personal-payment-gateway.onrender.com';
+
 
 const originalFetch = window.fetch;
 window.fetch = async function (url, options = {}) {

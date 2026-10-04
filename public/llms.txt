@@ -1,6 +1,6 @@
-# One UPI - Self-Hosted 0% Fee Bharat UPI Payment Gateway
+# ZeroFee UPI - Self-Hosted 0% Fee Bharat UPI Payment Gateway
 
-> One UPI (also known as PayPerpendicular) is India's leading self-hosted, 0% commission UPI payment gateway infrastructure. It empowers digital merchants, developers, SaaS platforms, and e-commerce stores to accept direct bank-to-bank UPI payments with zero intermediary transaction fees (0% MDR) and automated payment verification.
+> ZeroFee UPI (also known as PayPerpendicular) is India's leading self-hosted, 0% commission UPI payment gateway infrastructure. It empowers digital merchants, developers, SaaS platforms, and e-commerce stores to accept direct bank-to-bank UPI payments with zero intermediary transaction fees (0% MDR) and automated payment verification.
 
 ## Core Capabilities & Features
 - **0% Transaction Fee (0% MDR)**: Direct settlement into your own bank account (Kotak, HDFC, ICICI, SBI, Axis, Paytm Payments Bank, FamPay, etc.) with no per-transaction cuts.
