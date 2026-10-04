@@ -101,10 +101,13 @@ export const OtpController = {
       </html>
       `;
 
-      await EmailSender.sendHtmlEmail({
+      // Dispatch email asynchronously so client never buffers/hangs on slow network handshakes
+      EmailSender.sendHtmlEmail({
         to: normalizedEmail,
         subject: `🔐 ${otp} is your ZeroFee UPI verification code`,
         htmlContent: html
+      }).catch(err => {
+        console.error(`[AuthOtp] Background email dispatch error for ${normalizedEmail}:`, err.message);
       });
 
       return res.json({
