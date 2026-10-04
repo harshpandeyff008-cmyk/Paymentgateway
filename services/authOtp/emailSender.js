@@ -2,17 +2,26 @@ import nodemailer from 'nodemailer';
 import { config } from '../../config.js';
 import logger from '../../src/utils/logger.js';
 
-// Setup high-speed Gmail Transporter using configured Google App Credentials
+// Setup high-speed Gmail Direct SSL Transporter with connection pooling
 const gmailUser = config.imap?.user || 'shaahtasham9@gmail.com';
 const gmailPass = config.imap?.pass || 'zfeoyxxoxrmnmbcr';
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // Direct SSL handshake (fastest, eliminates STARTTLS port 587 timeouts)
   auth: {
     user: gmailUser,
     pass: gmailPass
-  }
+  },
+  pool: true, // Reuse open connection
+  maxConnections: 5,
+  maxMessages: 200,
+  connectionTimeout: 10000, // 10s max connection timeout
+  greetingTimeout: 5000,
+  socketTimeout: 15000
 });
+
 
 export const EmailSender = {
   /**
