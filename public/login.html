@@ -1186,26 +1186,18 @@
       const feedback = document.getElementById('authFeedback');
 
       if (feedback) feedback.style.display = 'none';
-      backToRegDetails();
 
       if (mode === 'register') {
-        tabSignInBtn.classList.remove('active');
-        tabRegisterBtn.classList.add('active');
-        viewSignIn.style.display = 'none';
-        viewRegister.style.display = 'block';
+        if (tabSignInBtn) tabSignInBtn.classList.remove('active');
+        if (tabRegisterBtn) tabRegisterBtn.classList.add('active');
+        if (viewSignIn) viewSignIn.style.display = 'none';
+        if (viewRegister) viewRegister.style.display = 'block';
       } else {
-        tabRegisterBtn.classList.remove('active');
-        tabSignInBtn.classList.add('active');
-        viewRegister.style.display = 'none';
-        viewSignIn.style.display = 'block';
+        if (tabRegisterBtn) tabRegisterBtn.classList.remove('active');
+        if (tabSignInBtn) tabSignInBtn.classList.add('active');
+        if (viewRegister) viewRegister.style.display = 'none';
+        if (viewSignIn) viewSignIn.style.display = 'block';
       }
-    }
-
-    function backToRegDetails() {
-      document.getElementById('regStepDetails').style.display = 'block';
-      document.getElementById('regStepOtp').style.display = 'none';
-      const tabs = document.getElementById('mainAuthTabs');
-      if (tabs) tabs.style.display = 'flex';
     }
 
     // 2. Toggle Password Visibility
@@ -1657,13 +1649,6 @@
     window.handleUnifiedSignIn = handleUnifiedSignIn;
     window.handleEmailSignIn = handleEmailSignIn;
     window.handleInitiateRegister = handleInitiateRegister;
-    window.handleVerifyRegistrationOtp = handleVerifyRegistrationOtp;
-    window.handleResendRegisterOtp = handleResendRegisterOtp;
-    window.backToRegDetails = backToRegDetails;
-    window.openForgotPasswordModal = openForgotPasswordModal;
-    window.closeForgotPasswordModal = closeForgotPasswordModal;
-    window.handleSendForgotOtp = handleSendForgotOtp;
-    window.handleResetPasswordSubmit = handleResetPasswordSubmit;
     window.switchAuthMode = switchAuthMode;
     window.togglePasswordVisibility = togglePasswordVisibility;
   </script>
