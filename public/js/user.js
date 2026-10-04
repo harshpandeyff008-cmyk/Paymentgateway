@@ -432,11 +432,11 @@ function renderDashboard() {
   }
 
   if (urgentBankingBanner) {
-    if (!currentUser.gmailConnected) {
+    if (hasActivePlan && !currentUser.gmailConnected) {
       urgentBankingBanner.style.display = 'flex';
       if (urgentBankingTitle) urgentBankingTitle.innerText = '📡 Banking Listener Not Connected:';
       if (urgentBankingDesc) urgentBankingDesc.innerText = 'Customer UPI payments will NOT verify automatically. Connect your 24/7 Gmail App Password to enable instant 1-second auto-verification.';
-    } else if (currentUser.gmailTokenExpired) {
+    } else if (hasActivePlan && currentUser.gmailTokenExpired) {
       urgentBankingBanner.style.display = 'flex';
       if (urgentBankingTitle) urgentBankingTitle.innerText = '⚠️ Banking Listener Paused (Google Token Expired):';
       if (urgentBankingDesc) urgentBankingDesc.innerText = 'Google 1-Click sessions expire every 60 minutes. Click Re-Authorize in Settlement Engine or connect your 24/7 Gmail App Password for permanent sync.';
