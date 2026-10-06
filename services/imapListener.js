@@ -105,6 +105,53 @@ export function stopMerchantImapPoller() {
   }
 }
 
+const activeMerchantClients = new Map();
+
+async function getOrCreateMerchantClient(merchant) {
+  const email = merchant.email;
+  const user = (merchant.gmail_email || '').trim();
+  const pass = (merchant.gmail_app_pass || '').trim().replace(/\s+/g, '');
+  const credKey = `${user}:${pass}:${merchant.imap_host || 'imap.gmail.com'}:${merchant.imap_port || 993}`;
+
+  let existing = activeMerchantClients.get(email);
+  if (existing) {
+    if (existing.credKey !== credKey) {
+      try { await existing.client.logout(); } catch (_) {}
+      activeMerchantClients.delete(email);
+      existing = null;
+    } else if (existing.client && existing.client.usable) {
+      return existing.client;
+    }
+  }
+
+  const merchantHost = (merchant.imap_host || config.imap.host || 'imap.gmail.com').trim();
+  const merchantPort = Number(merchant.imap_port) || config.imap.port || 993;
+  const merchantSecure = merchant.imap_secure !== 0;
+
+  const client = new ImapFlow({
+    host: merchantHost,
+    port: merchantPort,
+    secure: merchantSecure,
+    auth: { user, pass },
+    logger: false,
+    clientInfo: { name: 'UPI Gateway', version: '1.0.0' },
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+    socketTimeout: 15000
+  });
+
+  client.on('error', () => {
+    activeMerchantClients.delete(email);
+  });
+  client.on('close', () => {
+    activeMerchantClients.delete(email);
+  });
+
+  await client.connect();
+  activeMerchantClients.set(email, { client, credKey });
+  return client;
+}
+
 /**
  * Connected Merchants IMAP Poller:
  * Checks registered merchants who activated their Bank Gmail in Settlement Engine.
@@ -127,40 +174,24 @@ export async function scanAndProcessMerchantEmails() {
 
     if (!merchants || merchants.length === 0) return;
 
-    // Process all merchants in parallel so one merchant never blocks or delays another
+    // Process all merchants in parallel using reusable persistent connections
     await Promise.allSettled(merchants.map(async (merchant) => {
       const user = (merchant.gmail_email || '').trim();
       const pass = (merchant.gmail_app_pass || '').trim().replace(/\s+/g, '');
       if (!user || !pass) return;
 
-      const merchantHost = (merchant.imap_host || config.imap.host || 'imap.gmail.com').trim();
-      const merchantPort = Number(merchant.imap_port) || config.imap.port || 993;
-      const merchantSecure = merchant.imap_secure !== 0;
-
-      const merchantClient = new ImapFlow({
-        host: merchantHost,
-        port: merchantPort,
-        secure: merchantSecure,
-        auth: { user, pass },
-        logger: false,
-        connectionTimeout: 4000,
-        greetingTimeout: 3000,
-        socketTimeout: 5000
-      });
-
-      merchantClient.on('error', () => {});
-
       try {
-        await merchantClient.connect();
-        const lock = await merchantClient.getMailboxLock(config.imap.mailbox || 'INBOX');
+        const client = await getOrCreateMerchantClient(merchant);
+        if (!client || !client.usable) return;
 
+        const lock = await client.getMailboxLock(config.imap.mailbox || 'INBOX');
         try {
-          const status = await merchantClient.status(config.imap.mailbox || 'INBOX', { messages: true });
+          const status = await client.status(config.imap.mailbox || 'INBOX', { messages: true });
           const total = status.messages || 0;
 
           if (total > 0) {
             const startSeq = Math.max(1, total - 7);
-            for await (const message of merchantClient.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
+            for await (const message of client.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
               const parsed = await simpleParser(message.source);
               const subject = parsed.subject || '';
               const fromAddress = parsed.from?.text || '';
@@ -188,10 +219,9 @@ export async function scanAndProcessMerchantEmails() {
           }
         } finally {
           lock.release();
-          await merchantClient.logout().catch(() => {});
         }
       } catch (_) {
-        // Individual merchant network/auth errors never crash or delay other merchants
+        activeMerchantClients.delete(merchant.email);
       }
     }));
   } catch (err) {
