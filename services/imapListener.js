@@ -148,8 +148,54 @@ async function getOrCreateMerchantClient(merchant) {
   });
 
   await client.connect();
+  
+  // Attach instantaneous IMAP IDLE push notification
+  client.on('exists', async (data) => {
+    console.log(`[Merchant IMAP Push] ⚡ New email detected for ${email}! Total: ${data.count}`);
+    scanSingleMerchant(merchant, client).catch(() => {});
+  });
+
   activeMerchantClients.set(email, { client, credKey });
   return client;
+}
+
+async function scanSingleMerchant(merchant, client) {
+  if (!client || !client.usable) return;
+  const lock = await client.getMailboxLock(config.imap.mailbox || 'INBOX');
+  try {
+    const status = await client.status(config.imap.mailbox || 'INBOX', { messages: true });
+    const total = status.messages || 0;
+    if (total > 0) {
+      const startSeq = Math.max(1, total - 7);
+      for await (const message of client.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
+        const parsed = await simpleParser(message.source);
+        const subject = parsed.subject || '';
+        const fromAddress = parsed.from?.text || '';
+        const bodyText = parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, ' ') : '');
+        const emailDate = parsed.date || new Date();
+
+        const paymentData = parsePaymentEmail(subject, bodyText, emailDate, merchant?.upi_provider || 'AUTO');
+        if (paymentData.success && paymentData.amount && paymentData.utr) {
+          const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
+          if (!paymentRow || paymentRow.is_matched === 0) {
+            console.log(`[Merchant IMAP] ⚡ Instant Push Payment matched for ${merchant.email}: ₹${paymentData.amount}, UTR: ${paymentData.utr}`);
+            await processIncomingPayment({
+              amount: paymentData.amount,
+              utr: paymentData.utr,
+              sender: paymentData.sender || fromAddress,
+              receivedAt: paymentData.receivedAt,
+              source: 'MERCHANT_IMAP_PUSH',
+              rawSnippet: `[Merchant: ${merchant.email}] ${subject} - ${paymentData.sender || fromAddress}`,
+              merchantEmail: merchant.email
+            });
+            schedulePaymentMonitoringSync();
+          }
+        }
+      }
+    }
+  } finally {
+    lock.release();
+  }
 }
 
 /**
@@ -182,43 +228,8 @@ export async function scanAndProcessMerchantEmails() {
 
       try {
         const client = await getOrCreateMerchantClient(merchant);
-        if (!client || !client.usable) return;
-
-        const lock = await client.getMailboxLock(config.imap.mailbox || 'INBOX');
-        try {
-          const status = await client.status(config.imap.mailbox || 'INBOX', { messages: true });
-          const total = status.messages || 0;
-
-          if (total > 0) {
-            const startSeq = Math.max(1, total - 7);
-            for await (const message of client.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
-              const parsed = await simpleParser(message.source);
-              const subject = parsed.subject || '';
-              const fromAddress = parsed.from?.text || '';
-              const bodyText = parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, ' ') : '');
-              const emailDate = parsed.date || new Date();
-
-              const paymentData = parsePaymentEmail(subject, bodyText, emailDate, merchant?.upi_provider || 'AUTO');
-              if (paymentData.success && paymentData.amount && paymentData.utr) {
-                const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
-                if (!paymentRow || paymentRow.is_matched === 0) {
-                  console.log(`[Merchant IMAP] ⚡ Instant Payment detected for ${merchant.email}: ₹${paymentData.amount}, UTR: ${paymentData.utr}`);
-                  await processIncomingPayment({
-                    amount: paymentData.amount,
-                    utr: paymentData.utr,
-                    sender: paymentData.sender || fromAddress,
-                    receivedAt: paymentData.receivedAt,
-                    source: 'MERCHANT_IMAP',
-                    rawSnippet: `[Merchant: ${merchant.email}] ${subject} - ${paymentData.sender || fromAddress}`,
-                    merchantEmail: merchant.email
-                  });
-                  schedulePaymentMonitoringSync();
-                }
-              }
-            }
-          }
-        } finally {
-          lock.release();
+        if (client && client.usable) {
+          await scanSingleMerchant(merchant, client);
         }
       } catch (_) {
         activeMerchantClients.delete(merchant.email);
