@@ -47,6 +47,11 @@ let activeOrderTimer = null;
 let userOrdersList = [];
 let currentOrderStatusFilter = 'ALL';
 
+function encodeKey(str) {
+  if (!str) return '';
+  return String(str).trim().toLowerCase().replace(/\./g, '_dot_').replace(/[#$\[\]]/g, '_');
+}
+
 // Initialize Firebase
 try {
   if (typeof firebase !== 'undefined') {
@@ -57,9 +62,9 @@ try {
   console.warn('Firebase init:', e.message);
 }
 
-// Initialize Socket.IO
+// Initialize Socket.IO with dynamic remote Gateway endpoint
 try {
-  socket = io();
+  socket = io(API_BASE || undefined);
   socket.on('connect', () => {
     console.log('[Socket] Connected as', socket.id);
     if (currentUser && currentUser.email) {
@@ -75,14 +80,70 @@ try {
 
   // Listen for real-time order updates
   socket.on('order_status_update', (update) => {
-    console.log('[Socket] Order status update:', update);
-    if (userOrdersList.some(o => o.order_code === update.orderCode || o.id === update.orderId)) {
-      loadUserOrders();
-    }
+    console.log('[Socket] Order status update received:', update);
+    loadUserOrders();
+  });
+
+  socket.on('new_order', (order) => {
+    console.log('[Socket] New order created:', order);
+    loadUserOrders();
+  });
+
+  socket.on('payment_event', (event) => {
+    console.log('[Socket] Payment event:', event);
+    loadUserOrders();
   });
 } catch (err) {
   console.warn('[Socket] Init failed:', err.message);
 }
+
+// Firebase Realtime Database Live Stream Listener
+function setupFirebaseRealtimeListeners() {
+  if (!fbApp || typeof firebase === 'undefined' || !firebase.database) return;
+  try {
+    const db = firebase.database();
+
+    // 1. Live Orders Listener (Zero-latency instant updates without page refresh)
+    db.ref('orders').on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!data || !currentUser || !currentUser.email) return;
+      const myEmail = currentUser.email.toLowerCase().trim();
+      const allOrders = Object.values(data);
+      const myOrders = allOrders.filter(o => 
+        (o.user_email || o.userEmail || '').toLowerCase().trim() === myEmail ||
+        (!o.user_email && !o.userEmail && currentUser.role === 'admin')
+      );
+
+      if (myOrders.length > 0) {
+        userOrdersList = myOrders.sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
+        renderOrdersTables(userOrdersList);
+      }
+    });
+
+    // 2. Live User Profile / Credits Listener
+    if (currentUser && currentUser.email) {
+      const key = encodeKey(currentUser.email);
+      db.ref(`users/${key}`).on('value', (snapshot) => {
+        const u = snapshot.val();
+        if (u) {
+          currentUser = { ...currentUser, ...u };
+          sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+          localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+          renderDashboard();
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('[Firebase RTDB Listener]', e.message);
+  }
+}
+
+// Background auto-poller as infallible backup (Every 3 seconds)
+setInterval(() => {
+  if (currentUser && currentUser.email) {
+    loadUserOrders();
+  }
+}, 3000);
 
 // On Page Load
 document.addEventListener('DOMContentLoaded', () => {
@@ -93,6 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (parsed && parsed.email) {
         currentUser = parsed;
         renderDashboard();
+        loadUserOrders();
+        setupFirebaseRealtimeListeners();
         hideLoginOverlay();
       }
     } catch (_) {}
@@ -201,6 +264,7 @@ async function onFirebaseUserAuthenticated(user) {
 
       renderDashboard();
       loadUserOrders();
+      setupFirebaseRealtimeListeners();
       return;
     }
   } catch (err) {
