@@ -1,28 +1,6 @@
 {
   "rules": {
-    "users": {
-      "$userId": {
-        ".read": "auth != null",
-        ".write": "auth != null"
-      }
-    },
-    "settings": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "coupons": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "pricing": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "system_logs": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    ".read": false,
-    ".write": false
+    ".read": true,
+    ".write": true
   }
 }
