@@ -283,6 +283,20 @@ export const CloudSyncService = {
   },
 
   // ─── ORDERS ───────────────────────────────────────────────────────────────
+  async getOrder(orderCode) {
+    if (!orderCode) return null;
+    try {
+      const codeKey = encodeKey(orderCode);
+      const res = await fetch(`${RTDB_BASE}/orders/${codeKey}.json`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to fetch order ${orderCode}: ${e.message}`);
+    }
+    return null;
+  },
+
   async saveOrder(order) {
     if (!order) return false;
     const code = order.order_code || order.orderCode;
@@ -514,7 +528,57 @@ export const CloudSyncService = {
         }
       }
 
-      // 5. Restore Payments / Bank Alerts
+      // 5. Restore Orders
+      const cloudOrders = await this.getAllOrders();
+      if (cloudOrders.length > 0) {
+        logger.info(`[CloudSync] Restoring ${cloudOrders.length} orders from Firebase RTDB...`);
+        try {
+          await query.run('BEGIN TRANSACTION');
+          for (const o of cloudOrders) {
+            if (!o) continue;
+            const code = o.order_code || o.orderCode;
+            if (!code) continue;
+            await query.run(
+              `INSERT OR IGNORE INTO orders (
+                order_code, amount, base_amount, customer_name, customer_phone,
+                status, created_at, expires_at, paid_at, utr, sender_info,
+                webhook_url, webhook_status, failure_reason, user_email, plan_id,
+                credits_to_add, brand_name, brand_logo_url, custom_note, theme, redirect_url
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                code,
+                Number(o.amount) || 0,
+                Number(o.base_amount || o.baseAmount || o.amount) || 0,
+                o.customer_name || o.customerName || 'Guest',
+                o.customer_phone || o.customerPhone || '',
+                o.status || 'PENDING',
+                Number(o.created_at || o.createdAt) || Date.now(),
+                Number(o.expires_at || o.expiresAt) || (Date.now() + 20 * 60 * 1000),
+                o.paid_at || o.paidAt || null,
+                o.utr || null,
+                o.sender_info || o.senderInfo || null,
+                o.webhook_url || o.webhookUrl || '',
+                o.webhook_status || o.webhookStatus || null,
+                o.failure_reason || o.failureReason || null,
+                o.user_email || o.userEmail || '',
+                o.plan_id || o.planId || null,
+                o.credits_to_add || o.creditsToAdd || 0,
+                o.brand_name || o.brandName || '',
+                o.brand_logo_url || o.brandLogoUrl || '',
+                o.custom_note || o.customNote || '',
+                o.theme || 'tiranga',
+                o.redirect_url || o.redirectUrl || ''
+              ]
+            );
+          }
+          await query.run('COMMIT');
+        } catch (txErr) {
+          await query.run('ROLLBACK').catch(() => {});
+          logger.warn(`[CloudSync] Orders batch restore error: ${txErr.message}`);
+        }
+      }
+
+      // 6. Restore Payments / Bank Alerts
       const cloudPayments = await this.getAllPayments();
       if (cloudPayments.length > 0) {
         try {

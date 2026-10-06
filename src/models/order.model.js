@@ -1,4 +1,5 @@
 import { query } from '../../db/database.js';
+import { CloudSyncService } from '../services/cloudSync.service.js';
 
 export const OrderModel = {
   async create({ orderCode, amount, baseAmount = null, customerName = 'Guest', customerPhone = '', createdAt, expiresAt, webhookUrl = '', userEmail = '', brandName = '', brandLogoUrl = '', customNote = '', theme = 'tiranga', redirectUrl = '' }) {
@@ -16,7 +17,52 @@ export const OrderModel = {
   },
 
   async findByCode(orderCode) {
-    return query.get('SELECT * FROM orders WHERE order_code = ?', [orderCode]);
+    if (!orderCode) return null;
+    let order = await query.get('SELECT * FROM orders WHERE order_code = ? COLLATE NOCASE', [orderCode]);
+    if (!order) {
+      try {
+        const cloudOrder = await CloudSyncService.getOrder(orderCode);
+        if (cloudOrder) {
+          const code = cloudOrder.order_code || cloudOrder.orderCode || orderCode;
+          await query.run(
+            `INSERT OR IGNORE INTO orders (
+              order_code, amount, base_amount, customer_name, customer_phone,
+              status, created_at, expires_at, paid_at, utr, sender_info,
+              webhook_url, webhook_status, failure_reason, user_email, plan_id,
+              credits_to_add, brand_name, brand_logo_url, custom_note, theme, redirect_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              code,
+              Number(cloudOrder.amount) || 0,
+              Number(cloudOrder.base_amount || cloudOrder.baseAmount || cloudOrder.amount) || 0,
+              cloudOrder.customer_name || cloudOrder.customerName || 'Guest',
+              cloudOrder.customer_phone || cloudOrder.customerPhone || '',
+              cloudOrder.status || 'PENDING',
+              Number(cloudOrder.created_at || cloudOrder.createdAt) || Date.now(),
+              Number(cloudOrder.expires_at || cloudOrder.expiresAt) || (Date.now() + 20 * 60 * 1000),
+              cloudOrder.paid_at || cloudOrder.paidAt || null,
+              cloudOrder.utr || null,
+              cloudOrder.sender_info || cloudOrder.senderInfo || null,
+              cloudOrder.webhook_url || cloudOrder.webhookUrl || '',
+              cloudOrder.webhook_status || cloudOrder.webhookStatus || null,
+              cloudOrder.failure_reason || cloudOrder.failureReason || null,
+              cloudOrder.user_email || cloudOrder.userEmail || '',
+              cloudOrder.plan_id || cloudOrder.planId || null,
+              cloudOrder.credits_to_add || cloudOrder.creditsToAdd || 0,
+              cloudOrder.brand_name || cloudOrder.brandName || '',
+              cloudOrder.brand_logo_url || cloudOrder.brandLogoUrl || '',
+              cloudOrder.custom_note || cloudOrder.customNote || '',
+              cloudOrder.theme || 'tiranga',
+              cloudOrder.redirect_url || cloudOrder.redirectUrl || ''
+            ]
+          );
+          order = await query.get('SELECT * FROM orders WHERE order_code = ? COLLATE NOCASE', [orderCode]);
+        }
+      } catch (err) {
+        // Fallback error ignored
+      }
+    }
+    return order;
   },
 
   async findById(id) {

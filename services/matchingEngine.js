@@ -124,6 +124,62 @@ export async function processIncomingPayment({
     }
   }
 
+  // Step E: CloudSync Fallback - Load pending orders from Firebase RTDB if SQLite cache was restarted
+  if (!matchingOrder) {
+    try {
+      const cloudOrders = await CloudSyncService.getAllOrders();
+      for (const co of cloudOrders) {
+        if (!co) continue;
+        const cStatus = co.status || 'PENDING';
+        const cAmount = Number(co.amount) || 0;
+        const cBaseAmount = Number(co.base_amount || co.baseAmount || co.amount) || 0;
+        const code = co.order_code || co.orderCode;
+        if (code && cStatus !== 'PAID' && (Math.abs(cAmount - amount) <= 0.01 || Math.abs(cBaseAmount - amount) <= 0.01)) {
+          // Insert into SQLite and use as matching order
+          await query.run(
+            `INSERT OR IGNORE INTO orders (
+              order_code, amount, base_amount, customer_name, customer_phone,
+              status, created_at, expires_at, paid_at, utr, sender_info,
+              webhook_url, webhook_status, failure_reason, user_email, plan_id,
+              credits_to_add, brand_name, brand_logo_url, custom_note, theme, redirect_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              code,
+              cAmount,
+              cBaseAmount,
+              co.customer_name || co.customerName || 'Guest',
+              co.customer_phone || co.customerPhone || '',
+              cStatus,
+              Number(co.created_at || co.createdAt) || Date.now(),
+              Number(co.expires_at || co.expiresAt) || (Date.now() + 20 * 60 * 1000),
+              co.paid_at || co.paidAt || null,
+              co.utr || null,
+              co.sender_info || co.senderInfo || null,
+              co.webhook_url || co.webhookUrl || '',
+              co.webhook_status || co.webhookStatus || null,
+              co.failure_reason || co.failureReason || null,
+              co.user_email || co.userEmail || '',
+              co.plan_id || co.planId || null,
+              co.credits_to_add || co.creditsToAdd || 0,
+              co.brand_name || co.brandName || '',
+              co.brand_logo_url || co.brandLogoUrl || '',
+              co.custom_note || co.customNote || '',
+              co.theme || 'tiranga',
+              co.redirect_url || co.redirectUrl || ''
+            ]
+          );
+          matchingOrder = await query.get('SELECT * FROM orders WHERE order_code = ? COLLATE NOCASE', [code]);
+          if (matchingOrder) {
+            console.log(`[MatchingEngine] CloudSync matched order ${matchingOrder.order_code} for payment!`);
+            break;
+          }
+        }
+      }
+    } catch (csErr) {
+      console.warn('[MatchingEngine] CloudSync fallback check warning:', csErr.message);
+    }
+  }
+
   if (matchingOrder) {
     console.log(`[MatchingEngine] Match found! Order: ${matchingOrder.order_code} for ₹${amount}`);
 
@@ -329,7 +385,49 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
     return { success: false, message: 'Invalid UTR' };
   }
 
-  const order = await query.get('SELECT * FROM orders WHERE order_code = ?', [orderCode]);
+  let order = await query.get('SELECT * FROM orders WHERE order_code = ? COLLATE NOCASE', [orderCode]);
+  if (!order) {
+    try {
+      const cloudOrder = await CloudSyncService.getOrder(orderCode);
+      if (cloudOrder) {
+        const code = cloudOrder.order_code || cloudOrder.orderCode || orderCode;
+        await query.run(
+          `INSERT OR IGNORE INTO orders (
+            order_code, amount, base_amount, customer_name, customer_phone,
+            status, created_at, expires_at, paid_at, utr, sender_info,
+            webhook_url, webhook_status, failure_reason, user_email, plan_id,
+            credits_to_add, brand_name, brand_logo_url, custom_note, theme, redirect_url
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            code,
+            Number(cloudOrder.amount) || 0,
+            Number(cloudOrder.base_amount || cloudOrder.baseAmount || cloudOrder.amount) || 0,
+            cloudOrder.customer_name || cloudOrder.customerName || 'Guest',
+            cloudOrder.customer_phone || cloudOrder.customerPhone || '',
+            cloudOrder.status || 'PENDING',
+            Number(cloudOrder.created_at || cloudOrder.createdAt) || Date.now(),
+            Number(cloudOrder.expires_at || cloudOrder.expiresAt) || (Date.now() + 20 * 60 * 1000),
+            cloudOrder.paid_at || cloudOrder.paidAt || null,
+            cloudOrder.utr || null,
+            cloudOrder.sender_info || cloudOrder.senderInfo || null,
+            cloudOrder.webhook_url || cloudOrder.webhookUrl || '',
+            cloudOrder.webhook_status || cloudOrder.webhookStatus || null,
+            cloudOrder.failure_reason || cloudOrder.failureReason || null,
+            cloudOrder.user_email || cloudOrder.userEmail || '',
+            cloudOrder.plan_id || cloudOrder.planId || null,
+            cloudOrder.credits_to_add || cloudOrder.creditsToAdd || 0,
+            cloudOrder.brand_name || cloudOrder.brandName || '',
+            cloudOrder.brand_logo_url || cloudOrder.brandLogoUrl || '',
+            cloudOrder.custom_note || cloudOrder.customNote || '',
+            cloudOrder.theme || 'tiranga',
+            cloudOrder.redirect_url || cloudOrder.redirectUrl || ''
+          ]
+        );
+        order = await query.get('SELECT * FROM orders WHERE order_code = ? COLLATE NOCASE', [orderCode]);
+      }
+    } catch (_) {}
+  }
+
   if (!order) {
     return { success: false, message: 'Order not found' };
   }
@@ -360,6 +458,11 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
       'SELECT * FROM payments WHERE utr = ? AND is_matched = 0',
       [cleanUtr]
     );
+  }
+
+  if (!payment) {
+    // Check if recorded previously
+    payment = await query.get('SELECT * FROM payments WHERE utr = ?', [cleanUtr]);
   }
 
   if (payment) {
