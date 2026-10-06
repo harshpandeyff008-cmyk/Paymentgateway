@@ -94,8 +94,8 @@ export function startMerchantImapPoller() {
   scanAndProcessMerchantEmails().catch(() => {});
   merchantPollerInterval = setInterval(() => {
     scanAndProcessMerchantEmails().catch(() => {});
-  }, 3500);
-  console.log('[Merchant IMAP Poller] Initialized background merchant IMAP monitor (3.5s interval).');
+  }, 2500);
+  console.log('[Merchant IMAP Poller] Initialized background merchant IMAP monitor (2.5s interval).');
 }
 
 export function stopMerchantImapPoller() {
@@ -127,11 +127,11 @@ export async function scanAndProcessMerchantEmails() {
 
     if (!merchants || merchants.length === 0) return;
 
-    for (const merchant of merchants) {
+    // Process all merchants in parallel so one merchant never blocks or delays another
+    await Promise.allSettled(merchants.map(async (merchant) => {
       const user = (merchant.gmail_email || '').trim();
       const pass = (merchant.gmail_app_pass || '').trim().replace(/\s+/g, '');
-
-      if (!user || !pass) continue;
+      if (!user || !pass) return;
 
       const merchantHost = (merchant.imap_host || config.imap.host || 'imap.gmail.com').trim();
       const merchantPort = Number(merchant.imap_port) || config.imap.port || 993;
@@ -142,10 +142,13 @@ export async function scanAndProcessMerchantEmails() {
         port: merchantPort,
         secure: merchantSecure,
         auth: { user, pass },
-        logger: false
+        logger: false,
+        connectionTimeout: 4000,
+        greetingTimeout: 3000,
+        socketTimeout: 5000
       });
 
-      merchantClient.on('error', () => {}); // Silently suppress transient socket errors
+      merchantClient.on('error', () => {});
 
       try {
         await merchantClient.connect();
@@ -156,7 +159,7 @@ export async function scanAndProcessMerchantEmails() {
           const total = status.messages || 0;
 
           if (total > 0) {
-            const startSeq = Math.max(1, total - 9);
+            const startSeq = Math.max(1, total - 7);
             for await (const message of merchantClient.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
               const parsed = await simpleParser(message.source);
               const subject = parsed.subject || '';
@@ -168,7 +171,7 @@ export async function scanAndProcessMerchantEmails() {
               if (paymentData.success && paymentData.amount && paymentData.utr) {
                 const paymentRow = await query.get('SELECT id, is_matched FROM payments WHERE utr = ?', [paymentData.utr]);
                 if (!paymentRow) {
-                  console.log(`[Merchant IMAP] Payment detected for merchant ${merchant.email}: ₹${paymentData.amount}, UTR: ${paymentData.utr}`);
+                  console.log(`[Merchant IMAP] ⚡ Instant Payment detected for ${merchant.email}: ₹${paymentData.amount}, UTR: ${paymentData.utr}`);
                   await processIncomingPayment({
                     amount: paymentData.amount,
                     utr: paymentData.utr,
@@ -185,14 +188,14 @@ export async function scanAndProcessMerchantEmails() {
           }
         } finally {
           lock.release();
-          await merchantClient.logout();
+          await merchantClient.logout().catch(() => {});
         }
       } catch (_) {
-        // Individual merchant auth/network failures are ignored to keep the poller healthy
+        // Individual merchant network/auth errors never crash or delay other merchants
       }
-    }
+    }));
   } catch (err) {
-    // Suppress general errors
+    // Suppress general poller errors
   } finally {
     isMerchantPolling = false;
   }
