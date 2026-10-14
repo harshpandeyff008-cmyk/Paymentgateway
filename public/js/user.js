@@ -8,10 +8,10 @@ try {
 // USER PANEL & 2-LINE SIDEBAR DASHBOARD
 // ==========================================
 
-// Dynamically resolve Gateway Backend URL (supports Firebase Hosting, custom domains, and Render)
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000' || window.location.hostname.includes('personal-payment-gateway.onrender.com')) 
+// Dynamically resolve Gateway Backend URL (supports Firebase Hosting, custom domains, Render and Vercel)
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000' || window.location.hostname.includes('onrender.com') || window.location.hostname.includes('vercel.app')) 
   ? '' 
-  : 'https://personal-payment-gateway.onrender.com';
+  : 'https://personal-payment-gateway.vercel.app';
 
 
 const originalFetch = window.fetch;

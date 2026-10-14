@@ -1138,7 +1138,7 @@
 
     const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000')
       ? ''
-      : (window.location.hostname.includes('onrender.com') ? '' : 'https://personal-payment-gateway.onrender.com');
+      : ((window.location.hostname.includes('onrender.com') || window.location.hostname.includes('vercel.app')) ? '' : 'https://personal-payment-gateway.vercel.app');
 
 
     const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';

@@ -10,7 +10,7 @@ const orderCode = pathParts[pathParts.length - 1] || '';
 
 // API Base configuration for static hosting (Firebase) vs local / monolithic server
 const API_BASE = (window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com'))
-  ? 'https://personal-payment-gateway.onrender.com'
+  ? 'https://personal-payment-gateway.vercel.app'
   : '';
 
 let timerInterval = null;
