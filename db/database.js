@@ -752,13 +752,19 @@ export async function lockUserWebsite(email, websiteUrl) {
   const user = await getUserByEmail(email);
   if (!user) return { success: false, error: 'User account not found.' };
 
-  const maxAllowed = user.max_websites || 1;
+  let maxAllowed = user.max_websites || 1;
+  const pUpper = String(user.plan || '').toUpperCase();
+  if (pUpper.includes('FLEET') || pUpper.includes('5_WEBSITE') || pUpper.includes('5SITE') || pUpper.includes('5W')) maxAllowed = Math.max(maxAllowed, 5);
+  else if (pUpper.includes('QUAD') || pUpper.includes('4_WEBSITE') || pUpper.includes('4SITE') || pUpper.includes('4W')) maxAllowed = Math.max(maxAllowed, 4);
+  else if (pUpper.includes('TRIPLE') || pUpper.includes('3_WEBSITE') || pUpper.includes('3SITE') || pUpper.includes('3W')) maxAllowed = Math.max(maxAllowed, 3);
+  else if (pUpper.includes('DUAL') || pUpper.includes('2_WEBSITE') || pUpper.includes('2SITE') || pUpper.includes('2W')) maxAllowed = Math.max(maxAllowed, 2);
+
   const currentWebsites = parseUserWebsites(user);
 
   if (currentWebsites.length >= maxAllowed) {
     return {
       success: false,
-      error: `All ${maxAllowed} website slot(s) for your plan are already locked! Each API key is strictly limited and domains cannot be changed.`
+      error: `All ${maxAllowed} website slot(s) for your plan (${user.plan}) are already locked! Each API key is strictly limited and domains cannot be changed.`
     };
   }
 
@@ -786,9 +792,9 @@ export async function lockUserWebsite(email, websiteUrl) {
 
   await query.run(
     `UPDATE users 
-     SET website_url = ?, website_urls = ?, is_website_locked = 1, website_locked_at = COALESCE(website_locked_at, ?), updated_at = ? 
+     SET website_url = ?, website_urls = ?, max_websites = ?, is_website_locked = 1, website_locked_at = COALESCE(website_locked_at, ?), updated_at = ? 
      WHERE email = ?`,
-    [firstUrl, JSON.stringify(currentWebsites), now, now, email.trim().toLowerCase()]
+    [firstUrl, JSON.stringify(currentWebsites), maxAllowed, now, now, email.trim().toLowerCase()]
   );
 
   // Bind into domain_api_keys table to enforce domain filtering at the gateway level

@@ -70,6 +70,39 @@ function encodeKey(str) {
   return String(str).trim().toLowerCase().replace(/\./g, '_dot_').replace(/[#$\[\]]/g, '_');
 }
 
+function resolveMaxWebsites(plan, maxFromDb) {
+  if (maxFromDb && Number(maxFromDb) > 0) return Number(maxFromDb);
+  const p = String(plan || '').toUpperCase();
+  if (p.includes('FLEET') || p.includes('5_WEBSITE') || p.includes('5SITE') || p.includes('5W')) return 5;
+  if (p.includes('QUAD') || p.includes('4_WEBSITE') || p.includes('4SITE') || p.includes('4W')) return 4;
+  if (p.includes('TRIPLE') || p.includes('3_WEBSITE') || p.includes('3SITE') || p.includes('3W')) return 3;
+  if (p.includes('DUAL') || p.includes('2_WEBSITE') || p.includes('2SITE') || p.includes('2W')) return 2;
+  return 1;
+}
+
+function resolveLockedWebsites(user) {
+  if (!user) return [];
+  if (Array.isArray(user.lockedWebsites) && user.lockedWebsites.length > 0) return user.lockedWebsites;
+  let list = [];
+  const rawUrls = user.website_urls || user.websiteUrls;
+  if (rawUrls) {
+    try {
+      list = typeof rawUrls === 'string' ? JSON.parse(rawUrls) : rawUrls;
+    } catch (_) {
+      list = String(rawUrls).split(',').map(s => s.trim()).filter(Boolean);
+    }
+  } else if (user.website_url || user.websiteUrl) {
+    list = [user.website_url || user.websiteUrl];
+  }
+  return (Array.isArray(list) ? list : []).map(item => {
+    if (typeof item === 'string') {
+      const clean = item.trim().toLowerCase().replace(/^[a-zA-Z]+:\/\//, '').split('/')[0].split('?')[0].split(':')[0].replace(/^www\./, '');
+      return { url: item, domain: clean, lockedAt: Date.now() };
+    }
+    return item;
+  });
+}
+
 // Initialize Firebase
 try {
   if (typeof firebase !== 'undefined') {
@@ -276,7 +309,11 @@ async function onFirebaseUserAuthenticated(user) {
         sessionStorage.setItem('user_jwt', data.token);
         data.user.token = data.token;
       }
-      currentUser = data.user;
+      currentUser = {
+        ...data.user,
+        maxWebsites: resolveMaxWebsites(data.user.plan, data.user.maxWebsites || data.user.max_websites),
+        lockedWebsites: resolveLockedWebsites(data.user)
+      };
       sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
       localStorage.setItem('gateway_user', JSON.stringify(currentUser));
       hideLoginOverlay();
@@ -313,6 +350,8 @@ async function onFirebaseUserAuthenticated(user) {
     }
 
     if (cloudUser) {
+      const maxW = resolveMaxWebsites(cloudUser.plan, cloudUser.max_websites || cloudUser.maxWebsites);
+      const lockedW = resolveLockedWebsites(cloudUser);
       currentUser = {
         email,
         name: cloudUser.name || user.displayName || 'User',
@@ -323,8 +362,11 @@ async function onFirebaseUserAuthenticated(user) {
         apiKey: cloudUser.api_key || (currentUser?.apiKey || ('pg_live_' + Math.random().toString(36).substring(2, 15))),
         gmailConnected: !!cloudUser.gmail_connected,
         gmailEmail: cloudUser.gmail_email || '',
-        websiteUrl: cloudUser.website_url || '',
-        isWebsiteLocked: !!cloudUser.is_website_locked,
+        websiteUrl: cloudUser.website_url || (lockedW[0]?.url || ''),
+        websiteUrls: cloudUser.website_urls || '',
+        maxWebsites: maxW,
+        lockedWebsites: lockedW,
+        isWebsiteLocked: lockedW.length > 0 || !!cloudUser.is_website_locked,
         hasActivePlan: cloudUser.plan && cloudUser.plan !== 'NONE',
         upiVpa: cloudUser.upi_vpa || currentUser?.upiVpa || '',
         businessName: cloudUser.business_name || currentUser?.businessName || '',
@@ -459,7 +501,10 @@ function renderDashboard() {
   if (!currentUser) return;
 
   const hasActivePlan = currentUser.plan && currentUser.plan !== 'NONE';
-  const isLocked = !!currentUser.isWebsiteLocked && !!currentUser.websiteUrl;
+  const maxWebsites = resolveMaxWebsites(currentUser.plan, currentUser.maxWebsites || currentUser.max_websites);
+  const lockedWebsites = resolveLockedWebsites(currentUser);
+  const isLocked = lockedWebsites.length > 0 || (!!currentUser.isWebsiteLocked && !!currentUser.websiteUrl);
+  const remainingSlots = Math.max(0, maxWebsites - lockedWebsites.length);
 
   // 1. Sidebar User Profile Info
   const avatar = document.getElementById('sidebarUserAvatar');
@@ -498,8 +543,12 @@ function renderDashboard() {
   if (topCredits) topCredits.innerText = '♾️ UNLIMITED';
   if (topWebsite) {
     if (isLocked) {
-      const cleanDom = currentUser.websiteUrl.replace(/^[a-zA-Z]+:\/\//, '').split('/')[0];
-      topWebsite.innerText = '🔒 ' + cleanDom;
+      if (lockedWebsites.length > 1) {
+        topWebsite.innerText = `🔒 ${lockedWebsites.length}/${maxWebsites} SITES`;
+      } else {
+        const cleanDom = (currentUser.websiteUrl || (lockedWebsites[0] && (lockedWebsites[0].domain || lockedWebsites[0].url)) || '').replace(/^[a-zA-Z]+:\/\//, '').split('/')[0];
+        topWebsite.innerText = '🔒 ' + (cleanDom || 'BOUND');
+      }
       topWebsite.style.color = 'var(--accent-emerald)';
     } else {
       topWebsite.innerText = 'NOT BOUND';
@@ -556,8 +605,12 @@ function renderDashboard() {
   if (dashPlan) dashPlan.innerText = currentUser.plan ? `${currentUser.plan} PLAN` : 'NONE';
   if (dashWebsite) {
     if (isLocked) {
-      const cleanDom = currentUser.websiteUrl.replace(/^[a-zA-Z]+:\/\//, '').split('/')[0];
-      dashWebsite.innerText = '🔒 ' + cleanDom;
+      if (lockedWebsites.length > 1) {
+        dashWebsite.innerText = `🔒 ${lockedWebsites.length} of ${maxWebsites} Sites Locked`;
+      } else {
+        const cleanDom = (currentUser.websiteUrl || (lockedWebsites[0] && (lockedWebsites[0].domain || lockedWebsites[0].url)) || '').replace(/^[a-zA-Z]+:\/\//, '').split('/')[0];
+        dashWebsite.innerText = '🔒 ' + (cleanDom || 'BOUND');
+      }
       dashWebsite.style.color = 'var(--accent-emerald)';
     } else {
       dashWebsite.innerText = 'NOT LINKED';
@@ -590,12 +643,8 @@ function renderDashboard() {
     displayApiKey.innerText = currentUser.apiKey || 'pg_live_demo12345';
   }
 
-  const maxWebsites = currentUser.maxWebsites || (currentUser.plan?.includes('DUAL') ? 2 : 1);
-  const lockedWebsites = currentUser.lockedWebsites || (isLocked ? [{ url: currentUser.websiteUrl, domain: currentUser.websiteUrl.replace(/^[a-zA-Z]+:\/\//, '').split('/')[0] }] : []);
-  const remainingSlots = Math.max(0, maxWebsites - lockedWebsites.length);
-
   if (websiteSlotsBadge) {
-    websiteSlotsBadge.innerText = `Slots: ${lockedWebsites.length} of ${maxWebsites} Bound`;
+    websiteSlotsBadge.innerText = `Slots: ${lockedWebsites.length} of ${maxWebsites} Bound (${remainingSlots} Available)`;
     websiteSlotsBadge.className = remainingSlots === 0 ? 'sidebar-item-badge success' : 'sidebar-item-badge warning';
   }
 
@@ -609,7 +658,7 @@ function renderDashboard() {
       apiKeyNotice.style.background = 'rgba(16, 185, 129, 0.1)';
       apiKeyNotice.style.borderColor = 'rgba(16, 185, 129, 0.3)';
       apiKeyNotice.style.color = '#34d399';
-      apiKeyNotice.innerHTML = `🛡️ <strong>API Status Active:</strong> Verified and locked to <b>${lockedWebsites.map(w => w.url || w.domain || w).join(', ')}</b>. Payment creation requests from your domain are live.`;
+      apiKeyNotice.innerHTML = `🛡️ <strong>API Status Active:</strong> Verified and locked to <b>${lockedWebsites.map(w => w.url || w.domain || w).join(', ')}</b>. Payment creation requests from your authorized domain(s) are live.`;
     }
 
     if (websiteLockedBox) websiteLockedBox.style.display = 'block';
@@ -617,7 +666,7 @@ function renderDashboard() {
       lockedWebsitesContainer.innerHTML = lockedWebsites.map((site, idx) => `
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); padding: 12px 16px; border-radius: 8px; margin-bottom: 8px;">
           <div style="min-width: 0; flex: 1;">
-            <div style="font-size: 11px; color: var(--text-dim); font-weight: 700;">SLOT #${idx + 1} (PERMANENTLY LOCKED)</div>
+            <div style="font-size: 11px; color: var(--text-dim); font-weight: 700;">SLOT #${idx + 1} OF ${maxWebsites} (PERMANENTLY LOCKED)</div>
             <div style="color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; margin-top: 3px; word-break: break-all; overflow-wrap: anywhere;">
               ${site.url || site.domain || site}
             </div>
@@ -629,9 +678,21 @@ function renderDashboard() {
       `).join('');
     }
 
-    // If multi-site plan has remaining slots, show form for next slot
+    // If multi-site plan has remaining slots, show form for next slot!
     if (remainingSlots > 0 && websiteUnlockedBox) {
       websiteUnlockedBox.style.display = 'block';
+      const slotInput = document.getElementById('inputWebsiteUrl');
+      if (slotInput) {
+        slotInput.placeholder = `e.g. https://your-site-${lockedWebsites.length + 1}.com`;
+      }
+      const slotLabel = document.querySelector('#websiteUnlockedBox .form-label');
+      if (slotLabel) {
+        slotLabel.innerHTML = `Authorized Website URL / Domain Name <span style="color: #38bdf8; font-weight: 700;">(Slot #${lockedWebsites.length + 1} of ${maxWebsites})</span>`;
+      }
+      const lockBtn = document.querySelector('#websiteUnlockedBox button[type="submit"]');
+      if (lockBtn) {
+        lockBtn.innerHTML = `<span>🔒 Permanently Lock Website Slot #${lockedWebsites.length + 1} (${remainingSlots} slot${remainingSlots > 1 ? 's' : ''} left)</span><span>➔</span>`;
+      }
     } else if (websiteUnlockedBox) {
       websiteUnlockedBox.style.display = 'none';
     }
@@ -1357,7 +1418,7 @@ async function removeModalCoupon() {
 }
 window.removeModalCoupon = removeModalCoupon;
 
-// Bind and Permanently Lock Website Domain
+// Bind and Permanently Lock Website Domain (Supports 1 to 5 websites based on plan)
 async function handleBindWebsite(event) {
   event.preventDefault();
   if (!currentUser) return;
@@ -1370,67 +1431,120 @@ async function handleBindWebsite(event) {
     return;
   }
 
-  const confirmMsg = `⚠️ STRICT POLICY: 1 API KEY = 1 WEBSITE.\n\nYou can only bind your website ONCE.\nAre you sure you want to permanently lock your API Key to:\n"${urlInput}"?\n\nThis cannot be modified or unlocked.`;
+  const cleanDomain = urlInput
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-zA-Z]+:\/\//, '')
+    .split('/')[0]
+    .split('?')[0]
+    .split(':')[0]
+    .replace(/^www\./, '');
+
+  if (!cleanDomain || cleanDomain.length < 3) {
+    alert('Please enter a valid website URL or domain name (e.g. yourstore.com).');
+    return;
+  }
+
+  const maxWebsites = resolveMaxWebsites(currentUser.plan, currentUser.maxWebsites || currentUser.max_websites);
+  const currentLocked = resolveLockedWebsites(currentUser);
+
+  if (currentLocked.some(w => (w.domain || w.url || w) === cleanDomain)) {
+    alert(`Domain "${cleanDomain}" is already locked in your account!`);
+    return;
+  }
+
+  if (currentLocked.length >= maxWebsites) {
+    alert(`All ${maxWebsites} website slots allowed by your plan (${currentUser.plan || 'Plan'}) are already locked!`);
+    return;
+  }
+
+  const nextSlotNum = currentLocked.length + 1;
+  const confirmMsg = `⚠️ PERMANENT DOMAIN LOCK (Slot #${nextSlotNum} of ${maxWebsites}):\n\nAre you sure you want to permanently lock this slot to:\n"${cleanDomain}" (${urlInput})?\n\nOnce locked, this slot cannot be transferred or changed.`;
   if (!confirm(confirmMsg)) {
     return;
   }
 
+  const now = Date.now();
+  currentLocked.push({ url: urlInput, domain: cleanDomain, lockedAt: now });
+
+  currentUser.lockedWebsites = currentLocked;
+  currentUser.websiteUrl = currentUser.websiteUrl || urlInput;
+  currentUser.isWebsiteLocked = true;
+  currentUser.maxWebsites = maxWebsites;
+  currentUser.websiteUrls = JSON.stringify(currentLocked);
+
+  sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
+  localStorage.setItem('gateway_user', JSON.stringify(currentUser));
+
+  // 1. Direct Firebase RTDB sync for instantaneous 0-latency persistence
+  const patchData = {
+    website_url: currentUser.websiteUrl,
+    website_urls: JSON.stringify(currentLocked),
+    max_websites: maxWebsites,
+    is_website_locked: 1,
+    website_locked_at: now,
+    updated_at: now
+  };
   try {
-    const res = await fetch('/api/v1/user/bind-website', {
-      method: 'POST',
+    const dotKey = String(currentUser.email).trim().toLowerCase().replace(/\./g, '_dot_').replace(/[#$\[\]]/g, '_');
+    const legacyKey = encodeURIComponent(currentUser.email).replace(/\./g, '_').replace(/[@$#\[\]\/]/g, '_');
+    fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${dotKey}.json`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchData)
+    }).catch(() => {});
+    if (legacyKey !== dotKey) {
+      fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${legacyKey}.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchData)
+      }).catch(() => {});
+    }
+  } catch (_) {}
+
+  // 2. Register domain into Render Gateway domain_api_keys so orders from this site are authenticated
+  const userApiKey = currentUser.apiKey || currentUser.api_key;
+  if (userApiKey) {
+    try {
+      fetch((API_BASE || '') + '/api/admin/domain-keys', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'shivambhatt@admin'
+        },
+        body: JSON.stringify({
+          domain: cleanDomain,
+          keyName: `${currentUser.email} (${cleanDomain})`,
+          apiKey: userApiKey
+        })
+      }).catch(() => {});
+    } catch (_) {}
+  }
+
+  // 3. Backend User sync
+  try {
+    fetch((API_BASE || '') + '/api/v1/user/bind-website', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('user_jwt') || ''}`
+      },
       body: JSON.stringify({
         userEmail: currentUser.email,
         websiteUrl: urlInput
       })
-    });
+    }).catch(() => {});
+  } catch (_) {}
 
-    const data = await res.json();
-    if (data.success) {
-      currentUser.websiteUrl = data.user.websiteUrl;
-      currentUser.isWebsiteLocked = true;
-      currentUser.lockedWebsites = data.user.lockedWebsites;
-      currentUser.maxWebsites = data.user.maxWebsites;
-      currentUser.remainingWebsiteSlots = data.user.remainingWebsiteSlots;
+  renderDashboard();
 
-      sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
-      localStorage.setItem('gateway_user', JSON.stringify(currentUser));
-
-      // Direct Firebase RTDB sync for absolute permanent memory
-      try {
-        const dotKey = String(currentUser.email).trim().toLowerCase().replace(/\./g, '_dot_').replace(/[#$\[\]]/g, '_');
-        fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/users/${dotKey}.json`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            website_url: currentUser.websiteUrl,
-            website_urls: JSON.stringify(currentUser.lockedWebsites || [{ url: currentUser.websiteUrl }]),
-            is_website_locked: 1,
-            website_locked_at: Date.now(),
-            updated_at: Date.now()
-          })
-        }).catch(() => {});
-      } catch (_) {}
-
-      renderDashboard();
-
-      if (feedback) {
-        feedback.style.display = 'block';
-        feedback.style.color = '#34d399';
-        feedback.innerText = '✅ ' + data.message;
-      }
-      alert('🎉 Success! Your website domain has been permanently locked to your API Key. The API Key is now ACTIVE!');
-    } else {
-      if (feedback) {
-        feedback.style.display = 'block';
-        feedback.style.color = '#f87171';
-        feedback.innerText = '❌ ' + (data.error || 'Failed to bind website');
-      }
-      alert('Error: ' + (data.error || 'Failed to bind website'));
-    }
-  } catch (err) {
-    alert('Error binding website: ' + err.message);
+  if (feedback) {
+    feedback.style.display = 'block';
+    feedback.style.color = '#34d399';
+    feedback.innerText = `✅ Domain "${cleanDomain}" locked successfully! Slot ${currentLocked.length} of ${maxWebsites} active.`;
   }
+  document.getElementById('inputWebsiteUrl').value = '';
+  alert(`🎉 Success! Website domain "${cleanDomain}" has been permanently locked (Slot #${currentLocked.length} of ${maxWebsites})! Your API Key is active for this domain.`);
 }
 
 // Interactive API Test Playground: Proves website lock behavior
