@@ -1,10 +1,10 @@
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { OtpManager } from './otpManager.js';
 import { EmailSender } from './emailSender.js';
 import { getUserByEmail, query, generateApiKey } from '../../db/database.js';
 import { CloudSyncService } from '../../src/services/cloudSync.service.js';
-
-const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';
-const ADMIN_MASTER_PASS = 'shivambhatt@admin';
+import { config } from '../../config.js';
 
 export const OtpController = {
   /**
@@ -20,6 +20,15 @@ export const OtpController = {
         return res.status(400).json({ success: false, error: 'Valid email address is required' });
       }
 
+      // Enforce 60s cooldown rate limiting between OTP requests
+      const cooldownCheck = OtpManager.checkCooldown(normalizedEmail, purpose, 60);
+      if (cooldownCheck.inCooldown) {
+        return res.status(429).json({
+          success: false,
+          error: `Please wait ${cooldownCheck.remainingSeconds} seconds before requesting a new OTP.`
+        });
+      }
+
       // If forgot password, check if user exists in database or CloudSync
       if (purpose === 'FORGOT_PASSWORD') {
         let user = await getUserByEmail(normalizedEmail);
@@ -31,7 +40,7 @@ export const OtpController = {
         if (!user) {
           return res.status(404).json({ 
             success: false, 
-            error: '❌ No registered merchant account found with this email. Please check your email or click "Create New Account".' 
+            error: 'No registered merchant account found with this email. Please check your email or click "Create New Account".' 
           });
         }
       }
@@ -47,17 +56,13 @@ export const OtpController = {
         if (existingUser && existingUser.password_hash) {
           return res.status(409).json({ 
             success: false, 
-            error: '⚠️ This email is already registered. Please Sign In or use "Forgot Password".' 
+            error: 'This email is already registered. Please Sign In or use "Forgot Password".' 
           });
         }
       }
 
       // Generate 6-Digit OTP
       const { otp, expirySeconds } = OtpManager.generateOtp(normalizedEmail, purpose);
-      console.log(`\n======================================================`);
-      console.log(`🔐 [AuthOtp] 6-Digit OTP for ${normalizedEmail} (${purpose}): [ ${otp} ]`);
-      console.log(`======================================================\n`);
-
 
       const title = purpose === 'FORGOT_PASSWORD' ? 'Password Reset Verification' : 'Email Verification Code';
       const actionText = purpose === 'FORGOT_PASSWORD' ? 'reset your ZeroFee UPI account password' : 'complete your secure merchant workspace registration on ZeroFee UPI';
@@ -91,20 +96,20 @@ export const OtpController = {
             <div style="font-size: 12px; color: #9a3412; font-weight: 600; margin-top: 6px;">Valid for 5 minutes</div>
           </div>
           <p style="font-size: 12.5px; color: #64748b; line-height: 1.5;">
-            ⚠️ If you did not request this verification code, please ignore this email. Never share this code with anyone.
+            Warning: If you did not request this verification code, please ignore this email. Never share this code with anyone.
           </p>
           <div class="footer">
-            <span>🛡️ 256-Bit SSL Encrypted Transaction Engine • ZeroFee UPI Gateway</span>
+            <span>256-Bit SSL Encrypted Transaction Engine - ZeroFee UPI Gateway</span>
           </div>
         </div>
       </body>
       </html>
       `;
 
-      // Dispatch email asynchronously so client never buffers/hangs on slow network handshakes
+      // Dispatch email asynchronously
       EmailSender.sendHtmlEmail({
         to: normalizedEmail,
-        subject: `🔐 ${otp} is your ZeroFee UPI verification code`,
+        subject: `${otp} is your ZeroFee UPI verification code`,
         htmlContent: html
       }).catch(err => {
         console.error(`[AuthOtp] Background email dispatch error for ${normalizedEmail}:`, err.message);
@@ -114,9 +119,7 @@ export const OtpController = {
         success: true,
         message: '6-digit OTP code sent successfully to your email inbox.',
         email: normalizedEmail,
-        expirySeconds,
-        // In local development, also include OTP in response for instant testing convenience
-        debugOtp: process.env.NODE_ENV === 'production' ? undefined : otp
+        expirySeconds
       });
     } catch (err) {
       console.error('[OtpController] Send OTP error:', err);
@@ -166,6 +169,16 @@ export const OtpController = {
         return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long' });
       }
 
+      // Strictly require verification token
+      if (!verificationToken) {
+        return res.status(400).json({ success: false, error: 'Email verification token is required to register.' });
+      }
+
+      const isTokenValid = OtpManager.validateVerificationToken(normalizedEmail, verificationToken, 'SIGNUP');
+      if (!isTokenValid) {
+        return res.status(400).json({ success: false, error: 'Invalid or expired verification token. Please verify OTP first.' });
+      }
+
       // Check if already registered with a password
       let user = await getUserByEmail(normalizedEmail);
       if (!user) {
@@ -174,22 +187,26 @@ export const OtpController = {
         } catch (_) {}
       }
 
-      if (user && user.password_hash && !verificationToken) {
+      if (user && user.password_hash) {
         return res.status(409).json({
           success: false,
-          error: '⚠️ This email is already registered. Please Sign In with your password.'
+          error: 'This email is already registered. Please Sign In with your password.'
         });
       }
 
       const now = Date.now();
-      const isAdmin = normalizedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase();
+      const adminEmail = (config.adminEmail || process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+      const isAdmin = Boolean(adminEmail && normalizedEmail === adminEmail);
       const role = isAdmin ? 'admin' : 'user';
 
+      // Hash password using bcryptjs
+      const passwordHash = await bcrypt.hash(password, 10);
+
       if (user) {
-        // Update user's password, name, phone
+        // Update user's password hash, name, phone
         await query.run(
           `UPDATE users SET name = ?, phone = ?, password_hash = ?, updated_at = ? WHERE lower(email) = ?`,
-          [name || user.name || 'User', phone || user.phone || '', password, now, normalizedEmail]
+          [name || user.name || 'User', phone || user.phone || '', passwordHash, now, normalizedEmail]
         );
         user = await getUserByEmail(normalizedEmail);
       } else {
@@ -197,19 +214,27 @@ export const OtpController = {
         await query.run(
           `INSERT INTO users (email, name, phone, password_hash, photo_url, role, plan, qr_credits, api_key, gmail_connected, created_at, updated_at)
            VALUES (?, ?, ?, ?, '', ?, 'NONE', 0, ?, 0, ?, ?)`,
-          [normalizedEmail, name || 'User', phone || '', password, role, initialApiKey, now, now]
+          [normalizedEmail, name || 'User', phone || '', passwordHash, role, initialApiKey, now, now]
         );
         user = await getUserByEmail(normalizedEmail);
       }
 
-      // Sync to CloudSync
+      // Sync to CloudSync (excluding plain password)
       if (user) {
         CloudSyncService.saveUser(user).catch(() => {});
       }
 
+      // Generate secure JWT token
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        config.jwtSecret,
+        { expiresIn: '7d' }
+      );
+
       return res.json({
         success: true,
         message: 'Account registered and activated successfully!',
+        token,
         user: {
           id: user.id,
           email: user.email,
@@ -240,20 +265,6 @@ export const OtpController = {
         return res.status(400).json({ success: false, error: 'Email and password are required' });
       }
 
-      // Check SuperAdmin
-      if (normalizedEmail === REQUIRED_ADMIN_EMAIL.toLowerCase() && password === ADMIN_MASTER_PASS) {
-        return res.json({
-          success: true,
-          role: 'admin',
-          isSuperAdmin: true,
-          user: {
-            email: normalizedEmail,
-            name: 'Super Admin',
-            role: 'admin'
-          }
-        });
-      }
-
       let user = await getUserByEmail(normalizedEmail);
       if (!user) {
         try {
@@ -275,15 +286,37 @@ export const OtpController = {
         });
       }
 
-      if (user.password_hash !== password) {
+      // Verify password via bcryptjs (with backward-compatible plaintext auto-upgrade)
+      let isMatch = false;
+      const isBcrypt = user.password_hash.startsWith('$2a$') || user.password_hash.startsWith('$2b$');
+      if (isBcrypt) {
+        isMatch = await bcrypt.compare(password, user.password_hash);
+      } else {
+        // Legacy plaintext check -> upgrade to bcrypt
+        if (user.password_hash === password) {
+          isMatch = true;
+          const upgradedHash = await bcrypt.hash(password, 10);
+          await query.run('UPDATE users SET password_hash = ? WHERE id = ?', [upgradedHash, user.id]);
+        }
+      }
+
+      if (!isMatch) {
         return res.status(401).json({
           success: false,
           error: 'Invalid password. Please check your password or use "Forgot password".'
         });
       }
 
+      // Generate signed JWT token
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        config.jwtSecret,
+        { expiresIn: '7d' }
+      );
+
       return res.json({
         success: true,
+        token,
         user: {
           id: user.id,
           email: user.email,
@@ -323,11 +356,12 @@ export const OtpController = {
         return res.status(401).json({ success: false, error: 'Invalid or expired reset token. Please request a new OTP.' });
       }
 
-      // Update password in database & CloudSync
+      // Hash new password using bcryptjs
+      const passwordHash = await bcrypt.hash(newPassword, 10);
       const now = Date.now();
       await query.run(
         `UPDATE users SET password_hash = ?, updated_at = ? WHERE lower(email) = ?`,
-        [newPassword, now, normalizedEmail]
+        [passwordHash, now, normalizedEmail]
       );
 
       const updated = await getUserByEmail(normalizedEmail);

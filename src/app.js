@@ -57,9 +57,7 @@ export function createApp(io = null) {
       if (isAllowed) {
         callback(null, true);
       } else {
-        // Allow the request through for public API integration (protected by API Key)
-        // rather than breaking with a fatal browser network error
-        callback(null, true);
+        callback(null, false);
       }
     },
     credentials: true,

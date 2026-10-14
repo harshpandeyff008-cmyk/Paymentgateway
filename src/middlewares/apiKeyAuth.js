@@ -62,9 +62,9 @@ export async function apiKeyAuth(req, res, next) {
     });
   }
 
-  // 1. Check against global fallback keys
+  // 1. Check against global configured admin/gateway API key
   const expectedKey = config.auth?.apiKey;
-  const isGlobalMatch = clientKey === expectedKey || clientKey === 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0';
+  const isGlobalMatch = Boolean(expectedKey && clientKey === expectedKey);
 
   // 2. Check in domain_api_keys table or users table
   const domainKeyRecord = await findDomainApiKey(clientKey);
@@ -122,12 +122,8 @@ export async function apiKeyAuth(req, res, next) {
     }
 
     const hostDomain = normalizeDomain(req.headers.host || '');
-    const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || 
-                              originDomain.includes('paypendicular') || 
-                              originDomain.includes('upigateway') ||
-                              originDomain.includes('localhost') ||
-                              originDomain.includes('127.0.0.1') ||
-                              originDomain === hostDomain;
+    const isAdminKey = Boolean(config.adminSecret && req.headers['x-admin-key'] === config.adminSecret);
+    const isAdminConsoleTest = isAdminKey || (originDomain && originDomain === hostDomain);
 
     // If website is not locked yet:
     // If request comes from an actual merchant store domain, auto-bind/lock it!
@@ -173,14 +169,8 @@ export async function apiKeyAuth(req, res, next) {
 
     // Check if the request is coming from the gateway's own Admin Console test or has admin test header
     const hostDomain = normalizeDomain(req.headers.host || '');
-    const isAdminConsoleTest = req.headers['x-admin-test'] === 'true' || 
-                              originDomain.includes('paypendicular') || 
-                              originDomain.includes('upigateway') || 
-                              originDomain.includes('web.app') || 
-                              originDomain.includes('firebaseapp.com') || 
-                              originDomain.includes('localhost') || 
-                              originDomain.includes('127.0.0.1') || 
-                              originDomain === hostDomain;
+    const isAdminKey = Boolean(config.adminSecret && req.headers['x-admin-key'] === config.adminSecret);
+    const isAdminConsoleTest = isAdminKey || (originDomain && originDomain === hostDomain);
 
     // If key is bound to a specific domain (not wildcard '*') and request has origin/referer
     if (allowedDomain && allowedDomain !== '*' && originDomain && !isAdminConsoleTest) {

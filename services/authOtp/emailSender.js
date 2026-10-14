@@ -2,9 +2,9 @@ import nodemailer from 'nodemailer';
 import { config } from '../../config.js';
 import logger from '../../src/utils/logger.js';
 
-// Credentials
-const gmailUser = config.imap?.user || 'shaahtasham9@gmail.com';
-const gmailPass = config.imap?.pass || 'zfeoyxxoxrmnmbcr';
+// Credentials from environment / config
+const gmailUser = config.imap?.user || process.env.IMAP_USER || '';
+const gmailPass = config.imap?.pass || process.env.IMAP_PASS || '';
 
 // API Keys / Webhooks for Cloud Deployment (Render Free tier blocks SMTP 465/587)
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
@@ -13,8 +13,8 @@ const GMAIL_WEBHOOK_URL = process.env.GMAIL_WEBHOOK_URL || '';
 
 // Nodemailer transporter (works on localhost/VPS)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '465', 10),
   secure: true,
   auth: {
     user: gmailUser,

@@ -108,10 +108,11 @@ export async function checkGoogleBankingAlerts(accessToken, targetEmail, isMerch
             await processIncomingPayment({
               amount: paymentData.amount,
               utr: paymentData.utr,
+              orderCode: paymentData.gatewayOrderCode || null,
               sender: paymentData.sender || fromAddress,
               receivedAt: paymentData.receivedAt,
               source: isMerchant ? 'MERCHANT_GOOGLE_LINK' : 'ADMIN_GOOGLE_LINK',
-              rawSnippet: `[Google Link: ${targetEmail}] ${subject} - ${paymentData.sender || fromAddress}`,
+              rawSnippet: bodyText || `[Google Link: ${targetEmail}] ${subject} - ${paymentData.sender || fromAddress}`,
               merchantEmail: isMerchant ? targetEmail : null
             });
             // Keep the watcher on only while another pending order remains.

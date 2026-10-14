@@ -10,7 +10,7 @@ export function buildUpiUri({ vpa, merchantName, amount, orderCode, note }) {
   const cleanVpa = (vpa || 'ffdealsbyjena@fam').trim();
   const cleanName = encodeURIComponent((merchantName || 'Merchant').trim());
   const cleanAmount = Number(amount || 0).toFixed(2);
-  const cleanNote = encodeURIComponent(note || (orderCode ? `Pay ${orderCode}` : 'UPI Payment'));
+  const cleanNote = encodeURIComponent(note || orderCode || 'UPI Payment');
   // tr= transaction reference helps UPI apps track + reconcile payments
   const txnRef = encodeURIComponent(orderCode || `TXN${Date.now()}`);
 

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { config } from '../config.js';
 import { query, getUserByEmail, updateUserGoogleBankingLink } from '../db/database.js';
 import { CloudSyncService } from '../src/services/cloudSync.service.js';
@@ -16,10 +17,14 @@ export const GoogleOAuthService = {
       upiVpa: (upiVpa || '').trim(),
       businessName: (businessName || '').trim(),
       upiProvider: (upiProvider || 'AUTO').trim(),
-      origin: origin || 'https://upigateway.web.app'
+      origin: origin || 'https://upigateway.web.app',
+      ts: Date.now()
     });
 
-    const state = Buffer.from(statePayload).toString('base64url');
+    const b64Payload = Buffer.from(statePayload).toString('base64url');
+    const secret = config.jwtSecret || config.adminSecret || 'oauth_state_secret';
+    const sig = crypto.createHmac('sha256', secret).update(b64Payload).digest('hex');
+    const state = `${b64Payload}.${sig}`;
 
     const params = new URLSearchParams({
       client_id: config.googleOAuth.clientId,

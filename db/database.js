@@ -298,22 +298,22 @@ export async function initDatabase() {
     )
   `);
 
-  // Seed permanent default settings so they NEVER wipe out on reboot/hard-refresh
+  // Seed non-sensitive default settings
   const defaultSettings = [
-    ['merchant_upi_vpa', 'ffdealsbyjena@fam'],
-    ['merchant_name', 'ShivFFStore'],
-    ['order_expiry_minutes', '5'],
-    ['imap_enabled', 'true'],
-    ['imap_user', 'shaahtasham9@gmail.com'],
-    ['imap_pass', 'zfeoyxxoxrmnmbcr'],
-    ['imap_filter', 'fampay,famapp,fam'],
-    ['api_key', 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0'],
-    ['admin_master_key', 'shivambhatt@admin'],
-    ['require_api_key', 'true'],
+    ['merchant_name', process.env.MERCHANT_NAME || 'Personal Gateway'],
+    ['order_expiry_minutes', process.env.ORDER_EXPIRY_MINUTES || '5'],
+    ['imap_enabled', process.env.IMAP_ENABLED === 'true' ? 'true' : 'false'],
     ['unique_amount_enabled', 'true'],
     ['unique_amount_window_minutes', '20'],
-    ['allowed_origins', 'https://paypendicular.web.app,https://paypendicular.firebaseapp.com,https://dealsbyshiv.web.app,https://payment-gateway-ydl1.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000']
+    ['require_api_key', process.env.REQUIRE_API_KEY !== 'false' ? 'true' : 'false']
   ];
+  if (process.env.MERCHANT_UPI_VPA) defaultSettings.push(['merchant_upi_vpa', process.env.MERCHANT_UPI_VPA]);
+  if (process.env.ADMIN_SECRET_KEY) defaultSettings.push(['admin_master_key', process.env.ADMIN_SECRET_KEY]);
+  if (process.env.API_KEY) defaultSettings.push(['api_key', process.env.API_KEY]);
+  if (process.env.IMAP_USER) defaultSettings.push(['imap_user', process.env.IMAP_USER]);
+  if (process.env.IMAP_PASS) defaultSettings.push(['imap_pass', process.env.IMAP_PASS]);
+  if (process.env.ALLOWED_ORIGINS) defaultSettings.push(['allowed_origins', process.env.ALLOWED_ORIGINS]);
+
   for (const [k, v] of defaultSettings) {
     try {
       await query.run('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', [k, v]);
@@ -332,29 +332,6 @@ export async function initDatabase() {
       last_used_at INTEGER
     )
   `);
-
-  // Seed default domain API keys if empty
-  try {
-    const existing = await query.all('SELECT id FROM domain_api_keys LIMIT 1');
-    if (existing.length === 0) {
-      const now = Date.now();
-      await query.run(
-        `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at)
-         VALUES (?, ?, ?, 'ACTIVE', ?)`,
-        ['Live Storefront (DealsByShiv)', 'dealsbyshiv.web.app', 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0', now]
-      );
-      await query.run(
-        `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at)
-         VALUES (?, ?, ?, 'ACTIVE', ?)`,
-        ['andriodTool', 'licence-management-4793d.web.app', 'pg_live_c0e7a1772532d02923f7a5213d25a6947ba6', now]
-      );
-      await query.run(
-        `INSERT INTO domain_api_keys (key_name, domain, api_key, status, created_at)
-         VALUES (?, ?, ?, 'ACTIVE', ?)`,
-        ['Universal Fallback (*)', '*', 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0', now]
-      );
-    }
-  } catch (_) {}
 
   // 5. API & Activity Notes table
   await query.run(`
@@ -463,7 +440,8 @@ export async function syncUser({ email, name = 'User', photoUrl = '' }) {
   if (!email) return null;
   const normalizedEmail = email.trim().toLowerCase();
   const now = Date.now();
-  const isAdmin = normalizedEmail === 'hapa1929@gmail.com';
+  const adminEmail = (config.adminEmail || process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+  const isAdmin = Boolean(adminEmail && normalizedEmail === adminEmail);
   const role = isAdmin ? 'admin' : 'user';
 
   let user = await query.get('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
@@ -876,11 +854,21 @@ export async function deductUserCredit(apiKey) {
   return { success: false, reason: 'PLAN_REQUIRED' };
 }
 
+// In-memory reservation map to prevent race conditions during concurrent QR generation
+const inFlightReservations = new Map();
+
+export function releaseInFlightPayableAmount(amount) {
+  if (amount !== undefined && amount !== null) {
+    const key = parseFloat(Number(amount).toFixed(2));
+    inFlightReservations.delete(key);
+  }
+}
+
 /**
  * Micro-Fractional Dynamic Paise Offset (Unique Amount Assignment)
  * Resolves payment collisions when multiple users generate QR for the same base amount
- * within an active time window (e.g. 20 minutes).
- * Example: Base 500 -> 500.00, 500.01, 500.02, 500.03...
+ * within an active time window (e.g. 5-20 minutes).
+ * Example: Base 500 -> 500.01, 500.02, 500.03...
  */
 export async function getUniquePayableAmount(baseAmount, windowMinutes = 20) {
   const numBase = parseFloat(baseAmount);
@@ -894,8 +882,12 @@ export async function getUniquePayableAmount(baseAmount, windowMinutes = 20) {
 
     const now = Date.now();
 
+    // Clean up expired in-flight reservations (older than 60 seconds)
+    for (const [key, exp] of inFlightReservations.entries()) {
+      if (now > exp) inFlightReservations.delete(key);
+    }
+
     // Query active pending orders that have not expired yet for this base amount range
-    // Ensures unique paise offset stays reserved for the entire duration (up to 24 hours)
     const activeOrders = await query.all(
       `SELECT amount FROM orders 
        WHERE status = 'PENDING' 
@@ -907,10 +899,16 @@ export async function getUniquePayableAmount(baseAmount, windowMinutes = 20) {
 
     const inUseAmounts = new Set(activeOrders.map(o => parseFloat(Number(o.amount).toFixed(2))));
 
+    // Also include currently in-flight reservations
+    for (const key of inFlightReservations.keys()) {
+      inUseAmounts.add(key);
+    }
+
     // Assign lowest available unique paise offset (+0.01, +0.02 ... +0.99)
     for (let offset = 1; offset <= 99; offset++) {
       const candidate = parseFloat((numBase + (offset * 0.01)).toFixed(2));
       if (!inUseAmounts.has(candidate)) {
+        inFlightReservations.set(candidate, now + 60000); // Reserve for 60s
         return candidate;
       }
     }
@@ -918,12 +916,15 @@ export async function getUniquePayableAmount(baseAmount, windowMinutes = 20) {
     // Try +0.00 if free
     const baseCandidate = parseFloat(numBase.toFixed(2));
     if (!inUseAmounts.has(baseCandidate)) {
+      inFlightReservations.set(baseCandidate, now + 60000);
       return baseCandidate;
     }
 
     // Fallback if all 100 offsets are occupied: pick random offset between 1 and 99
     const randomOffset = Math.floor(Math.random() * 99) + 1;
-    return parseFloat((numBase + (randomOffset * 0.01)).toFixed(2));
+    const finalCandidate = parseFloat((numBase + (randomOffset * 0.01)).toFixed(2));
+    inFlightReservations.set(finalCandidate, now + 60000);
+    return finalCandidate;
   } catch (err) {
     console.error('[DB] Error calculating unique amount:', err.message);
     return parseFloat(numBase.toFixed(2));
@@ -1080,6 +1081,7 @@ export default {
   getAllUsers,
   deductUserCredit,
   getUniquePayableAmount,
+  releaseInFlightPayableAmount,
   listCoupons,
   createCoupon,
   getCouponByCode,

@@ -68,23 +68,28 @@ async function runIntegrationTest() {
   }
 
   // 5. Test Manual UTR Claim Fallback
-  // Create another order for ₹120.00
-  const orderCode2 = `ORD-MANUAL-${Date.now().toString().slice(-4)}`;
-  await query.run(
-    `INSERT INTO orders (order_code, amount, customer_name, status, created_at, expires_at)
-     VALUES (?, 120.00, 'Manual Test', 'PENDING', ?, ?)`,
-    [orderCode2, now, expiresAt]
-  );
-
+  // Simulate an unmatched payment arriving first (e.g. before user completes checkout)
+  const manualAmount = 187.65;
   const manualUtr = `MANUAL-UTR-${Date.now()}`;
-  // Payment arrived as unmatched first
-  await processIncomingPayment({
-    amount: 120.00,
+  const paymentTime = Date.now();
+
+  const unmatchedClaimPaymentResult = await processIncomingPayment({
+    amount: manualAmount,
     utr: manualUtr,
     sender: 'manual@upi',
-    receivedAt: now - 300000, // arrived slightly earlier or out of sync
+    receivedAt: paymentTime,
     source: 'TEST'
   });
+  console.log(`Unmatched payment recorded: ${unmatchedClaimPaymentResult.matched === false}`);
+
+  // Now user creates order for ₹187.65 within 5 minutes of that payment
+  const orderCode2 = `ORD-MANUAL-${Date.now().toString().slice(-4)}`;
+  const orderTime = paymentTime + 5000;
+  await query.run(
+    `INSERT INTO orders (order_code, amount, customer_name, status, created_at, expires_at)
+     VALUES (?, ?, 'Manual Test', 'PENDING', ?, ?)`,
+    [orderCode2, manualAmount, orderTime, orderTime + 300000]
+  );
 
   // Customer claims with UTR
   const claimResult = await claimOrderWithUtr(orderCode2, manualUtr);

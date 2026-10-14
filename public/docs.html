@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Developer Documentation &amp; API Reference | Bharat UPI Gateway</title>
+  <meta name="description" content="Official integration documentation for Bharat UPI Gateway. Create dynamic QR codes, receive instant webhooks, and verify payments in milliseconds.">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0f1d;
+      --card-bg: #111827;
+      --border: #1f2937;
+      --text: #f9fafb;
+      --text-muted: #9ca3af;
+      --saffron: #ff9933;
+      --green: #10b981;
+      --blue: #38bdf8;
+      --accent: #6366f1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    header {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #fff;
+      font-weight: 800;
+      font-size: 18px;
+    }
+    .logo-group img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+    }
+    .nav-links {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-link:hover { color: #fff; }
+    .btn-dashboard {
+      background: linear-gradient(135deg, #ff9933, #ea580c);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    main {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 24px;
+      flex: 1;
+      width: 100%;
+    }
+    .hero {
+      margin-bottom: 40px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      margin-bottom: 12px;
+    }
+    h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+    .subhead { color: var(--text-muted); font-size: 16px; max-width: 650px; }
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 32px;
+    }
+    h2 { font-size: 20px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    p { color: var(--text-muted); margin-bottom: 14px; font-size: 14px; }
+    .endpoint-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--blue);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .method-post { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .method-get { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    pre {
+      background: #060913;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: #e2e8f0;
+      overflow-x: auto;
+      margin-top: 10px;
+      margin-bottom: 14px;
+    }
+    code { font-family: 'JetBrains Mono', monospace; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+    th { background: #0f172a; color: #fff; font-weight: 600; }
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/" class="logo-group">
+      <img src="/favicon.png" alt="Logo">
+      <span>Bharat UPI Gateway</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/docs" class="nav-link" style="color: #fff; font-weight: 700;">API Docs</a>
+      <a href="/login.html" class="nav-link">Merchant Portal</a>
+      <a href="/user.html" class="btn-dashboard">Dashboard</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div class="badge">v1.2 REST API</div>
+      <h1>Developer API Reference</h1>
+      <p class="subhead">Integrate direct NPCI Bharat UPI payments into your eCommerce store, SaaS, or custom website in minutes with automated email and push reconciliation.</p>
+    </div>
+
+    <!-- Authentication Section -->
+    <div class="section-card">
+      <h2>1. Authentication</h2>
+      <p>All merchant API requests require your API Key passed in the <code>x-api-key</code> request header or <code>Authorization: Bearer &lt;api_key&gt;</code>.</p>
+      <pre><code>// Example Header
+x-api-key: pg_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></pre>
+      <p>You can find and regenerate your Production API Key in your <a href="/user.html" style="color: var(--blue);">Merchant Dashboard</a>.</p>
+    </div>
+
+    <!-- Create Order Section -->
+    <div class="section-card">
+      <h2>2. Create Payment Order</h2>
+      <p>Initiates a dynamic UPI payment session. Generates a collision-safe payable amount and QR code.</p>
+      <div style="margin: 10px 0;">
+        <span class="endpoint-badge method-post">POST</span>
+        <code style="margin-left: 8px;">/api/v1/orders</code>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>amount</code></td>
+            <td>Number</td>
+            <td>Yes</td>
+            <td>Amount in INR (e.g. 500.00).</td>
+          </tr>
+          <tr>
+            <td><code>customerName</code></td>
+            <td>String</td>
+            <td>No</td>
+            <td>Name of the customer.</td>
+          </tr>
+          <tr>
+            <td><code>customerPhone</code></td>
+            <td>String</td>
+            <td>No</td>
+            <td>10-digit mobile number.</td>
+          </tr>
+          <tr>
+            <td><code>webhookUrl</code></td>
+            <td>String</td>
+            <td>No</td>
+            <td>HTTPS webhook callback URL for payment notifications.</td>
+          </tr>
+          <tr>
+            <td><code>expiryMinutes</code></td>
+            <td>Number</td>
+            <td>No</td>
+            <td>Order validity window (default 20, max 1440).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p><b>Example Request:</b></p>
+      <pre><code>curl -X POST https://yourgateway.com/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: pg_live_your_api_key_here" \
+  -d '{
+    "amount": 499.00,
+    "customerName": "Rahul Verma",
+    "customerPhone": "9876543210",
+    "webhookUrl": "https://myshop.com/api/payment-webhook"
+  }'</code></pre>
+
+      <p><b>Example Response:</b></p>
+      <pre><code>{
+  "success": true,
+  "order": {
+    "orderCode": "ORD-AB12CD",
+    "amount": 499.02,
+    "baseAmount": 499.00,
+    "status": "PENDING",
+    "checkoutUrl": "/checkout/ORD-AB12CD",
+    "fullCheckoutUrl": "https://yourgateway.com/checkout/ORD-AB12CD",
+    "upiUri": "upi://pay?pa=merchant@upi&pn=Store&am=499.02&tr=ORD-AB12CD",
+    "qrDataUrl": "data:image/png;base64,iVBORw0KGgo...",
+    "expiresAt": 1728984000000
+  }
+}</code></pre>
+    </div>
+
+    <!-- Check Status Section -->
+    <div class="section-card">
+      <h2>3. Check Order Status</h2>
+      <p>Poll or query order status in real time.</p>
+      <div style="margin: 10px 0;">
+        <span class="endpoint-badge method-get">GET</span>
+        <code style="margin-left: 8px;">/api/v1/orders/:orderCode</code>
+      </div>
+      <pre><code>curl https://yourgateway.com/api/v1/orders/ORD-AB12CD</code></pre>
+      <pre><code>{
+  "success": true,
+  "order": {
+    "orderCode": "ORD-AB12CD",
+    "status": "PAID",
+    "amount": 499.02,
+    "utr": "428719284910",
+    "paidAt": 1728983500000,
+    "sender": "Rahul Verma"
+  }
+}</code></pre>
+    </div>
+
+    <!-- Webhook Section -->
+    <div class="section-card">
+      <h2>4. Webhook Verification &amp; Security</h2>
+      <p>When a payment is matched and confirmed, the gateway sends an HTTP POST request to your <code>webhookUrl</code> signed with HMAC-SHA256.</p>
+      <pre><code>// Signature Header
+X-Gateway-Signature: sha256=&lt;hmac_sha256_hash&gt;
+
+// Webhook Payload
+{
+  "event": "payment.success",
+  "timestamp": 1728983505000,
+  "data": {
+    "orderCode": "ORD-AB12CD",
+    "amount": 499.02,
+    "status": "PAID",
+    "utr": "428719284910",
+    "sender": "Rahul Verma",
+    "paidAt": 1728983500000
+  }
+}</code></pre>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Bharat UPI Gateway. All rights reserved. Direct Bank Settlement &bull; 0% Platform Fee.</p>
+  </footer>
+</body>
+</html>

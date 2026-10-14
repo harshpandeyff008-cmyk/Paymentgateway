@@ -23,7 +23,7 @@ Track Payments & Settlements on the go!
 Download Paytm Business App`,
     expectedAmount: 900,
     expectedUtr: 'T2609141307521577368395',
-    expectedSender: 'HARSH PANDEY',
+    expectedSender: 'BHIM UPI',
     expectedApp: 'Paytm Business'
   },
   {

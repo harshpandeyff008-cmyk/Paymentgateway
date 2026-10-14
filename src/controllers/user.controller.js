@@ -24,6 +24,8 @@ import { syncPaymentMonitoring } from '../../services/imapListener.js';
 import { CloudSyncService } from '../services/cloudSync.service.js';
 import { GoogleOAuthService } from '../../services/googleOAuth.service.js';
 import { ImapFlow } from 'imapflow';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 export const PLANS = {
   // 1-WEBSITE
@@ -258,8 +260,15 @@ export const UserController = {
       const maxWebsites = user.max_websites || 1;
       const remainingSlots = Math.max(0, maxWebsites - lockedWebsites.length);
 
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        config.jwtSecret,
+        { expiresIn: '7d' }
+      );
+
       return res.json({
         success: true,
+        token,
         user: {
           id: user.id,
           email: user.email,
@@ -299,12 +308,13 @@ export const UserController = {
     }
   },
 
-  // 3. Get User Profile & Dashboard State
+  // 3. Get User Profile & Dashboard State (IDOR Protected: Uses verified JWT identity)
   async getProfile(req, res) {
     try {
-      const email = req.query.email || req.headers['x-user-email'];
+      const isAdm = req.user?.role === 'admin';
+      const email = isAdm ? (req.query.email || req.user?.email) : req.user?.email;
       if (!email) {
-        return res.status(400).json({ success: false, error: 'Email parameter or header is required' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
       }
 
       const user = await getUserByEmail(email);
@@ -367,9 +377,10 @@ export const UserController = {
   // 3.1 Get User Orders for Payment Tracking Table (EXCLUDES own subscription plan purchases)
   async getUserOrders(req, res) {
     try {
-      const email = req.query.email || req.headers['x-user-email'];
+      const isAdm = req.user?.role === 'admin';
+      const email = isAdm ? (req.query.email || req.user?.email) : req.user?.email;
       if (!email) {
-        return res.status(400).json({ success: false, error: 'User email is required' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
       }
       const cleanEmail = String(email).toLowerCase().trim();
       const status = req.query.status || 'ALL';
@@ -424,9 +435,10 @@ export const UserController = {
   // 3.2 Get User Subscription Invoices (only PLAN-... orders)
   async getUserSubscriptionInvoices(req, res) {
     try {
-      const email = req.query.email || req.headers['x-user-email'];
+      const isAdm = req.user?.role === 'admin';
+      const email = isAdm ? (req.query.email || req.user?.email) : req.user?.email;
       if (!email) {
-        return res.status(400).json({ success: false, error: 'User email is required' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
       }
       const invoices = await query.all(
         'SELECT * FROM orders WHERE user_email = ? AND (plan_id IS NOT NULL OR order_code LIKE "PLAN-%") ORDER BY created_at DESC, id DESC',
@@ -601,7 +613,8 @@ export const UserController = {
       };
       CloudSyncService.saveOrder(pendingOrderObj).catch(() => {});
 
-      await syncPaymentMonitoring(req.io);
+      // Start/sync payment monitor asynchronously in background (non-blocking)
+      syncPaymentMonitoring(req.io).catch(err => console.warn('[Payment Monitoring] Sync notice:', err.message));
 
       // Mark coupon as used after order is created
       if (couponApplied) {
@@ -763,21 +776,35 @@ export const UserController = {
     let upiVpa = '';
     let businessName = '';
     let upiProvider = 'AUTO';
+    let isValidState = false;
 
-    if (state) {
+    if (state && state.includes('.')) {
       try {
-        const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8'));
-        userEmail = decoded.userEmail || '';
-        upiVpa = decoded.upiVpa || '';
-        businessName = decoded.businessName || '';
-        upiProvider = decoded.upiProvider || 'AUTO';
-        if (decoded.origin) targetOrigin = decoded.origin;
+        const [b64Payload, receivedSig] = state.split('.');
+        const secret = config.jwtSecret || config.adminSecret || 'oauth_state_secret';
+        const expectedSig = crypto.createHmac('sha256', secret).update(b64Payload).digest('hex');
+        if (receivedSig && expectedSig && receivedSig.length === expectedSig.length && crypto.timingSafeEqual(Buffer.from(receivedSig), Buffer.from(expectedSig))) {
+          const decoded = JSON.parse(Buffer.from(b64Payload, 'base64url').toString('utf-8'));
+          if (decoded.ts && (Date.now() - decoded.ts) <= 15 * 60 * 1000) {
+            userEmail = decoded.userEmail || '';
+            upiVpa = decoded.upiVpa || '';
+            businessName = decoded.businessName || '';
+            upiProvider = decoded.upiProvider || 'AUTO';
+            if (decoded.origin) {
+              const o = decoded.origin.toLowerCase();
+              if (o.includes('upigateway') || o.includes('web.app') || o.includes('firebaseapp.com') || o.includes('localhost') || o.includes('127.0.0.1')) {
+                targetOrigin = decoded.origin;
+              }
+            }
+            isValidState = true;
+          }
+        }
       } catch (_) {}
     }
 
-    if (error || !code) {
-      console.warn('[UserController] Google OAuth callback error or rejected:', error);
-      return res.redirect(`${targetOrigin}/user.html?google_error=${encodeURIComponent(error || 'Authorization rejected')}`);
+    if (!isValidState || error || !code) {
+      console.warn('[UserController] Google OAuth state invalid, expired, or authorization rejected:', error);
+      return res.redirect(`${targetOrigin}/user.html?google_error=${encodeURIComponent(error || 'Invalid or expired authorization request')}`);
     }
 
     try {
@@ -818,10 +845,12 @@ export const UserController = {
   // 5.2 Link Banking IMAP (Manual Host/Port/App Password)
   async connectImapBanking(req, res) {
     try {
-      const { userEmail, upiVpa = '', businessName = '', upiProvider = 'AUTO', gmailEmail = '', gmailAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993 } = req.body;
+      const isAdm = req.user?.role === 'admin';
+      const userEmail = isAdm ? (req.body.userEmail || req.user?.email) : req.user?.email;
       if (!userEmail) {
-        return res.status(400).json({ success: false, error: 'userEmail is required' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
       }
+      const { upiVpa = '', businessName = '', upiProvider = 'AUTO', gmailEmail = '', gmailAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993 } = req.body;
 
       const user = await getUserByEmail(userEmail);
       if (!user) {
@@ -884,8 +913,9 @@ export const UserController = {
   // 5.3 Disconnect Banking Monitor
   async disconnectBanking(req, res) {
     try {
-      const { userEmail } = req.body;
-      if (!userEmail) return res.status(400).json({ success: false, error: 'userEmail is required' });
+      const isAdm = req.user?.role === 'admin';
+      const userEmail = isAdm ? (req.body.userEmail || req.user?.email) : req.user?.email;
+      if (!userEmail) return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
 
       const updated = await disconnectUserBanking(userEmail);
       return res.json({
@@ -905,8 +935,10 @@ export const UserController = {
   // 5.4 Test IMAP Connection for Merchant
   async testImapConnection(req, res) {
     try {
-      const { userEmail, gmailEmail = '', gmailAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993 } = req.body;
-      if (!userEmail) return res.status(400).json({ success: false, error: 'userEmail is required' });
+      const isAdm = req.user?.role === 'admin';
+      const userEmail = isAdm ? (req.body.userEmail || req.user?.email) : req.user?.email;
+      if (!userEmail) return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
+      const { gmailEmail = '', gmailAppPass = '', imapHost = 'imap.gmail.com', imapPort = 993 } = req.body;
 
       let email = (gmailEmail || '').trim();
       let pass = (gmailAppPass || '').trim().replace(/\s+/g, '');
@@ -967,8 +999,9 @@ export const UserController = {
   // 5.4 Live Payment Monitor Feed for Merchant
   async getMerchantPayments(req, res) {
     try {
-      const email = req.query.email || req.headers['x-user-email'];
-      if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
+      const isAdm = req.user?.role === 'admin';
+      const email = isAdm ? (req.query.email || req.user?.email) : req.user?.email;
+      if (!email) return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
       const payments = await getUserPayments(email, 50);
       return res.json({ success: true, payments });
     } catch (err) {
@@ -979,9 +1012,11 @@ export const UserController = {
   // 5.5 Bind and Lock Single Website Domain - GATED & ONE-TIME PERMANENT LOCK
   async bindWebsite(req, res) {
     try {
-      const { userEmail, websiteUrl } = req.body;
+      const isAdm = req.user?.role === 'admin';
+      const userEmail = isAdm ? (req.body.userEmail || req.user?.email) : req.user?.email;
+      const { websiteUrl } = req.body;
       if (!userEmail || !websiteUrl) {
-        return res.status(400).json({ success: false, error: 'userEmail and websiteUrl are required' });
+        return res.status(400).json({ success: false, error: 'websiteUrl is required' });
       }
 
       const user = await getUserByEmail(userEmail);
@@ -1034,9 +1069,10 @@ export const UserController = {
   // 6. Regenerate API Key - GATED: Requires Active Plan
   async regenerateApiKey(req, res) {
     try {
-      const { userEmail } = req.body;
+      const isAdm = req.user?.role === 'admin';
+      const userEmail = isAdm ? (req.body.userEmail || req.user?.email) : req.user?.email;
       if (!userEmail) {
-        return res.status(400).json({ success: false, error: 'userEmail is required' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
       }
 
       const user = await getUserByEmail(userEmail);
@@ -1113,15 +1149,16 @@ export const UserController = {
   // 5.6 Create Custom Payment Link with Configurable Expiry (Up to 24 Hours) - Gated by Membership
   async createPaymentLink(req, res) {
     try {
-      const { userEmail, amount, customerName = 'Customer', customerPhone = '', expiryMinutes = 60, note = '' } = req.body;
+      const isAdm = req.user?.role === 'admin';
+      const userEmail = isAdm ? (req.body.userEmail || req.user?.email) : req.user?.email;
+      if (!userEmail) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Valid authenticated session required' });
+      }
+      const { amount, customerName = 'Customer', customerPhone = '', expiryMinutes = 60, note = '' } = req.body;
       const parsedAmount = parseFloat(amount);
 
       if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
         return res.status(400).json({ success: false, error: 'Valid positive amount is required' });
-      }
-
-      if (!userEmail) {
-        return res.status(400).json({ success: false, error: 'User email is required' });
       }
 
       let user = await getUserByEmail(userEmail);
@@ -1185,7 +1222,8 @@ export const UserController = {
       };
       CloudSyncService.saveOrder(linkOrderObj).catch(() => {});
 
-      await syncPaymentMonitoring(req.io);
+      // Start/sync payment monitor asynchronously in background (non-blocking)
+      syncPaymentMonitoring(req.io).catch(err => console.warn('[Payment Monitoring] Sync notice:', err.message));
 
       const upiUri = buildUpiUri({
         vpa: merchantVpa,
@@ -1234,9 +1272,10 @@ export const UserController = {
 
   async saveCheckoutBranding(req, res) {
     try {
-      const email = req.userRecord?.email || req.body.email || req.body.userEmail || req.headers['x-user-email'] || req.query.email;
+      const isAdm = req.user?.role === 'admin';
+      const email = isAdm ? (req.body.email || req.user?.email) : req.user?.email;
       if (!email) {
-        return res.status(401).json({ success: false, error: 'Authentication required' });
+        return res.status(401).json({ success: false, error: 'Unauthorized: Authentication required' });
       }
 
       const { 

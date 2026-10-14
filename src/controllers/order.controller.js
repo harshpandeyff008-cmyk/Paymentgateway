@@ -1,8 +1,8 @@
 import { OrderModel } from '../models/order.model.js';
-import { claimOrderWithUtr, reconcileUnmatchedPayments } from '../services/matchingEngine.service.js';
+import { claimOrderWithUtr } from '../services/matchingEngine.service.js';
 import { buildUpiUri, streamQrPng, generateQrDataUrl } from '../utils/qr.util.js';
 import { config } from '../../config.js';
-import { logActivity, getUniquePayableAmount, getUserByEmail } from '../../db/database.js';
+import { logActivity, getUniquePayableAmount, releaseInFlightPayableAmount, getUserByEmail, query } from '../../db/database.js';
 import { syncPaymentMonitoring } from '../../services/imapListener.js';
 import { CloudSyncService } from '../services/cloudSync.service.js';
 
@@ -95,8 +95,8 @@ export const OrderController = {
         redirectUrl: finalRedirectUrl
       });
 
-      // The first active payment request starts the monitor on demand.
-      await syncPaymentMonitoring(req.io);
+      // Start/sync payment monitor asynchronously in background (non-blocking)
+      syncPaymentMonitoring(req.io).catch(err => console.warn('[Payment Monitoring] Sync notice:', err.message));
 
       // Use merchant's own registered UPI VPA if configured, otherwise fallback to platform defaults
       const merchantVpa = (req.userRecord?.upi_vpa || config.merchant.upiVpa || 'ffdealsbyjena@fam').trim();
@@ -108,9 +108,6 @@ export const OrderController = {
         amount: payableAmount,
         orderCode
       });
-
-      // Trigger immediate reconciliation in case customer already paid
-      if (typeof reconcileUnmatchedPayments === 'function') reconcileUnmatchedPayments().catch(() => {});
 
       const qrDataUrl = await generateQrDataUrl(upiUri);
 
@@ -170,6 +167,9 @@ export const OrderController = {
 
       return res.status(201).json({ success: true, order: orderData });
     } catch (err) {
+      if (typeof payableAmount !== 'undefined') {
+        releaseInFlightPayableAmount(payableAmount);
+      }
       next(err);
     }
   },
@@ -187,6 +187,36 @@ export const OrderController = {
       if (order.status === 'PENDING' && Date.now() > order.expires_at) {
         await OrderModel.markAsExpired(order.id);
         order.status = 'EXPIRED';
+      }
+
+      // Active Time-Window Payment Checker:
+      // Checks for payments received strictly within this order's active 5-minute validity window
+      if (order.status === 'PENDING') {
+        const matchingPayment = await query.get(
+          `SELECT * FROM payments 
+           WHERE is_matched = 0 
+             AND ROUND(amount, 2) = ROUND(?, 2) 
+             AND received_at >= ? - 60000 
+             AND received_at <= ? + 60000 
+           ORDER BY received_at ASC 
+           LIMIT 1`,
+          [order.amount, order.created_at, order.expires_at]
+        );
+
+        if (matchingPayment) {
+          const { processIncomingPayment } = await import('../../services/matchingEngine.js');
+          await processIncomingPayment({
+            amount: matchingPayment.amount,
+            utr: matchingPayment.utr,
+            orderCode: order.order_code,
+            sender: matchingPayment.sender,
+            receivedAt: new Date(matchingPayment.received_at),
+            source: matchingPayment.source || 'ACTIVE_CHECKER',
+            rawSnippet: matchingPayment.raw_snippet || ''
+          });
+          const reloaded = await OrderModel.findByCode(code);
+          if (reloaded) Object.assign(order, reloaded);
+        }
       }
 
       const isPlanOrder = !!order.plan_id || (order.order_code && order.order_code.startsWith('PLAN-'));

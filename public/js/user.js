@@ -23,6 +23,24 @@ window.fetch = async function (url, options = {}) {
       url = urlStr;
     }
   }
+
+  const token = localStorage.getItem('user_jwt') || localStorage.getItem('user_token') || (typeof currentUser !== 'undefined' ? currentUser?.token : null);
+  if (token && typeof urlStr === 'string' && urlStr.includes('/api/')) {
+    options = options || {};
+    options.headers = options.headers || {};
+    if (options.headers instanceof Headers) {
+      if (!options.headers.has('Authorization')) {
+        options.headers.set('Authorization', `Bearer ${token}`);
+      }
+    } else if (Array.isArray(options.headers)) {
+      options.headers.push(['Authorization', `Bearer ${token}`]);
+    } else {
+      if (!options.headers['Authorization'] && !options.headers['authorization']) {
+        options.headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+  }
+
   return originalFetch.call(this, url, options);
 };
 
@@ -253,13 +271,18 @@ async function onFirebaseUserAuthenticated(user) {
 
     const data = await res.json();
     if (data.success && data.user) {
+      if (data.token) {
+        localStorage.setItem('user_jwt', data.token);
+        sessionStorage.setItem('user_jwt', data.token);
+        data.user.token = data.token;
+      }
       currentUser = data.user;
       sessionStorage.setItem('gateway_user', JSON.stringify(currentUser));
       localStorage.setItem('gateway_user', JSON.stringify(currentUser));
       hideLoginOverlay();
 
       if (socket && socket.connected) {
-        socket.emit('join_user', currentUser.email);
+        socket.emit('join_user', { email: currentUser.email, token: data.token || localStorage.getItem('user_jwt') });
       }
 
       renderDashboard();

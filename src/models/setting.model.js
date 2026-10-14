@@ -32,21 +32,21 @@ export const SettingModel = {
       const envLines = [
         `PORT=${config.port || 3000}`,
         `NODE_ENV=${config.nodeEnv || 'development'}`,
-        `MERCHANT_UPI_VPA=${all.merchant_upi_vpa || config.merchant.upiVpa || 'ffdealsbyjena@fam'}`,
-        `MERCHANT_NAME=${all.merchant_name || config.merchant.name || 'ShivFFStore'}`,
+        `MERCHANT_UPI_VPA=${all.merchant_upi_vpa || config.merchant.upiVpa || ''}`,
+        `MERCHANT_NAME=${all.merchant_name || config.merchant.name || 'Personal Gateway'}`,
         `ORDER_EXPIRY_MINUTES=${all.order_expiry_minutes || config.orderExpiryMinutes || 5}`,
         `IMAP_ENABLED=${all.imap_enabled !== undefined ? all.imap_enabled : (config.imap.enabled ? 'true' : 'false')}`,
         `IMAP_HOST=${config.imap.host || 'imap.gmail.com'}`,
         `IMAP_PORT=${config.imap.port || 993}`,
         `IMAP_SECURE=${config.imap.secure !== false ? 'true' : 'false'}`,
-        `IMAP_USER=${all.imap_user || config.imap.user || 'shaahtasham9@gmail.com'}`,
-        `IMAP_PASS=${all.imap_pass || config.imap.pass || 'zfeoyxxoxrmnmbcr'}`,
+        `IMAP_USER=${all.imap_user || config.imap.user || ''}`,
+        `IMAP_PASS=${all.imap_pass || config.imap.pass || ''}`,
         `IMAP_MAILBOX=${config.imap.mailbox || 'INBOX'}`,
         `IMAP_SENDER_FILTER=${all.imap_filter || (config.imap.senderFilter ? config.imap.senderFilter.join(',') : 'fampay,famapp,fam')}`,
-        `ADMIN_SECRET_KEY=${all.admin_master_key || config.adminSecret || 'shivambhatt@admin'}`,
-        `API_KEY=${all.api_key || config.auth?.apiKey || 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0'}`,
+        `ADMIN_SECRET_KEY=${all.admin_master_key || config.adminSecret || ''}`,
+        `API_KEY=${all.api_key || config.auth?.apiKey || ''}`,
         `REQUIRE_API_KEY=${all.require_api_key || (config.auth?.requireApiKey ? 'true' : 'false')}`,
-        `ALLOWED_ORIGINS=${all.allowed_origins || (config.allowedOrigins ? config.allowedOrigins.join(',') : 'https://dealsbyshiv.web.app,http://localhost:5173,http://localhost:3000')}`
+        `ALLOWED_ORIGINS=${all.allowed_origins || (config.allowedOrigins ? config.allowedOrigins.join(',') : '')}`
       ];
       fs.writeFileSync(envFilePath, envLines.join('\n') + '\n', 'utf8');
     } catch (e) {
@@ -61,7 +61,7 @@ export const SettingModel = {
   async getApiKey() {
     let key = await getSetting('api_key');
     if (!key) {
-      key = config.auth?.apiKey || 'pg_live_549f404a2dddac4e59ff3ec1ed93d51de0b0';
+      key = config.auth?.apiKey || this.generateApiKey();
       await setSetting('api_key', key);
       await setSetting('api_key_created_at', Date.now().toString());
       await setSetting('require_api_key', 'true');
@@ -93,9 +93,11 @@ export const SettingModel = {
   async getMasterKey() {
     let key = await getSetting('admin_master_key');
     if (!key) {
-      key = config.adminSecret || 'shivambhatt@admin';
-      await setSetting('admin_master_key', key);
-      await this.syncToEnvFile();
+      key = config.adminSecret || '';
+      if (key) {
+        await setSetting('admin_master_key', key);
+        await this.syncToEnvFile();
+      }
     }
     return key;
   },
@@ -143,10 +145,10 @@ export const SettingModel = {
 
     // 2. Hydrate from SQLite / defaults into active memory config
     const vpa = await getSetting('merchant_upi_vpa');
-    config.merchant.upiVpa = vpa || config.merchant.upiVpa || 'ffdealsbyjena@fam';
+    config.merchant.upiVpa = vpa || config.merchant.upiVpa || '';
 
     const name = await getSetting('merchant_name');
-    config.merchant.name = name || config.merchant.name || 'ShivFFStore';
+    config.merchant.name = name || config.merchant.name || 'Personal Gateway';
 
     const expiry = await getSetting('order_expiry_minutes');
     if (expiry) config.orderExpiryMinutes = parseInt(expiry, 10);
@@ -155,10 +157,10 @@ export const SettingModel = {
     if (imapEnabled !== '') config.imap.enabled = imapEnabled === 'true';
 
     const imapUser = await getSetting('imap_user');
-    config.imap.user = imapUser || config.imap.user || 'shaahtasham9@gmail.com';
+    config.imap.user = imapUser || config.imap.user || '';
 
     const imapPass = await getSetting('imap_pass');
-    config.imap.pass = imapPass || config.imap.pass || 'zfeoyxxoxrmnmbcr';
+    config.imap.pass = imapPass || config.imap.pass || '';
 
     const imapFilter = await getSetting('imap_filter');
     if (imapFilter) config.imap.senderFilter = imapFilter.split(',').map(s => s.trim().toLowerCase());
@@ -176,10 +178,7 @@ export const SettingModel = {
     // Hydrate Admin Master Key
     config.adminSecret = await this.getMasterKey();
 
-    // Ensure .env is refreshed with latest settings
-    await this.syncToEnvFile();
-
-    console.log(`[SettingModel] Config successfully hydrated. UPI VPA: ${config.merchant.upiVpa}`);
+    console.log(`[SettingModel] Config successfully hydrated. UPI VPA: ${config.merchant.upiVpa || 'None'}`);
   }
 };
 

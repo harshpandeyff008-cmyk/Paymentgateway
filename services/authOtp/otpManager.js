@@ -19,6 +19,21 @@ setInterval(() => {
 
 export const OtpManager = {
   /**
+   * Check if an active cooldown is in progress
+   */
+  checkCooldown(email, purpose = 'SIGNUP', cooldownSeconds = 60) {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const key = `${purpose}:${normalizedEmail}`;
+    const record = otpStore.get(key);
+    if (!record) return { inCooldown: false };
+    const elapsedSeconds = Math.floor((Date.now() - record.createdAt) / 1000);
+    if (elapsedSeconds < cooldownSeconds) {
+      return { inCooldown: true, remainingSeconds: cooldownSeconds - elapsedSeconds };
+    }
+    return { inCooldown: false };
+  },
+
+  /**
    * Generate a 6-digit numeric OTP and store it
    */
   generateOtp(email, purpose = 'SIGNUP') {

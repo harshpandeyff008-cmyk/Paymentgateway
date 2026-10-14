@@ -1,5 +1,7 @@
+import crypto from 'crypto';
 import { query, logActivity, updateUserPlanAndCredits, getUserByEmail } from '../db/database.js';
 import { CloudSyncService } from '../src/services/cloudSync.service.js';
+import { config } from '../config.js';
 
 let ioInstance = null;
 
@@ -10,10 +12,12 @@ export function setSocketIO(io) {
 /**
  * Core Time-Window Matching Engine
  * Compares incoming payment amount and timestamp with pending active orders.
+ * Strictly verifies that the order was active (within validity window) when payment arrived.
  */
 export async function processIncomingPayment({
   amount,
   utr,
+  orderCode = null,
   sender = 'Unknown',
   receivedAt = new Date(),
   source = 'IMAP',
@@ -22,7 +26,7 @@ export async function processIncomingPayment({
 }) {
   const receivedTimestamp = receivedAt instanceof Date ? receivedAt.getTime() : Number(receivedAt);
 
-  console.log(`[MatchingEngine] Processing payment: ₹${amount}, UTR: ${utr}, Source: ${source}${merchantEmail ? ` (Merchant: ${merchantEmail})` : ''}`);
+  console.log(`[MatchingEngine] Processing payment: ₹${amount}, UTR: ${utr}${orderCode ? `, OrderCode: ${orderCode}` : ''}, Source: ${source}${merchantEmail ? ` (Merchant: ${merchantEmail})` : ''}`);
 
   // 1. Duplicate Check
   const existingPayment = await query.get(
@@ -42,86 +46,65 @@ export async function processIncomingPayment({
   }
 
   // 2. Matching Strategy:
-  // Step A: Check if any active/recent order was already claimed with this exact UTR or order code
-  let matchingOrder = await query.get(
-    `SELECT * FROM orders 
-     WHERE (utr = ? OR (LENGTH(?) > 4 AND instr(?, order_code) > 0))
-       AND status != 'PAID'
-       AND ROUND(amount, 2) = ROUND(?, 2)
-     ORDER BY created_at DESC 
-     LIMIT 1`,
-    [utr, rawSnippet, rawSnippet, amount]
-  );
+  let matchingOrder = null;
 
-  // Step B1: If incoming payment is from a Merchant's Gmail, prioritize that merchant's store orders
+  // Step 0: Instant Deterministic Match (Paytm Note / Order ID extracted from email)
+  if (orderCode) {
+    matchingOrder = await query.get(
+      `SELECT * FROM orders 
+       WHERE order_code = ? 
+         AND status = 'PENDING'
+         AND created_at <= ? + 120000
+       LIMIT 1`,
+      [orderCode, receivedTimestamp]
+    );
+    if (matchingOrder) {
+      console.log(`[MatchingEngine] ⚡ Instant Deterministic Match for order ${matchingOrder.order_code} via Note/Email!`);
+    }
+  }
+
+  // Step A: Check if any pending active order was claimed with this exact UTR or order code in raw snippet
+  if (!matchingOrder) {
+    matchingOrder = await query.get(
+      `SELECT * FROM orders 
+       WHERE status = 'PENDING'
+         AND (utr = ? OR (LENGTH(?) > 4 AND instr(?, order_code) > 0))
+         AND ROUND(amount, 2) = ROUND(?, 2)
+         AND created_at <= ? + 60000
+         AND expires_at >= ? - 60000
+       ORDER BY created_at DESC 
+       LIMIT 1`,
+      [utr, rawSnippet, rawSnippet, amount, receivedTimestamp, receivedTimestamp]
+    );
+  }
+
+  // Step B1: If incoming payment is from a specific Merchant's Gmail, prioritize that merchant's active pending orders
   if (!matchingOrder && merchantEmail) {
     matchingOrder = await query.get(
       `SELECT * FROM orders 
        WHERE user_email = ? 
          AND status = 'PENDING'
-         AND (plan_id IS NULL OR plan_id = '')
          AND ROUND(amount, 2) = ROUND(?, 2)
+         AND created_at <= ? + 60000
+         AND expires_at >= ? - 60000
        ORDER BY created_at DESC 
        LIMIT 1`,
-      [merchantEmail, amount]
+      [merchantEmail, amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
-  // Step B2: If incoming payment is from Admin IMAP, prioritize pending Subscription Plan orders
-  if (!matchingOrder && source === 'IMAP' && !merchantEmail) {
-    matchingOrder = await query.get(
-      `SELECT * FROM orders 
-       WHERE (plan_id IS NOT NULL OR order_code LIKE 'PLAN-%')
-         AND status = 'PENDING'
-         AND ROUND(amount, 2) = ROUND(?, 2)
-       ORDER BY created_at DESC 
-       LIMIT 1`,
-      [amount]
-    );
-  }
-
-  // Step B3: General PENDING orders matching this exact amount
+  // Step B2: General active PENDING orders matching this exact unique amount during active window
   if (!matchingOrder) {
     matchingOrder = await query.get(
       `SELECT * FROM orders 
-       WHERE status = 'PENDING'
+       WHERE status = 'PENDING' 
          AND ROUND(amount, 2) = ROUND(?, 2)
+         AND created_at <= ? + 60000
+         AND expires_at >= ? - 60000
        ORDER BY created_at DESC 
        LIMIT 1`,
-      [amount]
+      [amount, receivedTimestamp, receivedTimestamp]
     );
-  }
-
-  // Step C: Search for recently EXPIRED orders matching this amount (within 30 minutes grace)
-  if (!matchingOrder) {
-    matchingOrder = await query.get(
-      `SELECT * FROM orders 
-       WHERE status = 'EXPIRED'
-         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
-         AND created_at >= ? - 30 * 60 * 1000
-       ORDER BY created_at DESC 
-       LIMIT 1`,
-      [amount, amount, receivedTimestamp]
-    );
-    if (matchingOrder) {
-      console.log(`[MatchingEngine] Auto-revived expired order ${matchingOrder.order_code} for payment!`);
-    }
-  }
-
-  // Step D: Fallback for any unpaid order with this amount created within 2 hours
-  if (!matchingOrder) {
-    matchingOrder = await query.get(
-      `SELECT * FROM orders 
-       WHERE status != 'PAID'
-         AND (ROUND(amount, 2) = ROUND(?, 2) OR (base_amount IS NOT NULL AND ROUND(base_amount, 2) = ROUND(?, 2)))
-         AND created_at >= ? - 2 * 60 * 60 * 1000
-       ORDER BY id DESC 
-       LIMIT 1`,
-      [amount, amount, receivedTimestamp]
-    );
-    if (matchingOrder) {
-      console.log(`[MatchingEngine] Fallback matched unpaid order ${matchingOrder.order_code} for payment!`);
-    }
   }
 
   // Step E: CloudSync Fallback - Load pending orders from Firebase RTDB if SQLite cache was restarted
@@ -132,9 +115,10 @@ export async function processIncomingPayment({
         if (!co) continue;
         const cStatus = co.status || 'PENDING';
         const cAmount = Number(co.amount) || 0;
-        const cBaseAmount = Number(co.base_amount || co.baseAmount || co.amount) || 0;
+        const cCreatedAt = Number(co.created_at || co.createdAt) || Date.now();
+        const cExpiresAt = Number(co.expires_at || co.expiresAt) || (cCreatedAt + 20 * 60 * 1000);
         const code = co.order_code || co.orderCode;
-        if (code && cStatus !== 'PAID' && (Math.abs(cAmount - amount) <= 0.01 || Math.abs(cBaseAmount - amount) <= 0.01)) {
+        if (code && cStatus === 'PENDING' && Math.abs(cAmount - amount) <= 0.01 && cCreatedAt <= receivedTimestamp + 60000 && cExpiresAt >= receivedTimestamp - 60000) {
           // Insert into SQLite and use as matching order
           await query.run(
             `INSERT OR IGNORE INTO orders (
@@ -436,13 +420,13 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
     return { success: true, message: 'Order is already paid', order };
   }
 
-  // Check if this UTR exists in unmatched payments
+  // Check if this UTR exists in payments table (matched or unmatched)
   let payment = await query.get(
-    'SELECT * FROM payments WHERE utr = ? AND is_matched = 0',
+    'SELECT * FROM payments WHERE utr = ?',
     [cleanUtr]
   );
 
-  // If not found in cache, trigger immediate on-demand check of merchant IMAP and Google alerts
+  // If not found in cache at all, trigger immediate on-demand check of merchant IMAP and Google alerts
   if (!payment) {
     try {
       const { scanAndProcessMerchantEmails, scanAndProcessRecentEmails } = await import('./imapListener.js');
@@ -454,18 +438,23 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
       ]);
     } catch (_) {}
 
-    payment = await query.get(
-      'SELECT * FROM payments WHERE utr = ? AND is_matched = 0',
-      [cleanUtr]
-    );
-  }
-
-  if (!payment) {
-    // Check if recorded previously
     payment = await query.get('SELECT * FROM payments WHERE utr = ?', [cleanUtr]);
   }
 
   if (payment) {
+    if (payment.is_matched === 1 && payment.matched_order_id && payment.matched_order_id !== order.id) {
+      return {
+        success: false,
+        message: 'This UTR has already been claimed for another order.'
+      };
+    }
+    if (order.created_at && payment.received_at < (order.created_at - 30 * 60 * 1000)) {
+      return {
+        success: false,
+        message: 'This payment timestamp is older than this order session.'
+      };
+    }
+
     // Validate amount matches either exact payable or base amount
     const baseAmt = Number(order.base_amount) || Number(order.amount);
     const matchesAmount = Math.abs(payment.amount - order.amount) <= 0.01 || Math.abs(payment.amount - baseAmt) <= 0.01;
@@ -551,12 +540,41 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
   }
 }
 
+function isBlockedWebhookHost(hostname) {
+  const h = (hostname || '').toLowerCase().trim();
+  if (!h || h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '::1' || h === '169.254.169.254') {
+    return true;
+  }
+  const ipv4Match = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Asynchronous Webhook Dispatcher
  */
 export async function triggerWebhook(webhookUrl, orderData, eventType = 'payment.success') {
   if (!webhookUrl) return;
-  const origin = webhookUrl.startsWith('http') ? new URL(webhookUrl).origin : webhookUrl;
+  let parsedUrl = null;
+  try {
+    parsedUrl = new URL(webhookUrl);
+  } catch (_) {
+    console.warn(`[Webhook] Invalid webhook URL: ${webhookUrl}`);
+    return { success: false, error: 'Invalid URL' };
+  }
+
+  // SSRF Protection: Block private IP ranges, localhost, and cloud metadata endpoints
+  if (isBlockedWebhookHost(parsedUrl.hostname)) {
+    console.warn(`[Webhook] SSRF blocked target: ${webhookUrl}`);
+    return { success: false, error: 'Blocked internal or loopback destination' };
+  }
+
+  const origin = parsedUrl.origin;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -575,13 +593,18 @@ export async function triggerWebhook(webhookUrl, orderData, eventType = 'payment
       }
     };
 
+    const webhookSecret = config.webhookSecret || config.adminSecret || 'whsec_personal_gateway';
+    const payloadString = JSON.stringify(payload);
+    const signature = crypto.createHmac('sha256', webhookSecret).update(payloadString).digest('hex');
+
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
+        'X-Gateway-Signature': `sha256=${signature}`,
         'User-Agent': 'Personal-UPI-Gateway-Webhook/1.0'
       },
-      body: JSON.stringify(payload),
+      body: payloadString,
       signal: controller.signal
     });
     clearTimeout(timeout);

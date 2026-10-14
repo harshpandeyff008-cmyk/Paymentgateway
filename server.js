@@ -30,14 +30,6 @@ async function bootstrap() {
   // 1. Initialize SQLite Database tables
   await initDatabase();
 
-  // 1.1 Restore all permanent Cloud data (Orders, Payments, Users, Plans, Keys) from Firebase CloudSync
-  try {
-    logger.info('[Startup] Restoring persistent data from Firebase CloudSync...');
-    await CloudSyncService.restoreFromCloud();
-  } catch (err) {
-    logger.warn(`[Startup] CloudSync restore warning: ${err.message}`);
-  }
-
   // 2. Hydrate dynamic settings from database into config
   await SettingModel.hydrateConfig(config);
 
@@ -64,14 +56,14 @@ async function bootstrap() {
   startExpiryCleaner(io, 30000);
 
   // 7. Start listening on configured port
-  server.listen(config.port, async () => {
+  server.listen(config.port, '0.0.0.0', async () => {
     logger.info('======================================================');
     logger.info(`🚀 Personal UPI Gateway live on: http://localhost:${config.port}`);
     logger.info(`📱 Admin Dashboard:            http://localhost:${config.port}/admin`);
     logger.info(`🩺 Health Check:                http://localhost:${config.port}/health`);
-    logger.info(`💳 Configured UPI VPA:          ${config.merchant.upiVpa} (${config.merchant.name})`);
+    logger.info(`💳 Configured UPI VPA:          ${config.merchant.upiVpa || 'NOT CONFIGURED'} (${config.merchant.name})`);
     logger.info(`📧 IMAP Realtime Alert Engine:  ${config.imap.enabled ? 'ACTIVE' : 'STANDBY'}`);
-    logger.info(`🔐 Admin Master Key:            ${config.adminSecret}`);
+    logger.info(`🔐 Admin Master Auth:           ${config.adminSecret ? 'CONFIGURED' : 'NOT SET (SET IN .ENV)'}`);
     logger.info('======================================================');
 
     // 8. Start email monitoring only when a pending order exists. This also

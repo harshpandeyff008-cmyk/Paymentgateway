@@ -51,11 +51,13 @@ export function parsePaymentEmail(subject = '', body = '', date = new Date(), pr
   let amount = null;
   let utr = null;
   let txnId = null;
+  let gatewayOrderCode = null;
+  let note = null;
   let sender = 'Unknown';
   let receiver = 'N/A';
 
   // ----------------------------------------------------
-  // A. FAMPAY / FAMAPP
+  // A. FAMPAY / FAMAPP (Original Standard Flow)
   // ----------------------------------------------------
   if (
     textLower.includes('fampay') || textLower.includes('famapp') ||
@@ -68,8 +70,8 @@ export function parsePaymentEmail(subject = '', body = '', date = new Date(), pr
                      rawText.match(/(?:₹|\u20B9|Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)/i);
     if (amtMatch) amount = parseFloat(amtMatch[1].replace(/,/g, ''));
 
-    // Sender: e.g. from BIPIN KUMAR
-    const senderMatch = rawText.match(/from\s+([A-Za-z0-9\s._@-]+?)(?=\s*(?:\n|Transaction\s*ID|Date|Updated\s*Balance|UTR|Purpose|$))/i);
+    // Sender: e.g. from MEENA KUMARI or from Rahul Sharma (rahul@...)
+    const senderMatch = rawText.match(/from\s+([A-Za-z0-9\s._-]+?)(?=\s*(?:\n|\(|Transaction\s*ID|Txn\s*ID|Date|Updated\s*Balance|UTR|Purpose|UPI\s*Ref|$))/i);
     if (senderMatch) sender = senderMatch[1].trim();
 
     // Receiver: e.g. Hey Rajdeep Das,
@@ -82,13 +84,15 @@ export function parsePaymentEmail(subject = '', body = '', date = new Date(), pr
     if (txnMatch) txnId = (txnMatch[1] || txnMatch[0]).trim();
 
     // UTR: e.g. 110752261815
-    const utrMatch = rawText.match(/UTR\s*:\s*([0-9a-zA-Z]+)/i) ||
+    const utrMatch = rawText.match(/UTR\s*:\s*([0-9]{12})/i) ||
+                     rawText.match(/UPI\s*Ref\s*:\s*([0-9]{12})/i) ||
+                     rawText.match(/UTR\s*:\s*([0-9a-zA-Z]{6,25})\b/i) ||
                      rawText.match(/\b([0-9]{12})\b/);
     if (utrMatch) utr = utrMatch[1].trim();
   }
 
   // ----------------------------------------------------
-  // B. PAYTM (Paytm For Business / UPI)
+  // B. PAYTM (Dedicated Note & Order ID Verification)
   // ----------------------------------------------------
   else if (
     textLower.includes('paytm') || textLower.includes('b.paytm.me') ||
@@ -109,19 +113,35 @@ export function parsePaymentEmail(subject = '', body = '', date = new Date(), pr
     const receiverMatch = rawText.match(/In\s+Account\s+of\s*[\n\r\s:]*([^\n\r]+)/i);
     if (receiverMatch) receiver = receiverMatch[1].trim();
 
-    // Order ID: e.g. T2609141307521577368395
+    // Paytm Internal Order ID: e.g. T2609141307521577368395
     const orderMatch = rawText.match(/Order\s*ID\s*:\s*([A-Za-z0-9]+)/i) ||
                        rawText.match(/Txn(?: ID)?\s*:\s*([A-Za-z0-9]+)/i);
     if (orderMatch) txnId = orderMatch[1].trim();
 
     // UPI Ref / UTR
-    const utrMatch = rawText.match(/(?:UPI\s*Ref|UTR|Ref\s*No)\s*:\s*([0-9a-zA-Z]+)/i) ||
+    const utrMatch = rawText.match(/(?:UPI\s*Ref|UTR|Ref\s*No)\s*[:\s#]*([0-9a-zA-Z_-]{6,40})/i) ||
                      rawText.match(/\b([0-9]{12})\b/);
     if (utrMatch) utr = utrMatch[1].trim();
+
+    // ⚡ NEW PAYTM VERIFICATION: Extract Gateway Order ID from Note / Remarks / Comment / Body
+    const directCodeMatch = rawText.match(/\b(ORD-[A-Z0-9_\-]{4,15})\b/i) ||
+                            rawText.match(/\b(PLAN-[A-Z0-9_\-]{4,15})\b/i);
+    if (directCodeMatch) {
+      gatewayOrderCode = directCodeMatch[1].toUpperCase();
+    }
+
+    const noteMatch = rawText.match(/(?:Note|Remarks?|Comment|Description|Purpose)\s*[:\-]?\s*([^\n\r]+)/i);
+    if (noteMatch) {
+      note = noteMatch[1].trim();
+      if (!gatewayOrderCode) {
+        const nestedMatch = note.match(/\b(ORD-[A-Z0-9_\-]{4,15})\b/i) || note.match(/\b(PLAN-[A-Z0-9_\-]{4,15})\b/i);
+        if (nestedMatch) gatewayOrderCode = nestedMatch[1].toUpperCase();
+      }
+    }
   }
 
   // ----------------------------------------------------
-  // C. PHONEPE (PhonePe Merchant / Personal)
+  // C. PHONEPE (PhonePe Merchant / Personal - Original Standard Flow)
   // ----------------------------------------------------
   else if (
     textLower.includes('phonepe') || textLower.includes('panme shop') ||
@@ -143,9 +163,15 @@ export function parsePaymentEmail(subject = '', body = '', date = new Date(), pr
     const storeMatch = rawText.match(/Store\s*Name\s*:\s*([^\n\r]+)/i);
     if (storeMatch) receiver = storeMatch[1].trim();
 
-    // Paid By: e.g. kirupri143@oksbi
-    const paidByMatch = rawText.match(/Paid\s*By\s*:\s*([^\n\r]+)/i);
+    // Paid By: e.g. kirupri143@oksbi or from ROHIT VERMA via PhonePe
+    const paidByMatch = rawText.match(/Paid\s*By\s*:\s*([^\n\r]+)/i) ||
+                        rawText.match(/from\s+([A-Za-z0-9\s._-]+?)\s+(?:via|to)/i);
     if (paidByMatch) sender = paidByMatch[1].trim();
+
+    // UTR / Ref No
+    const utrMatch = rawText.match(/(?:UPI\s*Ref|UTR|Ref\s*No)\s*:\s*([0-9a-zA-Z]+)/i) ||
+                     rawText.match(/\b([0-9]{12})\b/);
+    if (utrMatch) utr = utrMatch[1].trim();
   }
 
   // ----------------------------------------------------
@@ -186,13 +212,16 @@ export function parsePaymentEmail(subject = '', body = '', date = new Date(), pr
     txnId,
     famPayTxnId: txnId,
     orderId: txnId,
+    gatewayOrderCode: gatewayOrderCode || null,
+    note: note || null,
     sender,
     receiver,
     sourceApp,
     provider: providerHint !== 'AUTO' ? providerHint : sourceApp,
     receivedAt: date instanceof Date ? date : new Date(date),
     rawSubject: subject,
-    rawSnippet: rawText.substring(0, 300)
+    rawSnippet: rawText.substring(0, 500),
+    rawText
   };
 }
 
