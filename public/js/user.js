@@ -21,19 +21,42 @@ window.fetch = async function (url, options = {}) {
     urlStr = API_BASE + urlStr;
   }
 
-  const token = localStorage.getItem('user_jwt') || localStorage.getItem('user_token') || (typeof currentUser !== 'undefined' ? currentUser?.token : null);
-  if (token && typeof urlStr === 'string' && urlStr.includes('/api/')) {
+  let token = localStorage.getItem('user_jwt') || localStorage.getItem('user_token') || (typeof currentUser !== 'undefined' ? currentUser?.token : null);
+  if (!token && typeof fbAuth !== 'undefined' && fbAuth && fbAuth.currentUser) {
+    try {
+      token = await fbAuth.currentUser.getIdToken();
+    } catch (_) {}
+  }
+
+  if (typeof urlStr === 'string' && urlStr.includes('/api/')) {
     options = options || {};
     options.headers = options.headers || {};
-    if (options.headers instanceof Headers) {
-      if (!options.headers.has('Authorization')) {
-        options.headers.set('Authorization', `Bearer ${token}`);
+
+    if (token) {
+      if (options.headers instanceof Headers) {
+        if (!options.headers.has('Authorization')) {
+          options.headers.set('Authorization', `Bearer ${token}`);
+        }
+      } else if (Array.isArray(options.headers)) {
+        options.headers.push(['Authorization', `Bearer ${token}`]);
+      } else {
+        if (!options.headers['Authorization'] && !options.headers['authorization']) {
+          options.headers['Authorization'] = `Bearer ${token}`;
+        }
       }
-    } else if (Array.isArray(options.headers)) {
-      options.headers.push(['Authorization', `Bearer ${token}`]);
-    } else {
-      if (!options.headers['Authorization'] && !options.headers['authorization']) {
-        options.headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    if (typeof currentUser !== 'undefined' && currentUser && currentUser.email) {
+      if (options.headers instanceof Headers) {
+        if (!options.headers.has('x-user-email')) {
+          options.headers.set('x-user-email', currentUser.email);
+        }
+      } else if (Array.isArray(options.headers)) {
+        options.headers.push(['x-user-email', currentUser.email]);
+      } else {
+        if (!options.headers['x-user-email']) {
+          options.headers['x-user-email'] = currentUser.email;
+        }
       }
     }
   }
@@ -1160,6 +1183,33 @@ async function initiateBuyPlan(planId, couponCode = '') {
   if (modal) modal.classList.add('open');
 
   try {
+    let token = localStorage.getItem('user_jwt') || localStorage.getItem('user_token') || currentUser?.token;
+    if (!token && fbAuth && fbAuth.currentUser) {
+      try {
+        token = await fbAuth.currentUser.getIdToken();
+      } catch (_) {}
+    }
+    if (!token && currentUser?.email) {
+      try {
+        const syncRes = await fetch('/api/v1/user/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: currentUser.email,
+            name: currentUser.name || 'User',
+            photoUrl: currentUser.photoUrl || ''
+          })
+        });
+        const syncData = await syncRes.json();
+        if (syncData.success && syncData.token) {
+          token = syncData.token;
+          localStorage.setItem('user_jwt', token);
+          sessionStorage.setItem('user_jwt', token);
+          if (currentUser) currentUser.token = token;
+        }
+      } catch (_) {}
+    }
+
     const payload = {
       planId: planId,
       userEmail: currentUser.email
@@ -1168,9 +1218,13 @@ async function initiateBuyPlan(planId, couponCode = '') {
       payload.couponCode = effectiveCoupon;
     }
 
+    const reqHeaders = { 'Content-Type': 'application/json' };
+    if (token) reqHeaders['Authorization'] = `Bearer ${token}`;
+    if (currentUser?.email) reqHeaders['x-user-email'] = currentUser.email;
+
     const res = await fetch('/api/v1/user/buy-plan', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: reqHeaders,
       body: JSON.stringify(payload)
     });
 

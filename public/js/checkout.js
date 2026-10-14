@@ -59,7 +59,7 @@ async function loadOrder() {
     const data = await res.json();
 
     if (!data.success || !data.order) {
-      statusMessage.innerText = data.error || 'Order not found or expired.';
+      showOrderNotFound(data.error || 'Order not found or has expired.');
       return;
     }
 
@@ -203,6 +203,32 @@ function showExpired() {
   qrImage.style.filter = 'grayscale(100%) opacity(30%)';
   btnPayDirect.style.pointerEvents = 'none';
   btnPayDirect.style.opacity = '0.5';
+}
+
+function showOrderNotFound(msg) {
+  if (statusMessage) {
+    statusMessage.innerHTML = `
+      <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; padding: 18px; margin: 12px 0; color: #fca5a5; font-size: 13.5px; line-height: 1.6; text-align: center;">
+        <div style="font-size: 28px; margin-bottom: 8px;">⚠️</div>
+        <strong style="color: #ffffff; font-size: 16px; display: block; margin-bottom: 6px;">Order Not Found or Expired</strong>
+        <span>${msg}</span>
+        <div style="margin-top: 10px; font-size: 12px; color: #94a3b8;">
+          Ye order code (<b>${orderCode || 'Invalid'}</b>) active session me maujood nahi hai ya 5 minute ke baad expire ho gaya hai.<br>
+          Kripya apne merchant store ya app se naya order create karein.
+        </div>
+      </div>
+    `;
+  }
+  const qrBox = document.querySelector('.qr-wrapper');
+  if (qrBox) qrBox.style.display = 'none';
+  const payDirect = document.querySelector('.direct-pay-actions');
+  if (payDirect) payDirect.style.display = 'none';
+  const appGrid = document.querySelector('.upi-app-grid');
+  if (appGrid) appGrid.style.display = 'none';
+  const utrSection = document.querySelector('.utr-fallback-section');
+  if (utrSection) utrSection.style.display = 'none';
+  const timerSection = document.querySelector('.timer-section');
+  if (timerSection) timerSection.style.display = 'none';
 }
 
 // 4. Connect WebSockets for Instant Push Alert + 1.5s Poller Fallback
