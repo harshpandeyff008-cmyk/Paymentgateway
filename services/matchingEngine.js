@@ -115,10 +115,11 @@ export async function processIncomingPayment({
         if (!co) continue;
         const cStatus = co.status || 'PENDING';
         const cAmount = Number(co.amount) || 0;
+        const cBaseAmount = Number(co.base_amount !== undefined ? co.base_amount : (co.baseAmount !== undefined ? co.baseAmount : cAmount)) || cAmount;
         const cCreatedAt = Number(co.created_at || co.createdAt) || Date.now();
-        const cExpiresAt = Number(co.expires_at || co.expiresAt) || (cCreatedAt + 20 * 60 * 1000);
+        const cExpiresAt = Number(co.expires_at || co.expiresAt) || (cCreatedAt + 24 * 60 * 60 * 1000);
         const code = co.order_code || co.orderCode;
-        if (code && cStatus === 'PENDING' && Math.abs(cAmount - amount) <= 0.01 && cCreatedAt <= receivedTimestamp + 60000 && cExpiresAt >= receivedTimestamp - 60000) {
+        if (code && cStatus === 'PENDING' && Math.abs(cAmount - amount) <= 0.01 && cCreatedAt <= receivedTimestamp + 300000 && cExpiresAt >= receivedTimestamp - 300000) {
           // Insert into SQLite and use as matching order
           await query.run(
             `INSERT OR IGNORE INTO orders (
@@ -426,19 +427,37 @@ export async function claimOrderWithUtr(orderCode, submittedUtr) {
     [cleanUtr]
   );
 
-  // If not found in cache at all, trigger immediate on-demand check of merchant IMAP and Google alerts
+  // If not found in SQLite, check Firebase RTDB payments
   if (!payment) {
     try {
-      const { scanAndProcessMerchantEmails, scanAndProcessRecentEmails } = await import('./imapListener.js');
+      const cloudPayment = await CloudSyncService.getPayment(cleanUtr);
+      if (cloudPayment) {
+        payment = cloudPayment;
+      }
+    } catch (_) {}
+  }
+
+  // If still not found, trigger immediate targeted on-demand scan of merchant's Gmail
+  if (!payment) {
+    try {
+      const { scanMerchantNow, scanAndProcessRecentEmails } = await import('./imapListener.js');
       const { scanGoogleBankingAccounts } = await import('./gmailWatcher.service.js');
-      await Promise.allSettled([
-        scanAndProcessMerchantEmails(),
+      const tasks = [
         scanAndProcessRecentEmails(),
         scanGoogleBankingAccounts()
-      ]);
+      ];
+      if (order.user_email) {
+        tasks.push(scanMerchantNow(order.user_email));
+      }
+      await Promise.allSettled(tasks);
     } catch (_) {}
 
     payment = await query.get('SELECT * FROM payments WHERE utr = ?', [cleanUtr]);
+    if (!payment) {
+      try {
+        payment = await CloudSyncService.getPayment(cleanUtr);
+      } catch (_) {}
+    }
   }
 
   if (payment) {

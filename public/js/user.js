@@ -2336,9 +2336,21 @@ async function handleCreatePaymentLink(event) {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/v1/user/payment-links`, {
+    let token = localStorage.getItem('user_jwt') || localStorage.getItem('user_token') || currentUser?.token;
+    if (!token && typeof fbAuth !== 'undefined' && fbAuth && fbAuth.currentUser) {
+      try { token = await fbAuth.currentUser.getIdToken(); } catch (_) {}
+    }
+
+    const reqHeaders = {
+      'Content-Type': 'application/json',
+      'x-user-email': currentUser?.email || ''
+    };
+    if (token) reqHeaders['Authorization'] = `Bearer ${token}`;
+
+    const baseUrl = API_BASE || 'https://personal-payment-gateway.vercel.app';
+    let res = await fetch(`${baseUrl}/api/v1/user/payment-links`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: reqHeaders,
       body: JSON.stringify({
         userEmail: currentUser.email,
         amount,
@@ -2347,6 +2359,21 @@ async function handleCreatePaymentLink(event) {
         expiryMinutes
       })
     });
+
+    // If 404 from an outdated backend instance, fallback directly to Vercel production
+    if (res.status === 404 && baseUrl !== 'https://personal-payment-gateway.vercel.app') {
+      res = await fetch('https://personal-payment-gateway.vercel.app/api/v1/user/payment-links', {
+        method: 'POST',
+        headers: reqHeaders,
+        body: JSON.stringify({
+          userEmail: currentUser.email,
+          amount,
+          customerName,
+          customerPhone,
+          expiryMinutes
+        })
+      });
+    }
 
     const data = await res.json();
     if (data.success && data.order) {

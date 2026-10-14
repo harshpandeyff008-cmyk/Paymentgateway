@@ -61,6 +61,25 @@ export const OrderModel = {
       } catch (err) {
         // Fallback error ignored
       }
+    } else if (order && order.status === 'PENDING') {
+      try {
+        const cloudOrder = await CloudSyncService.getOrder(orderCode);
+        if (cloudOrder && cloudOrder.status === 'PAID') {
+          await query.run(
+            `UPDATE orders SET status = 'PAID', paid_at = ?, utr = ?, sender_info = ? WHERE id = ?`,
+            [
+              cloudOrder.paid_at || cloudOrder.paidAt || Date.now(),
+              cloudOrder.utr || null,
+              cloudOrder.sender_info || cloudOrder.senderInfo || 'CloudSync',
+              order.id
+            ]
+          );
+          order.status = 'PAID';
+          order.paid_at = cloudOrder.paid_at || cloudOrder.paidAt || Date.now();
+          order.utr = cloudOrder.utr || null;
+          order.sender_info = cloudOrder.sender_info || cloudOrder.senderInfo || 'CloudSync';
+        }
+      } catch (_) {}
     }
     return order;
   },

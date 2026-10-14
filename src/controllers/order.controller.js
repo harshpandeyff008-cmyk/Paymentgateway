@@ -15,6 +15,8 @@ function generateOrderCode() {
   return result;
 }
 
+const onDemandScanThrottle = new Map();
+
 export const OrderController = {
   async create(req, res, next) {
     try {
@@ -194,32 +196,72 @@ export const OrderController = {
       }
 
       // Active Time-Window Payment Checker:
-      // Checks for payments received strictly within this order's active 5-minute validity window
       if (order.status === 'PENDING') {
-        const matchingPayment = await query.get(
-          `SELECT * FROM payments 
-           WHERE is_matched = 0 
-             AND ROUND(amount, 2) = ROUND(?, 2) 
-             AND received_at >= ? - 60000 
-             AND received_at <= ? + 60000 
-           ORDER BY received_at ASC 
-           LIMIT 1`,
-          [order.amount, order.created_at, order.expires_at]
-        );
+        try {
+          // 1. Check local SQLite payments
+          let matchingPayment = await query.get(
+            `SELECT * FROM payments 
+             WHERE is_matched = 0 
+               AND ROUND(amount, 2) = ROUND(?, 2) 
+               AND received_at >= ? - 300000 
+               AND received_at <= ? + 300000 
+             ORDER BY received_at DESC 
+             LIMIT 1`,
+            [order.amount, order.created_at, order.expires_at]
+          );
 
-        if (matchingPayment) {
-          const { processIncomingPayment } = await import('../../services/matchingEngine.js');
-          await processIncomingPayment({
-            amount: matchingPayment.amount,
-            utr: matchingPayment.utr,
-            orderCode: order.order_code,
-            sender: matchingPayment.sender,
-            receivedAt: new Date(matchingPayment.received_at),
-            source: matchingPayment.source || 'ACTIVE_CHECKER',
-            rawSnippet: matchingPayment.raw_snippet || ''
-          });
-          const reloaded = await OrderModel.findByCode(code);
-          if (reloaded) Object.assign(order, reloaded);
+          // 2. If not found in SQLite, check Firebase RTDB payments
+          if (!matchingPayment) {
+            const cloudPayments = await CloudSyncService.getAllPayments();
+            const orderCreatedAt = Number(order.created_at) || Date.now();
+            const orderExpiresAt = Number(order.expires_at) || (orderCreatedAt + 24 * 60 * 60 * 1000);
+            for (const cp of cloudPayments) {
+              if (!cp) continue;
+              const cpAmount = Number(cp.amount) || 0;
+              const cpRec = Number(cp.received_at || cp.receivedAt) || 0;
+              if (Math.abs(cpAmount - order.amount) <= 0.01 && cpRec >= orderCreatedAt - 300000 && cpRec <= orderExpiresAt + 300000) {
+                if (!cp.is_matched || cp.matched_order_code === order.order_code) {
+                  matchingPayment = cp;
+                  break;
+                }
+              }
+            }
+          }
+
+          // 3. If still not found and order is fresh (< 30 mins old), perform a throttled on-demand check of merchant's IMAP
+          if (!matchingPayment && (Date.now() - order.created_at) < 30 * 60 * 1000) {
+            const now = Date.now();
+            const lastScan = onDemandScanThrottle.get(order.order_code) || 0;
+            if (now - lastScan > 6000) {
+              onDemandScanThrottle.set(order.order_code, now);
+              try {
+                const { scanMerchantNow, scanAndProcessRecentEmails } = await import('../../services/imapListener.js');
+                if (order.user_email) {
+                  await scanMerchantNow(order.user_email);
+                } else {
+                  await scanAndProcessRecentEmails();
+                }
+              } catch (_) {}
+            }
+          }
+
+          if (matchingPayment) {
+            const { processIncomingPayment } = await import('../../services/matchingEngine.js');
+            await processIncomingPayment({
+              amount: matchingPayment.amount,
+              utr: matchingPayment.utr,
+              orderCode: order.order_code,
+              sender: matchingPayment.sender,
+              receivedAt: new Date(matchingPayment.received_at),
+              source: matchingPayment.source || 'ACTIVE_CHECKER',
+              rawSnippet: matchingPayment.raw_snippet || '',
+              merchantEmail: order.user_email || null
+            });
+            const reloaded = await OrderModel.findByCode(code);
+            if (reloaded) Object.assign(order, reloaded);
+          }
+        } catch (checkErr) {
+          console.warn('[OrderController] Payment verification check warning:', checkErr.message);
         }
       }
 

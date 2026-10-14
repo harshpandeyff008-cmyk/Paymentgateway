@@ -246,6 +246,42 @@ async function scanSingleMerchant(merchant, client) {
 }
 
 /**
+ * On-Demand Merchant Scan:
+ * Triggered when a customer is viewing a checkout page or claims UTR
+ * to verify payment within 1-2 seconds even if background poller is idle.
+ */
+export async function scanMerchantNow(userEmail) {
+  if (!userEmail) return;
+  try {
+    let merchant = await query.get(
+      `SELECT email, upi_vpa, upi_provider, business_name, gmail_email, gmail_app_pass, imap_host, imap_port, imap_secure 
+       FROM users 
+       WHERE email = ? COLLATE NOCASE 
+         AND gmail_connected = 1`,
+      [userEmail]
+    );
+    if (!merchant || !merchant.gmail_email || !merchant.gmail_app_pass) {
+      const cloudUser = await CloudSyncService.getUser(userEmail);
+      if (cloudUser && cloudUser.gmail_connected && cloudUser.gmail_email && cloudUser.gmail_app_pass) {
+        merchant = cloudUser;
+      }
+    }
+    if (!merchant || !merchant.gmail_email || !merchant.gmail_app_pass) return;
+
+    const user = (merchant.gmail_email || '').trim();
+    const pass = (merchant.gmail_app_pass || '').trim().replace(/\s+/g, '');
+    if (!user || !pass) return;
+
+    const client = await getOrCreateMerchantClient(merchant);
+    if (client && client.usable) {
+      await scanSingleMerchant(merchant, client);
+    }
+  } catch (err) {
+    console.warn(`[scanMerchantNow] Notice for ${userEmail}:`, err.message);
+  }
+}
+
+/**
  * Connected Merchants IMAP Poller:
  * Checks registered merchants who activated their Bank Gmail in Settlement Engine.
  * Automatically verifies customer payments for their store API orders.

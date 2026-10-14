@@ -392,6 +392,20 @@ export const CloudSyncService = {
     return false;
   },
 
+  async getPayment(utr) {
+    if (!utr) return null;
+    try {
+      const key = encodeKey(utr);
+      const res = await fetch(`${RTDB_BASE}/payments/${key}.json`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      logger.warn(`[CloudSync] Failed to get payment ${utr}: ${e.message}`);
+    }
+    return null;
+  },
+
   async getAllPayments() {
     try {
       const res = await fetch(`${RTDB_BASE}/payments.json`);
