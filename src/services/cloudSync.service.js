@@ -301,12 +301,29 @@ export const CloudSyncService = {
     if (!order) return false;
     const code = order.order_code || order.orderCode;
     if (!code) return false;
+    const createdAt = order.created_at || order.createdAt || Date.now();
+    const customerName = order.customer_name || order.customerName || 'Guest';
+    const customerPhone = order.customer_phone || order.customerPhone || '';
+    const baseAmount = order.base_amount !== undefined ? order.base_amount : (order.baseAmount !== undefined ? order.baseAmount : order.amount);
+    const userEmail = order.user_email || order.userEmail || '';
     try {
       const res = await fetch(`${RTDB_BASE}/orders/${encodeKey(code)}.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...order,
+          order_code: code,
+          orderCode: code,
+          created_at: Number(createdAt),
+          createdAt: Number(createdAt),
+          customer_name: customerName,
+          customerName: customerName,
+          customer_phone: customerPhone,
+          customerPhone: customerPhone,
+          base_amount: baseAmount,
+          baseAmount: baseAmount,
+          user_email: userEmail,
+          userEmail: userEmail,
           updated_at: Date.now()
         })
       });
@@ -323,7 +340,30 @@ export const CloudSyncService = {
       if (res.ok) {
         const ordersObj = await res.json();
         if (ordersObj) {
-          return Object.values(ordersObj);
+          return Object.values(ordersObj).map(o => {
+            if (!o) return o;
+            const code = o.order_code || o.orderCode || o.code || '';
+            const createdAt = o.created_at || o.createdAt || o.timestamp || o.date || Date.now();
+            const customerName = o.customer_name || o.customerName || 'Guest';
+            const customerPhone = o.customer_phone || o.customerPhone || '';
+            const baseAmount = o.base_amount !== undefined ? o.base_amount : (o.baseAmount !== undefined ? o.baseAmount : o.amount);
+            const userEmail = o.user_email || o.userEmail || '';
+            return {
+              ...o,
+              order_code: code,
+              orderCode: code,
+              created_at: Number(createdAt),
+              createdAt: Number(createdAt),
+              customer_name: customerName,
+              customerName: customerName,
+              customer_phone: customerPhone,
+              customerPhone: customerPhone,
+              base_amount: baseAmount,
+              baseAmount: baseAmount,
+              user_email: userEmail,
+              userEmail: userEmail
+            };
+          });
         }
       }
     } catch (e) {

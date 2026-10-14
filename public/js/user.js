@@ -941,6 +941,32 @@ async function loadUserOrders() {
   if (!currentUser || !currentUser.email) return;
   const myEmail = currentUser.email.toLowerCase().trim();
 
+  // Helper to normalize order properties across snake_case and camelCase
+  function normalizeOrder(o) {
+    if (!o) return null;
+    const code = o.order_code || o.orderCode || o.code || '';
+    const createdAt = o.created_at || o.createdAt || o.timestamp || o.date || (o.updated_at ? Number(o.updated_at) : Date.now());
+    const baseAmt = o.base_amount !== undefined ? o.base_amount : (o.baseAmount !== undefined ? o.baseAmount : o.amount);
+    const custName = o.customer_name || o.customerName || 'Guest';
+    const custPhone = o.customer_phone || o.customerPhone || '';
+    const uEmail = (o.user_email || o.userEmail || myEmail).toLowerCase().trim();
+    return {
+      ...o,
+      order_code: code,
+      orderCode: code,
+      created_at: Number(createdAt),
+      createdAt: Number(createdAt),
+      customer_name: custName,
+      customerName: custName,
+      customer_phone: custPhone,
+      customerPhone: custPhone,
+      base_amount: baseAmt,
+      baseAmount: baseAmt,
+      user_email: uEmail,
+      userEmail: uEmail
+    };
+  }
+
   // 1. Direct Firebase RTDB Fetch (0-latency, no 404)
   try {
     const rtdbRes = await fetch('https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders.json');
@@ -950,11 +976,12 @@ async function loadUserOrders() {
         const myOrders = Object.values(allOrdersObj).filter(o => {
           if (!o) return false;
           const uEmail = String(o.user_email || o.userEmail || '').toLowerCase().trim();
-          const isPlan = Boolean(o.plan_id || o.planId || String(o.order_code || o.orderCode || '').startsWith('PLAN-'));
+          const code = o.order_code || o.orderCode || o.code || '';
+          const isPlan = Boolean(o.plan_id || o.planId || String(code).startsWith('PLAN-'));
           if (uEmail !== myEmail || isPlan) return false;
           if (currentOrderStatusFilter !== 'ALL' && (o.status || '').toUpperCase() !== currentOrderStatusFilter.toUpperCase()) return false;
           return true;
-        }).sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
+        }).map(normalizeOrder).filter(Boolean).sort((a, b) => Number(b.created_at || 0) - Number(a.created_at || 0));
 
         userOrdersList = myOrders;
         renderOrdersTables(userOrdersList);
@@ -969,7 +996,7 @@ async function loadUserOrders() {
     if (res.ok) {
       const data = await res.json();
       if (data.success && data.orders) {
-        userOrdersList = (data.orders || []).sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
+        userOrdersList = (data.orders || []).map(normalizeOrder).filter(Boolean).sort((a, b) => Number(b.created_at || 0) - Number(a.created_at || 0));
         renderOrdersTables(userOrdersList);
       }
     }
@@ -994,9 +1021,20 @@ async function loadUserSubscriptionInvoices() {
         const myInvoices = Object.values(allOrdersObj).filter(o => {
           if (!o) return false;
           const uEmail = String(o.user_email || o.userEmail || '').toLowerCase().trim();
-          const isPlan = Boolean(o.plan_id || o.planId || String(o.order_code || o.orderCode || '').startsWith('PLAN-'));
+          const code = o.order_code || o.orderCode || o.code || '';
+          const isPlan = Boolean(o.plan_id || o.planId || String(code).startsWith('PLAN-'));
           return uEmail === myEmail && isPlan;
-        }).sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
+        }).map(o => {
+          const code = o.order_code || o.orderCode || o.code || '';
+          const createdAt = o.created_at || o.createdAt || o.timestamp || o.date || Date.now();
+          return {
+            ...o,
+            order_code: code,
+            orderCode: code,
+            created_at: Number(createdAt),
+            createdAt: Number(createdAt)
+          };
+        }).sort((a, b) => Number(b.created_at || 0) - Number(a.created_at || 0));
 
         if (myInvoices.length > 0) {
           renderInvoicesHtml(myInvoices, tbody);
@@ -1033,17 +1071,19 @@ function renderInvoicesHtml(invoices, tbody) {
   }
   tbody.innerHTML = invoices.map(inv => {
     const statusClass = (inv.status || 'PENDING').toLowerCase();
-    const dateStr = inv.created_at ? new Date(inv.created_at).toLocaleString() : 'N/A';
+    const code = inv.order_code || inv.orderCode || 'N/A';
+    const createdAtRaw = inv.created_at || inv.createdAt;
+    const dateStr = createdAtRaw ? new Date(Number(createdAtRaw)).toLocaleString() : 'N/A';
     return `
       <tr>
-        <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a;">${inv.order_code || inv.orderCode}</span></td>
+        <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a;">${code}</span></td>
         <td><span class="badge-status paid" style="background: rgba(168,85,247,0.15); color: #c084fc; border-color: rgba(168,85,247,0.3);">${inv.plan_id || inv.planId || 'Plan'}</span></td>
         <td><strong>₹${Number(inv.amount).toFixed(2)}</strong></td>
         <td><span class="badge-status ${statusClass}">${inv.status}</span></td>
         <td>${inv.utr ? `<span style="font-family: 'JetBrains Mono', monospace; color: #34d399; font-weight: 700;">${inv.utr}</span>` : '<span style="color: var(--text-dim); font-size: 12px;">Awaiting Bank</span>'}</td>
         <td style="font-size: 12px; color: var(--text-dim);">${dateStr}</td>
         <td>
-          <a href="/checkout/${inv.order_code || inv.orderCode}" target="_blank" class="nav-btn" style="padding: 4px 10px; font-size: 11px; display: inline-flex; color: var(--accent-cyan);">
+          <a href="/checkout/${code}" target="_blank" class="nav-btn" style="padding: 4px 10px; font-size: 11px; display: inline-flex; color: var(--accent-cyan);">
             View Receipt ↗
           </a>
         </td>
@@ -1080,11 +1120,16 @@ function renderOrdersTables(orders) {
   if (paymentsTbody) {
     paymentsTbody.innerHTML = orders.map(order => {
       const statusClass = (order.status || 'PENDING').toLowerCase();
-      const dateStr = order.created_at ? new Date(order.created_at).toLocaleString() : 'N/A';
-      const isOffset = order.base_amount && Number(order.base_amount) !== Number(order.amount);
+      const code = order.order_code || order.orderCode || order.code || '';
+      const createdAtRaw = order.created_at || order.createdAt || order.timestamp || order.date;
+      const dateStr = createdAtRaw ? new Date(Number(createdAtRaw)).toLocaleString() : 'N/A';
+      const baseAmt = order.base_amount !== undefined ? order.base_amount : (order.baseAmount !== undefined ? order.baseAmount : order.amount);
+      const isOffset = baseAmt && Number(baseAmt) !== Number(order.amount);
       const amountHtml = isOffset 
         ? `<strong>₹${Number(order.amount).toFixed(2)}</strong> <span style="font-size: 11px; color: #38bdf8;">(unique)</span>`
         : `<strong>₹${Number(order.amount).toFixed(2)}</strong>`;
+      const custName = order.customer_name || order.customerName || 'Guest';
+      const custPhone = order.customer_phone || order.customerPhone || '';
 
       const utrHtml = order.utr 
         ? `<span style="font-family: 'JetBrains Mono', monospace; color: #34d399; font-weight: 700;">${order.utr}</span>
@@ -1093,19 +1138,19 @@ function renderOrdersTables(orders) {
 
       return `
         <tr>
-          <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a;">${order.order_code}</span></td>
+          <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a;">${code || 'N/A'}</span></td>
           <td>${amountHtml}</td>
           <td>
-            <div style="font-weight: 600; color: #0f172a;">${order.customer_name || 'Guest'}</div>
-            <div style="font-size: 11px; color: var(--text-dim);">${order.customer_phone || ''}</div>
+            <div style="font-weight: 600; color: #0f172a;">${custName}</div>
+            <div style="font-size: 11px; color: var(--text-dim);">${custPhone}</div>
           </td>
           <td><span class="badge-status ${statusClass}">${order.status}</span></td>
           <td>${utrHtml}</td>
           <td style="font-size: 12px; color: var(--text-dim);">${dateStr}</td>
           <td>
-            <a href="/checkout/${order.order_code}" target="_blank" class="nav-btn" style="padding: 4px 10px; font-size: 12px; color: var(--accent-cyan); display: inline-flex;">
+            ${code ? `<a href="/checkout/${code}" target="_blank" class="nav-btn" style="padding: 4px 10px; font-size: 12px; color: var(--accent-cyan); display: inline-flex;">
               Open ↗
-            </a>
+            </a>` : `<span style="color: var(--text-dim); font-size: 12px;">N/A</span>`}
           </td>
         </tr>
       `;
@@ -1117,12 +1162,15 @@ function renderOrdersTables(orders) {
     const topOrders = orders.slice(0, 5);
     dashTbody.innerHTML = topOrders.map(order => {
       const statusClass = (order.status || 'PENDING').toLowerCase();
-      const dateStr = order.created_at ? new Date(order.created_at).toLocaleTimeString() : 'N/A';
+      const code = order.order_code || order.orderCode || order.code || 'N/A';
+      const custName = order.customer_name || order.customerName || 'Guest';
+      const createdAtRaw = order.created_at || order.createdAt || order.timestamp || order.date;
+      const dateStr = createdAtRaw ? new Date(Number(createdAtRaw)).toLocaleTimeString() : 'N/A';
       return `
         <tr>
-          <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a;">${order.order_code}</span></td>
+          <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a;">${code}</span></td>
           <td><strong>₹${Number(order.amount).toFixed(2)}</strong></td>
-          <td>${order.customer_name || 'Guest'}</td>
+          <td>${custName}</td>
           <td><span class="badge-status ${statusClass}">${order.status}</span></td>
           <td>${order.utr ? `<span style="font-family: 'JetBrains Mono', monospace; color: #34d399;">${order.utr}</span>` : '<span style="color: var(--text-dim);">—</span>'}</td>
           <td style="font-size: 12px; color: var(--text-dim);">${dateStr}</td>
@@ -1146,11 +1194,12 @@ function filterOrdersTable() {
     renderOrdersTables(userOrdersList);
     return;
   }
-  const filtered = userOrdersList.filter(o => 
-    (o.order_code && o.order_code.toLowerCase().includes(query)) ||
-    (o.customer_name && o.customer_name.toLowerCase().includes(query)) ||
-    (o.utr && o.utr.toLowerCase().includes(query))
-  );
+  const filtered = userOrdersList.filter(o => {
+    const c = (o.order_code || o.orderCode || '').toLowerCase();
+    const n = (o.customer_name || o.customerName || '').toLowerCase();
+    const u = (o.utr || '').toLowerCase();
+    return c.includes(query) || n.includes(query) || u.includes(query);
+  });
   renderOrdersTables(filtered);
 }
 

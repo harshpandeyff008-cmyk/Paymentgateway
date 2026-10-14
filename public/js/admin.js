@@ -419,7 +419,20 @@ async function loadOrders(filter = 'ALL') {
     if (cloudRes.ok) {
       const cloudData = await cloudRes.json();
       if (cloudData && typeof cloudData === 'object') {
-        let ordersList = Object.values(cloudData);
+        let ordersList = Object.values(cloudData).map(o => {
+          if (!o) return o;
+          const code = o.order_code || o.orderCode || o.code || '';
+          const createdAt = o.created_at || o.createdAt || o.timestamp || o.date || Date.now();
+          return {
+            ...o,
+            order_code: code,
+            orderCode: code,
+            created_at: Number(createdAt),
+            createdAt: Number(createdAt),
+            customer_name: o.customer_name || o.customerName || 'Guest',
+            customer_phone: o.customer_phone || o.customerPhone || ''
+          };
+        });
         if (filter !== 'ALL') {
           ordersList = ordersList.filter(o => o.status === filter);
         }
@@ -434,7 +447,20 @@ async function loadOrders(filter = 'ALL') {
     const res = await fetch(`${API_BASE}/api/admin/orders?status=${filter}`);
     const data = await res.json();
     if (data && data.success && Array.isArray(data.orders)) {
-      renderOrders(data.orders);
+      const normalized = data.orders.map(o => {
+        const code = o.order_code || o.orderCode || o.code || '';
+        const createdAt = o.created_at || o.createdAt || o.timestamp || o.date || Date.now();
+        return {
+          ...o,
+          order_code: code,
+          orderCode: code,
+          created_at: Number(createdAt),
+          createdAt: Number(createdAt),
+          customer_name: o.customer_name || o.customerName || 'Guest',
+          customer_phone: o.customer_phone || o.customerPhone || ''
+        };
+      });
+      renderOrders(normalized);
     }
   } catch (err) {
     console.error('Failed to load orders from backend:', err);
@@ -449,11 +475,14 @@ function renderOrders(orders) {
     if (pendingOrders.length === 0) {
       simChips.innerHTML = `<span style="font-size: 11px; color: var(--accent-amber);">⚠️ No pending orders open. Click 1-Click test below!</span>`;
     } else {
-      simChips.innerHTML = pendingOrders.slice(0, 4).map(o => `
-        <button type="button" onclick="selectPendingOrderForSim('${o.order_code}', ${o.amount})" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; border-color: rgba(56, 189, 248, 0.4); color: var(--primary); cursor: pointer;" title="Fill ₹${o.amount} into simulator">
-          👉 ${o.order_code}: ₹${Number(o.amount).toFixed(2)}
+      simChips.innerHTML = pendingOrders.slice(0, 4).map(o => {
+        const code = o.order_code || o.orderCode;
+        return `
+        <button type="button" onclick="selectPendingOrderForSim('${code}', ${o.amount})" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; border-color: rgba(56, 189, 248, 0.4); color: var(--primary); cursor: pointer;" title="Fill ₹${o.amount} into simulator">
+          👉 ${code}: ₹${Number(o.amount).toFixed(2)}
         </button>
-      `).join('');
+      `;
+      }).join('');
     }
   }
 
@@ -469,13 +498,15 @@ function renderOrders(orders) {
   }
 
   ordersTableBody.innerHTML = orders.map(ord => {
+    const code = ord.order_code || ord.orderCode || 'N/A';
     const isPending = ord.status === 'PENDING';
     const isPaid = ord.status === 'PAID';
     const isExpired = ord.status === 'EXPIRED';
 
     let timeDetail = '-';
     if (isPaid) {
-      timeDetail = `<span style="color: var(--accent-green);">Paid @ ${new Date(ord.paid_at || ord.created_at).toLocaleTimeString()}</span><br><span style="font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim);">${ord.utr || 'Auto'}</span>`;
+      const paidDate = ord.paid_at || ord.created_at;
+      timeDetail = `<span style="color: var(--accent-green);">Paid @ ${paidDate ? new Date(paidDate).toLocaleTimeString() : 'N/A'}</span><br><span style="font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim);">${ord.utr || 'Auto'}</span>`;
     } else if (isPending) {
       const remainingSecs = Math.max(0, Math.floor((ord.expires_at - Date.now()) / 1000));
       const mins = Math.floor(remainingSecs / 60);
@@ -488,19 +519,19 @@ function renderOrders(orders) {
     return `
       <tr>
         <td>
-          <a href="/checkout/${ord.order_code}" target="_blank" class="code-badge" title="Open Customer Checkout">
-            ${ord.order_code} ↗
+          <a href="/checkout/${code}" target="_blank" class="code-badge" title="Open Customer Checkout">
+            ${code} ↗
           </a>
         </td>
         <td style="font-weight: 700; font-size: 15px;">₹ ${Number(ord.amount).toFixed(2)}</td>
         <td><span class="badge ${ord.status}">${ord.status}</span></td>
         <td>
-          <div>${ord.customer_name || 'Guest'}</div>
-          <div style="font-size: 11px; color: var(--text-dim);">${ord.customer_phone || ''}</div>
+          <div>${ord.customer_name || ord.customerName || 'Guest'}</div>
+          <div style="font-size: 11px; color: var(--text-dim);">${ord.customer_phone || ord.customerPhone || ''}</div>
         </td>
         <td>${timeDetail}</td>
         <td>
-          <a href="/checkout/${ord.order_code}" target="_blank" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">
+          <a href="/checkout/${code}" target="_blank" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">
             Open Page
           </a>
         </td>
