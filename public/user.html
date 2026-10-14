@@ -1374,7 +1374,7 @@ echo "Order: " . $data['order']['orderCode'] . " | Amount: " . $data['order']['a
               Pass <code>merchantName</code>, <code>brandLogoUrl</code>, <code>theme</code>, <code>customNote</code>, and <code>redirectUrl</code> directly in your JSON payload:
             </p>
 
-            <pre style="background: #000; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 14px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #38bdf8; overflow-x: auto; margin-bottom: 14px;"><code>curl -X POST https://personal-payment-gateway.onrender.com/api/v1/order/create \
+            <pre style="background: #000; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 14px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #38bdf8; overflow-x: auto; margin-bottom: 14px;"><code>curl -X POST https://payment-gateway-ydl1.onrender.com/api/v1/order/create \
   -H "Content-Type: application/json" \
   -H "x-api-key: <span class="inject-api-key">pg_live_your_key</span>" \
   -d '{

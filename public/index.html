@@ -1510,7 +1510,7 @@
         </div>
 
         <div class="code-container">
-          <pre class="code-pre" id="snippetContent">curl -X POST https://personal-payment-gateway.onrender.com/api/v1/orders \
+          <pre class="code-pre" id="snippetContent">curl -X POST https://payment-gateway-ydl1.onrender.com/api/v1/orders \
   -H "x-api-key: pg_live_your_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1731,7 +1731,7 @@
   <!-- Code Snippets Switcher and Demo Simulation Logic -->
   <script>
     const SNIPPETS = {
-      curl: `curl -X POST https://personal-payment-gateway.onrender.com/api/v1/orders \\
+      curl: `curl -X POST https://payment-gateway-ydl1.onrender.com/api/v1/orders \\
   -H "x-api-key: pg_live_your_key" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -1742,7 +1742,7 @@
   }'`,
       node: `import fetch from 'node-fetch';
 
-const res = await fetch('https://personal-payment-gateway.onrender.com/api/v1/orders', {
+const res = await fetch('https://payment-gateway-ydl1.onrender.com/api/v1/orders', {
   method: 'POST',
   headers: {
     'x-api-key': process.env.ONE_UPI_KEY,
@@ -1760,7 +1760,7 @@ const data = await res.json();
 console.log('Hosted Checkout URL:', data.order.fullCheckoutUrl);`,
       python: `import requests
 
-url = "https://personal-payment-gateway.onrender.com/api/v1/orders"
+url = "https://payment-gateway-ydl1.onrender.com/api/v1/orders"
 headers = {
     "x-api-key": "pg_live_your_key",
     "Content-Type": "application/json"
@@ -1775,7 +1775,7 @@ payload = {
 res = requests.post(url, json=payload, headers=headers).json()
 print("Payment URL:", res["order"]["fullCheckoutUrl"])`,
       php: `<?php
-$curl = curl_init('https://personal-payment-gateway.onrender.com/api/v1/orders');
+$curl = curl_init('https://payment-gateway-ydl1.onrender.com/api/v1/orders');
 curl_setopt_array($curl, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,

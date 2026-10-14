@@ -1,7 +1,7 @@
 
 // Pre-warm Render Backend on page load to eliminate 50s cold-start delays for remote users
 try {
-  fetch('https://personal-payment-gateway.onrender.com/api/admin/banking/status', { mode: 'no-cors' }).catch(() => {});
+  fetch('https://payment-gateway-ydl1.onrender.com/api/admin/banking/status', { mode: 'no-cors' }).catch(() => {});
 } catch (_) {}
 
 // ==========================================
@@ -11,7 +11,7 @@ try {
 // Dynamically resolve Gateway Backend URL (supports Firebase Hosting, custom domains, and Render)
 const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000' || window.location.hostname.includes('onrender.com')) 
   ? '' 
-  : 'https://personal-payment-gateway.onrender.com';
+  : 'https://payment-gateway-ydl1.onrender.com';
 
 
 const originalFetch = window.fetch;
@@ -1451,11 +1451,13 @@ async function handleTestApiCall(event) {
   }
 
   try {
-    const res = await fetch('/api/v1/orders', {
+    const userApiKey = currentUser.apiKey || currentUser.api_key || '';
+    const res = await fetch((API_BASE || '') + '/api/v1/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': currentUser.apiKey || ''
+        'x-api-key': userApiKey,
+        'x-admin-test': 'true'
       },
       body: JSON.stringify({
         amount: parseFloat(amount),
@@ -2334,7 +2336,7 @@ window.runLiveApiTester = async function () {
     return;
   }
 
-  const apiKey = currentUser.apiKey;
+  const apiKey = currentUser.apiKey || currentUser.api_key;
   if (!apiKey) {
     alert('No API key found. Please make sure your account is initialized.');
     return;
@@ -2360,7 +2362,8 @@ window.runLiveApiTester = async function () {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey
+        'x-api-key': apiKey,
+        'x-admin-test': 'true'
       },
       body: JSON.stringify({
         amount,

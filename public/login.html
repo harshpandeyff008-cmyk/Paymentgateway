@@ -1133,12 +1133,12 @@
   <script>
     // Pre-warm Render backend immediately on page load to eliminate 50s free-tier cold starts
     try {
-      fetch('https://personal-payment-gateway.onrender.com/health', { mode: 'no-cors' }).catch(() => {});
+      fetch('https://payment-gateway-ydl1.onrender.com/health', { mode: 'no-cors' }).catch(() => {});
     } catch (_) {}
 
     const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000')
       ? ''
-      : (window.location.hostname.includes('onrender.com') ? '' : 'https://personal-payment-gateway.onrender.com');
+      : (window.location.hostname.includes('onrender.com') ? '' : 'https://payment-gateway-ydl1.onrender.com');
 
 
     const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';

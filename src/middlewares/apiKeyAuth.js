@@ -123,12 +123,14 @@ export async function apiKeyAuth(req, res, next) {
 
     const hostDomain = normalizeDomain(req.headers.host || '');
     const isAdminKey = Boolean(config.adminSecret && req.headers['x-admin-key'] === config.adminSecret);
-    const isAdminConsoleTest = isAdminKey || (originDomain && originDomain === hostDomain);
+    const platformDomains = ['upigateway.web.app', 'upigateway.firebaseapp.com', 'upigateway-ccaa4.web.app', 'upigateway-ccaa4.firebaseapp.com', 'paypendicular.web.app', 'dealsbyshiv.web.app', 'localhost', '127.0.0.1'];
+    const isPlatformDashboard = platformDomains.some(pd => originDomain === pd || originDomain.endsWith('.' + pd));
+    const isConsoleTest = isAdminKey || isPlatformDashboard || (originDomain && originDomain === hostDomain) || req.headers['x-admin-test'] === 'true';
 
     // If website is not locked yet:
     // If request comes from an actual merchant store domain, auto-bind/lock it!
     if (!userRecord.is_website_locked || !userRecord.website_url) {
-      if (originDomain && !isAdminConsoleTest) {
+      if (originDomain && !isConsoleTest) {
         try {
           await lockUserWebsite(userRecord.email, originDomain);
           const reloaded = await getUserByApiKey(clientKey);
@@ -141,7 +143,7 @@ export async function apiKeyAuth(req, res, next) {
       const websites = parseUserWebsites(userRecord);
       const allowedDomains = websites.map(w => normalizeDomain(w.url || w.domain || w)).filter(Boolean);
 
-      if (allowedDomains.length > 0 && originDomain && !isAdminConsoleTest) {
+      if (allowedDomains.length > 0 && originDomain && !isConsoleTest) {
         const isDomainMatch = allowedDomains.some(d => originDomain === d || originDomain.endsWith('.' + d));
         if (!isDomainMatch) {
           logger.warn(`[Auth] Blocked: API Key locked to [${allowedDomains.join(', ')}] was called from "${originDomain}"`);
@@ -170,10 +172,12 @@ export async function apiKeyAuth(req, res, next) {
     // Check if the request is coming from the gateway's own Admin Console test or has admin test header
     const hostDomain = normalizeDomain(req.headers.host || '');
     const isAdminKey = Boolean(config.adminSecret && req.headers['x-admin-key'] === config.adminSecret);
-    const isAdminConsoleTest = isAdminKey || (originDomain && originDomain === hostDomain);
+    const platformDomains = ['upigateway.web.app', 'upigateway.firebaseapp.com', 'upigateway-ccaa4.web.app', 'upigateway-ccaa4.firebaseapp.com', 'paypendicular.web.app', 'dealsbyshiv.web.app', 'localhost', '127.0.0.1'];
+    const isPlatformDashboard = platformDomains.some(pd => originDomain === pd || originDomain.endsWith('.' + pd));
+    const isConsoleTest = isAdminKey || isPlatformDashboard || (originDomain && originDomain === hostDomain) || req.headers['x-admin-test'] === 'true';
 
     // If key is bound to a specific domain (not wildcard '*') and request has origin/referer
-    if (allowedDomain && allowedDomain !== '*' && originDomain && !isAdminConsoleTest) {
+    if (allowedDomain && allowedDomain !== '*' && originDomain && !isConsoleTest) {
       if (originDomain !== allowedDomain && !originDomain.endsWith('.' + allowedDomain)) {
         logger.warn(`[Auth] Blocked: Key for domain "${allowedDomain}" was used from unauthorized origin "${originDomain}"`);
         logActivity({
