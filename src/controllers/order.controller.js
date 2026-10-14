@@ -142,7 +142,11 @@ export const OrderController = {
       };
 
       // Persist order to Firebase Realtime Database
-      CloudSyncService.saveOrder(orderData).catch(() => {});
+      try {
+        await CloudSyncService.saveOrder(orderData);
+      } catch (err) {
+        console.warn('[CloudSync] saveOrder warning:', err.message);
+      }
 
       await logActivity({
         eventType: 'ORDER_CREATED',

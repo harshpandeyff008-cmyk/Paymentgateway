@@ -542,7 +542,9 @@ export const UserController = {
           plan_id: targetPlan.id,
           credits_to_add: targetPlan.qrCredits
         };
-        CloudSyncService.saveOrder(freeOrderObj).catch(() => {});
+        try {
+          await CloudSyncService.saveOrder(freeOrderObj);
+        } catch (_) {}
 
         await logActivity({
           eventType: 'PLAN_ACTIVATED_100_COUPON',
@@ -611,7 +613,9 @@ export const UserController = {
         plan_id: targetPlan.id,
         credits_to_add: targetPlan.qrCredits
       };
-      CloudSyncService.saveOrder(pendingOrderObj).catch(() => {});
+      try {
+        await CloudSyncService.saveOrder(pendingOrderObj);
+      } catch (_) {}
 
       // Start/sync payment monitor asynchronously in background (non-blocking)
       syncPaymentMonitoring(req.io).catch(err => console.warn('[Payment Monitoring] Sync notice:', err.message));
@@ -1220,7 +1224,9 @@ export const UserController = {
         expires_at: expiresAt,
         user_email: user.email
       };
-      CloudSyncService.saveOrder(linkOrderObj).catch(() => {});
+      try {
+        await CloudSyncService.saveOrder(linkOrderObj);
+      } catch (_) {}
 
       // Start/sync payment monitor asynchronously in background (non-blocking)
       syncPaymentMonitoring(req.io).catch(err => console.warn('[Payment Monitoring] Sync notice:', err.message));

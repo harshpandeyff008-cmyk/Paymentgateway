@@ -54,66 +54,106 @@ async function loadOrder() {
     return;
   }
 
+  let order = null;
+
+  // 1. First Attempt: Gateway API Endpoint
   try {
     const res = await fetch(`${API_BASE}/api/orders/${orderCode}`);
-    const data = await res.json();
-
-    if (!data.success || !data.order) {
-      showOrderNotFound(data.error || 'Order not found or has expired.');
-      return;
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.order) {
+        order = data.order;
+      }
     }
-
-    currentOrder = data.order;
-    renderOrder(currentOrder);
-
-    // If already paid
-    if (currentOrder.status === 'PAID') {
-      showPaymentSuccess(currentOrder);
-      return;
-    }
-
-    // If expired
-    if (currentOrder.status === 'EXPIRED') {
-      showExpired();
-      return;
-    }
-
-    // Start live countdown timer
-    startCountdown(currentOrder.timeRemainingSeconds);
-
-    // Connect to WebSockets
-    initRealtimeSocket();
-
   } catch (err) {
-    console.error('Failed to load order:', err);
-    statusMessage.innerText = 'Network error while loading payment details.';
+    console.warn('[Checkout] Backend fetch failed, checking cloud fallback...', err.message);
   }
+
+  // 2. Second Attempt: Direct Cloud RTDB Fallback (Instant global lookup)
+  if (!order) {
+    try {
+      const cleanCode = encodeURIComponent(String(orderCode).trim().toLowerCase().replace(/\./g, '_dot_'));
+      const directRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders/${cleanCode}.json`);
+      if (directRes.ok) {
+        const cloudData = await directRes.json();
+        if (cloudData && (cloudData.order_code || cloudData.orderCode)) {
+          order = cloudData;
+        }
+      }
+
+      if (!order) {
+        const exactKey = encodeURIComponent(String(orderCode).trim().replace(/\./g, '_dot_'));
+        if (exactKey !== cleanCode) {
+          const exactRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders/${exactKey}.json`);
+          if (exactRes.ok) {
+            const exactData = await exactRes.json();
+            if (exactData && (exactData.order_code || exactData.orderCode)) {
+              order = exactData;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Checkout] Cloud RTDB fallback failed:', e.message);
+    }
+  }
+
+  if (!order) {
+    showOrderNotFound('Order not found or has expired.');
+    return;
+  }
+
+  currentOrder = order;
+  renderOrder(currentOrder);
+
+  // If already paid
+  if (currentOrder.status === 'PAID') {
+    showPaymentSuccess(currentOrder);
+    return;
+  }
+
+  // If expired
+  if (currentOrder.status === 'EXPIRED') {
+    showExpired();
+    return;
+  }
+
+  // Calculate live countdown timer
+  const expiresAt = Number(currentOrder.expires_at || currentOrder.expiresAt || 0);
+  const now = Date.now();
+  const timeRemaining = expiresAt > now ? Math.floor((expiresAt - now) / 1000) : (currentOrder.timeRemainingSeconds || 300);
+  startCountdown(timeRemaining);
+
+  // Connect to WebSockets
+  initRealtimeSocket();
 }
 
 // 2. Render Order & QR
 function renderOrder(order) {
-  orderCodeDisplay.innerText = order.order_code;
+  const code = order.order_code || order.orderCode || orderCode;
+  orderCodeDisplay.innerText = code;
   amountDisplay.innerText = `₹ ${Number(order.amount).toFixed(2)}`;
-  if (order.merchantName && merchantName) {
-    merchantName.innerText = order.merchantName;
+  if (merchantName) {
+    merchantName.innerText = order.merchantName || order.merchant_name || order.brandName || order.brand_name || 'Personal Gateway';
   }
 
   // Custom Merchant Logo
   const merchantLogoImg = document.getElementById('merchantLogoImg');
-  if (merchantLogoImg && (order.brandLogoUrl || order.customLogoUrl || order.brand_logo_url || order.custom_logo_url)) {
-    merchantLogoImg.src = order.brandLogoUrl || order.customLogoUrl || order.brand_logo_url || order.custom_logo_url;
+  const logoUrl = order.brandLogoUrl || order.customLogoUrl || order.brand_logo_url || order.custom_logo_url || order.defaultBrandLogoUrl;
+  if (merchantLogoImg && logoUrl) {
+    merchantLogoImg.src = logoUrl;
   }
 
   // Custom Note or Order Description
   const customNoteBox = document.getElementById('customNoteBox');
-  const customNoteText = order.customNote || order.description || order.custom_note;
+  const customNoteText = order.customNote || order.description || order.custom_note || order.defaultCustomNote;
   if (customNoteBox && customNoteText) {
     customNoteBox.innerText = `📝 ${customNoteText}`;
     customNoteBox.style.display = 'block';
   }
 
   // Dynamic Theme Styling
-  const theme = order.theme || 'tiranga';
+  const theme = order.theme || order.defaultTheme || 'tiranga';
   if (theme && theme !== 'tiranga') {
     applyThemeStyling(theme);
   }
@@ -123,12 +163,16 @@ function renderOrder(order) {
     uniqueNotice.innerHTML = `⚡ <span>Pay exact <b>₹${Number(order.amount).toFixed(2)}</b> for 1-second auto-verification</span>`;
   }
 
+  // Construct fallback UPI URI if missing
+  const merchantVpa = order.merchantVpa || order.merchant_vpa || order.upi_vpa || 'ffdealsbydas@fam';
+  const resolvedUpiUri = order.upiUri || order.upi_uri || `upi://pay?pa=${encodeURIComponent(merchantVpa)}&pn=${encodeURIComponent(order.merchantName || order.merchant_name || 'Merchant')}&am=${Number(order.amount).toFixed(2)}&tr=${code}&tn=${code}&cu=INR&mode=00`;
+
   // Set dynamic QR code image source (instant base64 or stream endpoint)
-  qrImage.src = order.qrDataUrl || `/api/qr?data=${encodeURIComponent(order.upiUri)}`;
+  qrImage.src = order.qrDataUrl || order.qrImageUrl || order.qrImage || `/api/qr?data=${encodeURIComponent(resolvedUpiUri)}`;
 
   // Mobile Intent Links — corrected deep-link schemes per each app's actual handler
-  const upiParams = order.upiUri.replace(/^upi:\/\/pay\?/, '');
-  btnPayDirect.href = order.upiUri;
+  const upiParams = resolvedUpiUri.replace(/^upi:\/\/pay\?/, '');
+  btnPayDirect.href = resolvedUpiUri;
 
   // GPay: tez://upi/pay? is the correct scheme (not gpay://)
   btnGPay.href = `tez://upi/pay?${upiParams}`;
@@ -144,13 +188,13 @@ function renderOrder(order) {
     btnPaytm.href = `paytmmp://pay?${upiParams}`;
   }
 
-  btnFamPay.href = order.upiUri; // FamPay registers standard upi:// scheme
+  btnFamPay.href = resolvedUpiUri; // FamPay registers standard upi:// scheme
 
   if (btnNavi) {
     if (isAndroid) {
       btnNavi.href = `intent://pay?${upiParams}#Intent;scheme=upi;package=com.naviapp;end`;
     } else {
-      btnNavi.href = order.upiUri;
+      btnNavi.href = resolvedUpiUri;
     }
   }
 }
