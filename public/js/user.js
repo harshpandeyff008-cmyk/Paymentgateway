@@ -19,9 +19,6 @@ window.fetch = async function (url, options = {}) {
   let urlStr = typeof url === 'string' ? url : (url?.url || '');
   if (API_BASE && urlStr.startsWith('/api/')) {
     urlStr = API_BASE + urlStr;
-    if (typeof url === 'string') {
-      url = urlStr;
-    }
   }
 
   const token = localStorage.getItem('user_jwt') || localStorage.getItem('user_token') || (typeof currentUser !== 'undefined' ? currentUser?.token : null);
@@ -41,7 +38,7 @@ window.fetch = async function (url, options = {}) {
     }
   }
 
-  return originalFetch.call(this, url, options);
+  return originalFetch.call(this, urlStr || url, options);
 };
 
 const REQUIRED_ADMIN_EMAIL = 'hapa1929@gmail.com';
@@ -919,16 +916,42 @@ function updatePlanCardsUI() {
 // Load User Orders for Payment Tracking & Dashboard
 async function loadUserOrders() {
   if (!currentUser || !currentUser.email) return;
+  const myEmail = currentUser.email.toLowerCase().trim();
 
+  // 1. Direct Firebase RTDB Fetch (0-latency, no 404)
+  try {
+    const rtdbRes = await fetch('https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders.json');
+    if (rtdbRes.ok) {
+      const allOrdersObj = await rtdbRes.json();
+      if (allOrdersObj && typeof allOrdersObj === 'object') {
+        const myOrders = Object.values(allOrdersObj).filter(o => {
+          if (!o) return false;
+          const uEmail = String(o.user_email || o.userEmail || '').toLowerCase().trim();
+          const isPlan = Boolean(o.plan_id || o.planId || String(o.order_code || o.orderCode || '').startsWith('PLAN-'));
+          if (uEmail !== myEmail || isPlan) return false;
+          if (currentOrderStatusFilter !== 'ALL' && (o.status || '').toUpperCase() !== currentOrderStatusFilter.toUpperCase()) return false;
+          return true;
+        }).sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
+
+        userOrdersList = myOrders;
+        renderOrdersTables(userOrdersList);
+        return;
+      }
+    }
+  } catch (_) {}
+
+  // 2. Gateway Backend Fallback
   try {
     const res = await fetch(`/api/v1/user/orders?email=${encodeURIComponent(currentUser.email)}&status=${currentOrderStatusFilter}`);
-    const data = await res.json();
-    if (data.success && data.orders) {
-      userOrdersList = (data.orders || []).sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
-      renderOrdersTables(userOrdersList);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.orders) {
+        userOrdersList = (data.orders || []).sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
+        renderOrdersTables(userOrdersList);
+      }
     }
   } catch (err) {
-    console.warn('Failed to load user orders:', err);
+    // Graceful fallback
   }
 }
 
@@ -937,44 +960,73 @@ async function loadUserSubscriptionInvoices() {
   if (!currentUser || !currentUser.email) return;
   const tbody = document.getElementById('userSubscriptionInvoicesTbody');
   if (!tbody) return;
+  const myEmail = currentUser.email.toLowerCase().trim();
 
+  // 1. Direct Firebase RTDB Fetch
+  try {
+    const rtdbRes = await fetch('https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders.json');
+    if (rtdbRes.ok) {
+      const allOrdersObj = await rtdbRes.json();
+      if (allOrdersObj && typeof allOrdersObj === 'object') {
+        const myInvoices = Object.values(allOrdersObj).filter(o => {
+          if (!o) return false;
+          const uEmail = String(o.user_email || o.userEmail || '').toLowerCase().trim();
+          const isPlan = Boolean(o.plan_id || o.planId || String(o.order_code || o.orderCode || '').startsWith('PLAN-'));
+          return uEmail === myEmail && isPlan;
+        }).sort((a, b) => Number(b.created_at || b.createdAt || 0) - Number(a.created_at || a.createdAt || 0));
+
+        if (myInvoices.length > 0) {
+          renderInvoicesHtml(myInvoices, tbody);
+          return;
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 2. Gateway Backend Fallback
   try {
     const res = await fetch(`/api/v1/user/subscription-invoices?email=${encodeURIComponent(currentUser.email)}`);
-    const data = await res.json();
-    if (data.success && data.invoices) {
-      if (data.invoices.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 24px;">
-              No subscription receipts found. Once you activate a plan, billing receipts will appear here.
-            </td>
-          </tr>
-        `;
-        return;
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.invoices) {
+        renderInvoicesHtml(data.invoices, tbody);
       }
-      tbody.innerHTML = data.invoices.map(inv => {
-        const statusClass = (inv.status || 'PENDING').toLowerCase();
-        const dateStr = inv.created_at ? new Date(inv.created_at).toLocaleString() : 'N/A';
-        return `
-          <tr>
-            <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a;">${inv.order_code}</span></td>
-            <td><span class="badge-status paid" style="background: rgba(168,85,247,0.15); color: #c084fc; border-color: rgba(168,85,247,0.3);">${inv.plan_id || 'Plan'}</span></td>
-            <td><strong>₹${Number(inv.amount).toFixed(2)}</strong></td>
-            <td><span class="badge-status ${statusClass}">${inv.status}</span></td>
-            <td>${inv.utr ? `<span style="font-family: 'JetBrains Mono', monospace; color: #34d399; font-weight: 700;">${inv.utr}</span>` : '<span style="color: var(--text-dim); font-size: 12px;">Awaiting Bank</span>'}</td>
-            <td style="font-size: 12px; color: var(--text-dim);">${dateStr}</td>
-            <td>
-              <a href="/checkout/${inv.order_code}" target="_blank" class="nav-btn" style="padding: 4px 10px; font-size: 11px; display: inline-flex; color: var(--accent-cyan);">
-                View Receipt ↗
-              </a>
-            </td>
-          </tr>
-        `;
-      }).join('');
     }
   } catch (err) {
-    console.warn('Failed to load subscription invoices:', err);
+    // Graceful fallback
   }
+}
+
+function renderInvoicesHtml(invoices, tbody) {
+  if (!invoices || invoices.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 24px;">
+          No subscription receipts found. Once you activate a plan, billing receipts will appear here.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  tbody.innerHTML = invoices.map(inv => {
+    const statusClass = (inv.status || 'PENDING').toLowerCase();
+    const dateStr = inv.created_at ? new Date(inv.created_at).toLocaleString() : 'N/A';
+    return `
+      <tr>
+        <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a;">${inv.order_code || inv.orderCode}</span></td>
+        <td><span class="badge-status paid" style="background: rgba(168,85,247,0.15); color: #c084fc; border-color: rgba(168,85,247,0.3);">${inv.plan_id || inv.planId || 'Plan'}</span></td>
+        <td><strong>₹${Number(inv.amount).toFixed(2)}</strong></td>
+        <td><span class="badge-status ${statusClass}">${inv.status}</span></td>
+        <td>${inv.utr ? `<span style="font-family: 'JetBrains Mono', monospace; color: #34d399; font-weight: 700;">${inv.utr}</span>` : '<span style="color: var(--text-dim); font-size: 12px;">Awaiting Bank</span>'}</td>
+        <td style="font-size: 12px; color: var(--text-dim);">${dateStr}</td>
+        <td>
+          <a href="/checkout/${inv.order_code || inv.orderCode}" target="_blank" class="nav-btn" style="padding: 4px 10px; font-size: 11px; display: inline-flex; color: var(--accent-cyan);">
+            View Receipt ↗
+          </a>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // Render Orders in Tracking Table and Dashboard Snapshot
@@ -1570,8 +1622,7 @@ async function handleTestApiCall(event) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': userApiKey,
-        'x-admin-test': 'true'
+        'x-api-key': userApiKey
       },
       body: JSON.stringify({
         amount: parseFloat(amount),
@@ -2476,8 +2527,7 @@ window.runLiveApiTester = async function () {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'x-admin-test': 'true'
+        'x-api-key': apiKey
       },
       body: JSON.stringify({
         amount,

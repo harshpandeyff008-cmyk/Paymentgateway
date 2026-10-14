@@ -62,7 +62,7 @@ export function createApp(io = null) {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Requested-With', 'Accept', 'x-admin-key', 'x-user-email']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-admin-test', 'X-Requested-With', 'Accept', 'x-admin-key', 'x-user-email']
   };
 
   // Core Middlewares
