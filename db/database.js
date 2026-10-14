@@ -7,10 +7,12 @@ import { CloudSyncService } from '../src/services/cloudSync.service.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure db directory exists
-const dataDir = path.join(__dirname, '..', 'data');
+// Ensure db directory exists (Use /tmp on Vercel Serverless where root filesystem is read-only)
+const dataDir = process.env.VERCEL ? path.join('/tmp', 'data') : path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+  } catch (_) {}
 }
 
 const dbPath = path.join(dataDir, 'gateway.db');

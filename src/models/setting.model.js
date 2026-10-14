@@ -27,6 +27,7 @@ export const SettingModel = {
   getAll: getAllSettings,
 
   async syncToEnvFile() {
+    if (process.env.VERCEL) return;
     try {
       const all = await getAllSettings();
       const envLines = [
