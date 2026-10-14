@@ -55,12 +55,15 @@ async function bootstrap() {
   // 7. Schedule Background Jobs (Expired orders cleanup every 30s)
   startExpiryCleaner(io, 30000);
 
-  // 7. Start listening on configured port
-  server.listen(config.port, '0.0.0.0', async () => {
+  // 7. Start listening on configured port (and secondary port for cloud PaaS proxy compatibility)
+  const primaryPort = config.port || 10000;
+  const secondaryPort = primaryPort === 10000 ? 3000 : 10000;
+
+  server.listen(primaryPort, '0.0.0.0', async () => {
     logger.info('======================================================');
-    logger.info(`🚀 Personal UPI Gateway live on: http://localhost:${config.port}`);
-    logger.info(`📱 Admin Dashboard:            http://localhost:${config.port}/admin`);
-    logger.info(`🩺 Health Check:                http://localhost:${config.port}/health`);
+    logger.info(`🚀 Personal UPI Gateway live on: http://localhost:${primaryPort} (and secondary: ${secondaryPort})`);
+    logger.info(`📱 Admin Dashboard:            http://localhost:${primaryPort}/admin`);
+    logger.info(`🩺 Health Check:                http://localhost:${primaryPort}/health`);
     logger.info(`💳 Configured UPI VPA:          ${config.merchant.upiVpa || 'NOT CONFIGURED'} (${config.merchant.name})`);
     logger.info(`📧 IMAP Realtime Alert Engine:  ${config.imap.enabled ? 'ACTIVE' : 'STANDBY'}`);
     logger.info(`🔐 Admin Master Auth:           ${config.adminSecret ? 'CONFIGURED' : 'NOT SET (SET IN .ENV)'}`);
@@ -70,6 +73,19 @@ async function bootstrap() {
     // restores monitoring after a process restart if orders are still active.
     await syncPaymentMonitoring(io);
   });
+
+  try {
+    const secondaryServer = http.createServer(app);
+    if (io) {
+      io.attach(secondaryServer);
+    }
+    secondaryServer.listen(secondaryPort, '0.0.0.0', () => {
+      logger.info(`🚀 Dual-port bridge active on: http://localhost:${secondaryPort}`);
+    });
+    secondaryServer.on('error', (e) => {
+      logger.warn(`[SecondaryServer] Port ${secondaryPort} not bound: ${e.message}`);
+    });
+  } catch (_) {}
 }
 
 // Graceful Shutdown Logic

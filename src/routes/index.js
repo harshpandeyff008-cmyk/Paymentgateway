@@ -29,6 +29,7 @@ router.use('/admin/leads', leadsRoutes);
 
 // Specific feature routers
 router.use('/orders', orderRoutes);
+router.use('/order', orderRoutes);
 router.use('/session', orderRoutes);
 router.use('/admin', adminRoutes);
 router.use('/user', userRoutes);

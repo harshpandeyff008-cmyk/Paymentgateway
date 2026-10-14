@@ -3,7 +3,7 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
 const API_BASE = isLocalhost 
   ? '' 
   : ((window.location.hostname.includes('paypendicular') || window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) 
-      ? 'https://payment-gateway-ydl1.onrender.com' 
+      ? 'https://personal-payment-gateway.onrender.com' 
       : '');
 const RTDB_BASE = 'https://upigateway-ccaa4-default-rtdb.firebaseio.com';
 

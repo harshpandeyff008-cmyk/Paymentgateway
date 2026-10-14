@@ -395,11 +395,10 @@ export async function initDatabase() {
   } catch (_) {}
 
   console.log('[DB] SQLite database initialized at:', dbPath);
-  try {
-    await CloudSyncService.restoreAllFromCloud(query);
-  } catch (err) {
+  // Run cloud restore in the background so HTTP server can bind port and pass cloud health checks immediately
+  CloudSyncService.restoreAllFromCloud(query).catch(err => {
     console.warn('[DB] Cloud restore warning:', err.message);
-  }
+  });
 }
 
 export async function logActivity({ eventType, status = 'INFO', title, details = '', clientIp = '', origin = '' }) {

@@ -1,7 +1,7 @@
 
 // Pre-warm Render Backend on page load to eliminate 50s cold-start delays for remote users
 try {
-  fetch('https://payment-gateway-ydl1.onrender.com/api/admin/banking/status', { mode: 'no-cors' }).catch(() => {});
+  fetch('https://personal-payment-gateway.onrender.com/health', { mode: 'no-cors' }).catch(() => {});
 } catch (_) {}
 
 // Extract orderCode from URL path (/checkout/:code)
@@ -10,7 +10,7 @@ const orderCode = pathParts[pathParts.length - 1] || '';
 
 // API Base configuration for static hosting (Firebase) vs local / monolithic server
 const API_BASE = (window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com'))
-  ? 'https://payment-gateway-ydl1.onrender.com'
+  ? 'https://personal-payment-gateway.onrender.com'
   : '';
 
 let timerInterval = null;

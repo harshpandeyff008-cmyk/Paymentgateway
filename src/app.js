@@ -37,6 +37,7 @@ export function createApp(io = null) {
       const dynamicAllowed = (config.allowedOrigins || [
         'https://dealsbyshiv.web.app',
         'https://dealsbyshiv.firebaseapp.com',
+        'https://personal-payment-gateway.onrender.com',
         'https://payment-gateway-ydl1.onrender.com',
         'http://localhost:5173',
         'http://localhost:3000',
@@ -44,25 +45,12 @@ export function createApp(io = null) {
         'http://127.0.0.1:3000'
       ]).map(s => s.trim().replace(/\/+$/, '').toLowerCase());
 
-      const isAllowed = dynamicAllowed.some(allowed => {
-        return allowed === '*' || normalized === allowed;
-      }) ||
-      normalized.includes('upigateway') ||
-      normalized.includes('paypendicular') ||
-      normalized.includes('dealsbyshiv') ||
-      normalized.includes('onrender.com') ||
-      normalized.includes('localhost') ||
-      normalized.includes('127.0.0.1');
-
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        callback(null, false);
-      }
+      // Always permit cross-origin requests for merchant stores (orders API is protected by x-api-key and domain binding)
+      callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-admin-test', 'X-Requested-With', 'Accept', 'x-admin-key', 'x-user-email']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-admin-test', 'X-Requested-With', 'Accept', 'x-admin-key', 'x-user-email', '*']
   };
 
   // Core Middlewares

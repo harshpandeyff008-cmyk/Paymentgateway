@@ -1,7 +1,7 @@
 
 // Pre-warm Render Backend on page load to eliminate 50s cold-start delays for remote users
 try {
-  fetch('https://payment-gateway-ydl1.onrender.com/api/admin/banking/status', { mode: 'no-cors' }).catch(() => {});
+  fetch('https://personal-payment-gateway.onrender.com/health', { mode: 'no-cors' }).catch(() => {});
 } catch (_) {}
 
 // ==========================================
@@ -9,9 +9,9 @@ try {
 // ==========================================
 
 // Dynamically resolve Gateway Backend URL (supports Firebase Hosting, custom domains, and Render)
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000' || window.location.hostname.includes('onrender.com')) 
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000' || window.location.hostname.includes('personal-payment-gateway.onrender.com')) 
   ? '' 
-  : 'https://payment-gateway-ydl1.onrender.com';
+  : 'https://personal-payment-gateway.onrender.com';
 
 
 const originalFetch = window.fetch;

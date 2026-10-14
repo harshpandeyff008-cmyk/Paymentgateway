@@ -18,16 +18,17 @@ COPY . .
 # Create persistent storage folder for SQLite database
 RUN mkdir -p /app/data
 
-# Expose service port
+# Expose service ports (10000 for Render default, 3000 for Node.js fallback)
+EXPOSE 10000
 EXPOSE 3000
 
 # Set production environment defaults
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=10000
 
-# Run health check
+# Run health check against both possible ports
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:10000/health || wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Start the Gateway backend
 CMD ["node", "server.js"]
