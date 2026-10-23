@@ -50,7 +50,7 @@ export async function checkGoogleBankingAlerts(accessToken, targetEmail, isMerch
   if (!accessToken) return { success: false, error: 'Access token is required' };
 
   try {
-    const listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?q=newer_than:1d+(credited+OR+received+OR+UPI+OR+FamPay+OR+payment)&maxResults=5';
+    const listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?q=newer_than:1d+(credited+OR+received+OR+UPI+OR+FamPay+OR+payment)&maxResults=10';
     const listRes = await fetch(listUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,

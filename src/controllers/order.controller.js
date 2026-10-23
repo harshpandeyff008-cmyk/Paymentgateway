@@ -108,7 +108,8 @@ export const OrderController = {
         vpa: merchantVpa,
         merchantName: merchantName,
         amount: payableAmount,
-        orderCode
+        orderCode,
+        provider: (req.userRecord?.upi_provider || req.userRecord?.upiProvider || config.merchant.upiProvider || 'AUTO')
       });
 
       const qrDataUrl = await generateQrDataUrl(upiUri);
@@ -228,20 +229,19 @@ export const OrderController = {
             }
           }
 
-          // 3. If still not found and order is fresh (< 30 mins old), perform a throttled on-demand check of merchant's IMAP
+          // 3. Non-blocking asynchronous check of merchant's IMAP (runs in background, never delays HTTP response!)
           if (!matchingPayment && (Date.now() - order.created_at) < 30 * 60 * 1000) {
             const now = Date.now();
             const lastScan = onDemandScanThrottle.get(order.order_code) || 0;
-            if (now - lastScan > 6000) {
+            if (now - lastScan > 10000) {
               onDemandScanThrottle.set(order.order_code, now);
-              try {
-                const { scanMerchantNow, scanAndProcessRecentEmails } = await import('../../services/imapListener.js');
+              import('../../services/imapListener.js').then(({ scanMerchantNow, scanAndProcessRecentEmails }) => {
                 if (order.user_email) {
-                  await scanMerchantNow(order.user_email);
+                  return scanMerchantNow(order.user_email);
                 } else {
-                  await scanAndProcessRecentEmails();
+                  return scanAndProcessRecentEmails();
                 }
-              } catch (_) {}
+              }).catch(() => {});
             }
           }
 

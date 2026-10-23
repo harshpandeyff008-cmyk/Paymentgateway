@@ -1,15 +1,10 @@
 
-// Pre-warm Render Backend on page load to eliminate 50s cold-start delays for remote users
-try {
-  fetch('https://personal-payment-gateway.onrender.com/health', { mode: 'no-cors' }).catch(() => {});
-} catch (_) {}
-
 // Extract orderCode from URL path (/checkout/:code)
 const pathParts = window.location.pathname.split('/');
 const orderCode = pathParts[pathParts.length - 1] || '';
 
 // API Base configuration for static hosting (Firebase) vs local / monolithic server
-const API_BASE = (window.location.hostname.includes('upigateway') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com'))
+const API_BASE = (window.location.hostname.includes('upigateway') || window.location.hostname.includes('nocostupi') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com'))
   ? 'https://personal-payment-gateway.vercel.app'
   : '';
 
@@ -47,55 +42,38 @@ const successUtr = document.getElementById('successUtr');
 const successSender = document.getElementById('successSender');
 const successTime = document.getElementById('successTime');
 
-// 1. Fetch Order Details
+// 1. Fetch Order Details (Parallel Race: Fastest of API or Direct RTDB wins in <100ms)
 async function loadOrder() {
   if (!orderCode) {
-    statusMessage.innerText = 'Error: Invalid order link.';
+    showOrderNotFound('Error: Invalid order link.');
     return;
   }
 
   let order = null;
+  const cleanCode = encodeURIComponent(String(orderCode).trim().toLowerCase().replace(/\./g, '_dot_'));
+  const rtdbUrl = `https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders/${cleanCode}.json`;
+  const apiUrl = `${API_BASE}/api/orders/${orderCode}`;
 
-  // 1. First Attempt: Gateway API Endpoint
+  // Start both requests in parallel
+  const apiPromise = fetch(apiUrl)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => (d && d.success && d.order) ? d.order : null)
+    .catch(() => null);
+
+  const cloudPromise = fetch(rtdbUrl)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => (d && (d.order_code || d.orderCode)) ? d : null)
+    .catch(() => null);
+
   try {
-    const res = await fetch(`${API_BASE}/api/orders/${orderCode}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.success && data.order) {
-        order = data.order;
-      }
-    }
-  } catch (err) {
-    console.warn('[Checkout] Backend fetch failed, checking cloud fallback...', err.message);
-  }
-
-  // 2. Second Attempt: Direct Cloud RTDB Fallback (Instant global lookup)
-  if (!order) {
-    try {
-      const cleanCode = encodeURIComponent(String(orderCode).trim().toLowerCase().replace(/\./g, '_dot_'));
-      const directRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders/${cleanCode}.json`);
-      if (directRes.ok) {
-        const cloudData = await directRes.json();
-        if (cloudData && (cloudData.order_code || cloudData.orderCode)) {
-          order = cloudData;
-        }
-      }
-
-      if (!order) {
-        const exactKey = encodeURIComponent(String(orderCode).trim().replace(/\./g, '_dot_'));
-        if (exactKey !== cleanCode) {
-          const exactRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders/${exactKey}.json`);
-          if (exactRes.ok) {
-            const exactData = await exactRes.json();
-            if (exactData && (exactData.order_code || exactData.orderCode)) {
-              order = exactData;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[Checkout] Cloud RTDB fallback failed:', e.message);
-    }
+    // Whichever returns valid data first displays immediately
+    order = await Promise.any([
+      apiPromise.then(res => res ? res : Promise.reject('no_api')),
+      cloudPromise.then(res => res ? res : Promise.reject('no_cloud'))
+    ]);
+  } catch (_) {
+    const [r1, r2] = await Promise.allSettled([apiPromise, cloudPromise]);
+    order = (r1.status === 'fulfilled' ? r1.value : null) || (r2.status === 'fulfilled' ? r2.value : null);
   }
 
   if (!order) {
@@ -168,7 +146,16 @@ function renderOrder(order) {
   const resolvedUpiUri = order.upiUri || order.upi_uri || `upi://pay?pa=${encodeURIComponent(merchantVpa)}&pn=${encodeURIComponent(order.merchantName || order.merchant_name || 'Merchant')}&am=${Number(order.amount).toFixed(2)}&tr=${code}&tn=${code}&cu=INR&mode=00`;
 
   // Set dynamic QR code image source (instant base64 or stream endpoint)
+  const qrLoader = document.getElementById('qrLoadingSpinner');
+  qrImage.onload = () => {
+    qrImage.style.opacity = '1';
+    if (qrLoader) qrLoader.style.display = 'none';
+  };
   qrImage.src = order.qrDataUrl || order.qrImageUrl || order.qrImage || `/api/qr?data=${encodeURIComponent(resolvedUpiUri)}`;
+  if (qrImage.complete && qrImage.naturalWidth > 0) {
+    qrImage.style.opacity = '1';
+    if (qrLoader) qrLoader.style.display = 'none';
+  }
 
   // Mobile Intent Links — corrected deep-link schemes per each app's actual handler
   const upiParams = resolvedUpiUri.replace(/^upi:\/\/pay\?/, '');
@@ -279,26 +266,56 @@ function showOrderNotFound(msg) {
 let fastPoller = null;
 
 function initRealtimeSocket() {
-  // Ultra-fast 1.5s HTTP Polling Fallback
+  // Ultra-fast HTTP Polling Fallback (with in-flight guard to prevent request queueing)
   if (orderCode) {
     if (fastPoller) clearInterval(fastPoller);
+    let isPolling = false;
+    let pollCycle = 0;
     fastPoller = setInterval(async () => {
+      if (isPolling) return;
+      isPolling = true;
+      pollCycle++;
       try {
         const res = await fetch(`${API_BASE}/api/v1/orders/${orderCode}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success && data.order && data.order.status === 'PAID') {
-          clearInterval(fastPoller);
-          showPaymentSuccess({
-            orderCode: data.order.orderCode,
-            amount: data.order.amount,
-            utr: data.order.utr,
-            sender: data.order.sender,
-            paidAt: data.order.paidAt
-          });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && data.order && data.order.status === 'PAID') {
+            clearInterval(fastPoller);
+            showPaymentSuccess({
+              orderCode: data.order.orderCode || data.order.order_code,
+              amount: data.order.amount,
+              utr: data.order.utr,
+              sender: data.order.sender || data.order.sender_info,
+              paidAt: data.order.paidAt || data.order.paid_at
+            });
+            return;
+          }
+        }
+
+        // Direct RTDB check every 3rd cycle for double redundancy
+        if (pollCycle % 3 === 0) {
+          const cleanCode = encodeURIComponent(String(orderCode).trim().toLowerCase().replace(/\./g, '_dot_'));
+          const rtdbRes = await fetch(`https://upigateway-ccaa4-default-rtdb.firebaseio.com/orders/${cleanCode}.json`);
+          if (rtdbRes.ok) {
+            const rtdbOrder = await rtdbRes.json();
+            if (rtdbOrder && rtdbOrder.status === 'PAID') {
+              clearInterval(fastPoller);
+              showPaymentSuccess({
+                orderCode: rtdbOrder.orderCode || rtdbOrder.order_code,
+                amount: rtdbOrder.amount,
+                utr: rtdbOrder.utr,
+                sender: rtdbOrder.sender || rtdbOrder.sender_info,
+                paidAt: rtdbOrder.paidAt || rtdbOrder.paid_at
+              });
+              return;
+            }
+          }
         }
       } catch (_) {}
-    }, 1500);
+      finally {
+        isPolling = false;
+      }
+    }, 2000);
   }
 
   if (typeof io === 'undefined') return;

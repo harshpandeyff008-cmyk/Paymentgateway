@@ -413,6 +413,64 @@ body::after {
   height: 30px;
 }
 
+.amount-shimmer-pill {
+  font-size: 20px;
+  font-weight: 700;
+  color: #38bdf8;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px dashed rgba(56, 189, 248, 0.4);
+  border-radius: 999px;
+  padding: 6px 18px;
+  letter-spacing: 0.2px;
+}
+
+.spin-dot {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(56, 189, 248, 0.25);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: miniSpin 0.7s linear infinite;
+  display: inline-block;
+}
+
+.qr-loading-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border-radius: 8px;
+  z-index: 4;
+}
+
+.qr-dynamic-loader {
+  width: 44px;
+  height: 44px;
+  border: 3.5px solid rgba(4, 30, 66, 0.12);
+  border-top-color: #ff671f;
+  border-bottom-color: #138808;
+  border-radius: 50%;
+  animation: miniSpin 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+}
+
+.qr-loading-caption {
+  font-size: 11px;
+  font-weight: 800;
+  color: #041E42;
+  margin-top: 10px;
+  letter-spacing: 0.3px;
+}
+
+@keyframes miniSpin {
+  to { transform: rotate(360deg); }
+}
+
 .upi-stand-footer {
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;

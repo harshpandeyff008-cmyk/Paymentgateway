@@ -9,6 +9,15 @@ export function setSocketIO(io) {
   ioInstance = io;
 }
 
+// Email alerts (esp. FamApp) can arrive minutes after the payment itself,
+// often after the 5-minute order window has closed and the expiry cleaner
+// has already flipped the order to EXPIRED. A verified payment email
+// carrying the exact unique amount (or the gateway order code) is
+// therefore still honoured for orders that expired within this grace
+// window, reviving them to PAID instead of stranding the money as an
+// unmatched payment.
+const LATE_PAYMENT_GRACE_MS = 15 * 60 * 1000;
+
 /**
  * Core Time-Window Matching Engine
  * Compares incoming payment amount and timestamp with pending active orders.
@@ -49,61 +58,74 @@ export async function processIncomingPayment({
   let matchingOrder = null;
 
   // Step 0: Instant Deterministic Match (Paytm Note / Order ID extracted from email)
+  // The amount MUST also equal the order amount (or its base amount): a
+  // note hit with the wrong amount must never mark an order paid - it
+  // falls through to the amount-based steps below instead. Orders that
+  // expired within the late-payment grace window are eligible too.
   if (orderCode) {
-    matchingOrder = await query.get(
-      `SELECT * FROM orders 
-       WHERE order_code = ? 
-         AND status = 'PENDING'
+    const candidate = await query.get(
+      `SELECT * FROM orders
+       WHERE order_code = ?
+         AND (status = 'PENDING' OR (status = 'EXPIRED' AND expires_at >= ? - ${LATE_PAYMENT_GRACE_MS}))
          AND created_at <= ? + 120000
        LIMIT 1`,
-      [orderCode, receivedTimestamp]
+      [orderCode, receivedTimestamp, receivedTimestamp]
     );
-    if (matchingOrder) {
-      console.log(`[MatchingEngine] ⚡ Instant Deterministic Match for order ${matchingOrder.order_code} via Note/Email!`);
+    if (candidate) {
+      const orderAmt = Number(candidate.amount);
+      const baseAmt = candidate.base_amount != null ? Number(candidate.base_amount) : NaN;
+      const amountOk = Math.abs(orderAmt - Number(amount)) <= 0.01 ||
+                       (!isNaN(baseAmt) && Math.abs(baseAmt - Number(amount)) <= 0.01);
+      if (amountOk) {
+        matchingOrder = candidate;
+        console.log(`[MatchingEngine] ⚡ Instant Deterministic Match for order ${matchingOrder.order_code} via Note/Email!`);
+      } else {
+        console.warn(`[MatchingEngine] Note/OrderCode match for ${candidate.order_code} rejected: payment ₹${amount} != order amount ₹${candidate.amount} (base ₹${candidate.base_amount}). Falling through to amount matching.`);
+      }
     }
   }
 
-  // Step A: Check if any pending active order was claimed with this exact UTR or order code in raw snippet
+  // Step A: Check if any pending / recently-expired order was claimed with this exact UTR or order code in raw snippet
   if (!matchingOrder) {
     matchingOrder = await query.get(
-      `SELECT * FROM orders 
-       WHERE status = 'PENDING'
+      `SELECT * FROM orders
+       WHERE (status = 'PENDING' OR (status = 'EXPIRED' AND expires_at >= ? - ${LATE_PAYMENT_GRACE_MS}))
          AND (utr = ? OR (LENGTH(?) > 4 AND instr(?, order_code) > 0))
          AND ROUND(amount, 2) = ROUND(?, 2)
          AND created_at <= ? + 60000
-         AND expires_at >= ? - 60000
-       ORDER BY created_at DESC 
+         AND expires_at >= ? - ${LATE_PAYMENT_GRACE_MS}
+       ORDER BY created_at DESC
        LIMIT 1`,
-      [utr, rawSnippet, rawSnippet, amount, receivedTimestamp, receivedTimestamp]
+      [receivedTimestamp, utr, rawSnippet, rawSnippet, amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
-  // Step B1: If incoming payment is from a specific Merchant's Gmail, prioritize that merchant's active pending orders
+  // Step B1: If incoming payment is from a specific Merchant's Gmail, prioritize that merchant's orders
   if (!matchingOrder && merchantEmail) {
     matchingOrder = await query.get(
-      `SELECT * FROM orders 
-       WHERE user_email = ? 
-         AND status = 'PENDING'
+      `SELECT * FROM orders
+       WHERE user_email = ?
+         AND (status = 'PENDING' OR (status = 'EXPIRED' AND expires_at >= ? - ${LATE_PAYMENT_GRACE_MS}))
          AND ROUND(amount, 2) = ROUND(?, 2)
          AND created_at <= ? + 60000
-         AND expires_at >= ? - 60000
-       ORDER BY created_at DESC 
+         AND expires_at >= ? - ${LATE_PAYMENT_GRACE_MS}
+       ORDER BY created_at DESC
        LIMIT 1`,
-      [merchantEmail, amount, receivedTimestamp, receivedTimestamp]
+      [merchantEmail, receivedTimestamp, amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
-  // Step B2: General active PENDING orders matching this exact unique amount during active window
+  // Step B2: General PENDING (or recently EXPIRED, within grace) orders matching this exact unique amount
   if (!matchingOrder) {
     matchingOrder = await query.get(
-      `SELECT * FROM orders 
-       WHERE status = 'PENDING' 
+      `SELECT * FROM orders
+       WHERE (status = 'PENDING' OR (status = 'EXPIRED' AND expires_at >= ? - ${LATE_PAYMENT_GRACE_MS}))
          AND ROUND(amount, 2) = ROUND(?, 2)
          AND created_at <= ? + 60000
-         AND expires_at >= ? - 60000
-       ORDER BY created_at DESC 
+         AND expires_at >= ? - ${LATE_PAYMENT_GRACE_MS}
+       ORDER BY created_at DESC
        LIMIT 1`,
-      [amount, receivedTimestamp, receivedTimestamp]
+      [receivedTimestamp, amount, receivedTimestamp, receivedTimestamp]
     );
   }
 
@@ -119,7 +141,7 @@ export async function processIncomingPayment({
         const cCreatedAt = Number(co.created_at || co.createdAt) || Date.now();
         const cExpiresAt = Number(co.expires_at || co.expiresAt) || (cCreatedAt + 24 * 60 * 60 * 1000);
         const code = co.order_code || co.orderCode;
-        if (code && cStatus === 'PENDING' && Math.abs(cAmount - amount) <= 0.01 && cCreatedAt <= receivedTimestamp + 300000 && cExpiresAt >= receivedTimestamp - 300000) {
+        if (code && (cStatus === 'PENDING' || cStatus === 'EXPIRED') && (Math.abs(cAmount - amount) <= 0.01 || Math.abs(cBaseAmount - amount) <= 0.01) && cCreatedAt <= receivedTimestamp + 300000 && cExpiresAt >= receivedTimestamp - LATE_PAYMENT_GRACE_MS) {
           // Insert into SQLite and use as matching order
           await query.run(
             `INSERT OR IGNORE INTO orders (
@@ -167,6 +189,10 @@ export async function processIncomingPayment({
 
   if (matchingOrder) {
     console.log(`[MatchingEngine] Match found! Order: ${matchingOrder.order_code} for ₹${amount}`);
+
+    if (matchingOrder.status === 'EXPIRED') {
+      console.log(`[MatchingEngine] Reviving EXPIRED order ${matchingOrder.order_code}: verified payment arrived within the late-payment grace window.`);
+    }
 
     // Update order to PAID
     await query.run(

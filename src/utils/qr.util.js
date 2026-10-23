@@ -3,14 +3,21 @@ import QRCode from 'qrcode';
 /**
  * Construct standard NPCI UPI Intent URI
  */
-export function buildUpiUri({ vpa, merchantName, amount, orderCode, note }) {
+export function buildUpiUri({ vpa, merchantName, amount, orderCode, note, provider }) {
   // IMPORTANT: VPA (pa=) must NOT be encodeURIComponent'd
   // The @ symbol MUST remain as @ — Paytm, GPay, PhonePe etc. all reject %40
   // Only pn= (name) and tn= (note) should be percent-encoded per NPCI spec
   const cleanVpa = (vpa || 'ffdealsbyjena@fam').trim();
   const cleanName = encodeURIComponent((merchantName || 'Merchant').trim());
   const cleanAmount = Number(amount || 0).toFixed(2);
-  const cleanNote = encodeURIComponent(note || orderCode || 'UPI Payment');
+  // PAYTM guarantee: for Paytm orders the note (tn=) - like the
+  // transaction reference (tr=) below - is ALWAYS the gateway order
+  // code, so a Paytm payment can be matched deterministically from the
+  // note whenever the alert email carries it. A custom note must never
+  // override the order code for Paytm.
+  const isPaytm = String(provider || '').toUpperCase().includes('PAYTM');
+  const effectiveNote = (isPaytm && orderCode) ? orderCode : (note || orderCode || 'UPI Payment');
+  const cleanNote = encodeURIComponent(effectiveNote);
   // tr= transaction reference helps UPI apps track + reconcile payments
   const txnRef = encodeURIComponent(orderCode || `TXN${Date.now()}`);
 

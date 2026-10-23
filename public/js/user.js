@@ -9,9 +9,11 @@ try {
 // ==========================================
 
 // Dynamically resolve Gateway Backend URL (supports Firebase Hosting, custom domains, Render and Vercel)
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000' || window.location.hostname.includes('onrender.com') || window.location.hostname.includes('vercel.app')) 
-  ? '' 
-  : 'https://personal-payment-gateway.vercel.app';
+const API_BASE = window.location.hostname.includes('nocostupi')
+  ? 'https://personal-payment-gateway.vercel.app'
+  : ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000' || window.location.hostname.includes('onrender.com') || window.location.hostname.includes('vercel.app'))
+  ? ''
+  : 'https://personal-payment-gateway.vercel.app')
 
 
 const originalFetch = window.fetch;

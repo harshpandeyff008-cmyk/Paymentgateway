@@ -9,9 +9,39 @@ import { startGmailWatcher, stopGmailWatcher } from './gmailWatcher.service.js';
 
 /**
  * Active Background Auto-Poller:
- * Checks latest 5 emails in Admin Gmail every 5 seconds for subscription payments.
- * Checks connected merchants' Gmails every 10 seconds for customer store orders.
+ * Checks latest 30 emails in Admin Gmail every 5 seconds for subscription payments.
+ * Checks connected merchants' Gmails (latest 25) every 10 seconds for customer store orders.
+ * (Scan windows were 10/8: a payment email was permanently missed whenever
+ * other mail arrived first or the server had slept.)
+ *
+ * Scaling note: there is exactly ONE checker per IMAP account (persistent
+ * IDLE push + this coalesced poller) - never a checker per QR/order, so
+ * thousands of simultaneous orders on one account still cost one mailbox
+ * scan per poll cycle; duplicate rows are filtered by UTR before matching.
  */
+// Supported payment-alert senders/subjects beyond the configured filter.
+// The configured sender filter (default fampay,famapp,fam) used to silently
+// DROP Paytm / PhonePe / bank alerts in the admin IMAP paths, so an admin
+// or merchant who set provider PAYTM never saw a payment through them.
+const PAYMENT_ALERT_KEYWORDS = ['paytm', 'phonepe', 'fampay', 'famapp', 'famx', 'b.paytm.me', 'gpay', 'google pay', 'bhim'];
+
+function matchesAdminSenderFilter(fromAddress, subject, bodyText) {
+  const fromLower = (fromAddress || '').toLowerCase();
+  const subjectLower = (subject || '').toLowerCase();
+  if (config.imap.senderFilter.length === 0) return true;
+  if (config.imap.senderFilter.some(filter => fromLower.includes(filter) || subjectLower.includes(filter))) return true;
+  const haystack = `${fromLower} ${subjectLower}`;
+  if (PAYMENT_ALERT_KEYWORDS.some(keyword => haystack.includes(keyword))) return true;
+  // Last resort: accept anything that actually parses as a payment credit.
+  if (bodyText) {
+    try {
+      const probe = parsePaymentEmail(subject, bodyText, new Date(), 'AUTO');
+      if (probe && probe.success) return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
 let pollerInterval = null;
 let isPolling = false;
 let isMerchantPolling = false;
@@ -43,7 +73,7 @@ export async function scanAndProcessRecentEmails() {
       const total = status.messages || 0;
 
       if (total > 0) {
-        const startSeq = Math.max(1, total - 9);
+        const startSeq = Math.max(1, total - 29); // last 30 emails (was 10: payment mail got buried/missed)
         for await (const message of pollerClient.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
           const parsed = await simpleParser(message.source);
           const subject = parsed.subject || '';
@@ -51,10 +81,7 @@ export async function scanAndProcessRecentEmails() {
           const bodyText = parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, ' ') : '');
           const emailDate = parsed.date || new Date();
 
-          const matchesFilter = config.imap.senderFilter.length === 0 ||
-            config.imap.senderFilter.some(filter =>
-              fromAddress.toLowerCase().includes(filter) || subject.toLowerCase().includes(filter)
-            );
+          const matchesFilter = matchesAdminSenderFilter(fromAddress, subject, bodyText);
 
           if (matchesFilter) {
             const paymentData = parsePaymentEmail(subject, bodyText, emailDate, config.merchant?.upiProvider || 'AUTO');
@@ -207,7 +234,7 @@ async function scanSingleMerchant(merchant, client) {
       const status = await client.status(config.imap.mailbox || 'INBOX', { messages: true });
       const total = status.messages || 0;
       if (total > 0) {
-        const startSeq = Math.max(1, total - 7);
+        const startSeq = Math.max(1, total - 24); // last 25 emails (was 8: payment mail got buried/missed)
         for await (const message of client.fetch(`${startSeq}:${total}`, { source: true, envelope: true })) {
           const parsed = await simpleParser(message.source);
           const subject = parsed.subject || '';
@@ -822,11 +849,9 @@ async function fetchAndProcessLatestMessage(imapClient, io) {
 
     console.log(`[IMAP] Incoming email from: "${fromAddress}", Subject: "${subject}"`);
 
-    // Check sender filter
-    const matchesFilter = config.imap.senderFilter.length === 0 ||
-      config.imap.senderFilter.some(filter =>
-        fromAddress.toLowerCase().includes(filter) || subject.toLowerCase().includes(filter)
-      );
+    // Check sender filter (broadened: supported payment alerts from
+    // Paytm/PhonePe/banks are not dropped by the FamPay-only filter)
+    const matchesFilter = matchesAdminSenderFilter(fromAddress, subject, bodyText);
 
     if (!matchesFilter) {
       console.log(`[IMAP] Skipped (does not match filter: ${config.imap.senderFilter.join(', ')})`);
