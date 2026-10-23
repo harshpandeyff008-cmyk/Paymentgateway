@@ -56,7 +56,7 @@ async function bootstrap() {
   startExpiryCleaner(io, 30000);
 
   // 7. Start listening on configured port (and secondary port for cloud PaaS proxy compatibility)
-  const primaryPort = config.port || 10000;
+  const primaryPort = parseInt(process.env.PORT, 10) || config.port || 10000;
   const secondaryPort = primaryPort === 10000 ? 3000 : 10000;
 
   server.listen(primaryPort, '0.0.0.0', async () => {
