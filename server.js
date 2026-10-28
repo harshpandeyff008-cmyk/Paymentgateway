@@ -42,7 +42,17 @@ async function bootstrap() {
   // 5. Attach Socket.IO to HTTP Server
   io = new Server(server, {
     cors: {
-      origin: (origin, callback) => callback(null, true),
+      origin: [
+        'https://freefireofficial.in',
+        'https://www.freefireofficial.in',
+        'https://dealsbyshiv.web.app',
+        'https://dealsbyshiv.firebaseapp.com',
+        'https://ff-store-4a61e.web.app',
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:3000'
+      ],
       credentials: true
     }
   });

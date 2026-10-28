@@ -45,8 +45,22 @@ export function createApp(io = null) {
         'http://127.0.0.1:3000'
       ]).map(s => s.trim().replace(/\/+$/, '').toLowerCase());
 
-      // Always permit cross-origin requests for merchant stores (orders API is protected by x-api-key and domain binding)
-      callback(null, true);
+      const isAllowed = dynamicAllowed.some(allowed => {
+        return normalized === allowed;
+      }) ||
+      normalized === 'https://freefireofficial.in' ||
+      normalized === 'https://www.freefireofficial.in' ||
+      normalized === 'https://dealsbyshiv.web.app' ||
+      normalized === 'https://dealsbyshiv.firebaseapp.com' ||
+      normalized === 'https://ff-store-4a61e.web.app' ||
+      normalized.includes('localhost') ||
+      normalized.includes('127.0.0.1');
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
